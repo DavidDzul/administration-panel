@@ -1,0 +1,18 @@
+:root {
+  --font-display: system-ui, sans-serif;
+}
+
+html {
+  overflow-y: auto;
+  background-color: #f1f5f8;
+
+  font-family: system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container__main {
+  height: calc(100svh - var(--v-layout-top));
+  overflow-y: auto;
+  padding-top: 8px;
+}
