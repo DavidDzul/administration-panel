@@ -47,6 +47,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Router guard tests lazy-load real .vue SFCs (AdminLayout/HomeView with
+    // Vuetify components) as part of vue-router's navigation resolution; a
+    // cold compile of that chain can exceed Vitest's 5s default.
+    testTimeout: 20000,
     server: {
       deps: {
         inline: ["vuetify"],
