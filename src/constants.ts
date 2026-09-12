@@ -30,4 +30,9 @@ export const becTypeArray: SelectOption[] = [
 // this object + the seeder.
 export const PERMISSIONS = {
   READ_USERS: 'ADM_READ_USERS',
+  // Read/write split for `scholarship_payment_data` (becario payment config)
+  // — mirrors the ADM_<ACTION>_<RESOURCE> naming precedent above; see design
+  // D5 (sdd/becarios-payment-config) for the read/edit split rationale.
+  READ_PAYMENT_DATA: 'ADM_READ_PAYMENT_DATA',
+  EDIT_PAYMENT_DATA: 'ADM_EDIT_PAYMENT_DATA',
 } as const

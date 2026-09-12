@@ -146,6 +146,11 @@ export const useAuthStore = defineStore('authStore', () => {
   // fetches (users + graduates) — see constants.ts PERMISSIONS module.
   const readUsers = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_USERS))
 
+  // Read/write split for scholarship_payment_data — mirrors readUsers
+  // exactly (design D5, sdd/becarios-payment-config).
+  const readPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_PAYMENT_DATA))
+  const editPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.EDIT_PAYMENT_DATA))
+
   return {
     login,
     logout,
@@ -160,5 +165,7 @@ export const useAuthStore = defineStore('authStore', () => {
     permissions,
     filteredCampus,
     readUsers,
+    readPaymentData,
+    editPaymentData,
   }
 })

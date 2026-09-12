@@ -309,4 +309,34 @@ describe('authStore', () => {
 
     expect(authStore.filteredCampus).toEqual([])
   })
+
+  // Task 2.4 (PR2) — readPaymentData / editPaymentData additions, mirroring
+  // readUsers exactly. Pure computed properties: no axios calls involved.
+  it('readPaymentData is true when permissions include ADM_READ_PAYMENT_DATA', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.READ_PAYMENT_DATA]
+
+    expect(authStore.readPaymentData).toBe(true)
+  })
+
+  it('readPaymentData is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.readPaymentData).toBe(false)
+  })
+
+  it('editPaymentData is true when permissions include ADM_EDIT_PAYMENT_DATA', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.EDIT_PAYMENT_DATA]
+
+    expect(authStore.editPaymentData).toBe(true)
+  })
+
+  it('editPaymentData is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.editPaymentData).toBe(false)
+  })
 })

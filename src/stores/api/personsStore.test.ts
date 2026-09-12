@@ -91,4 +91,31 @@ describe('personsStore', () => {
     await expect(store.fetchPersons()).resolves.toBe(false)
     expect(store.allPersons.size).toBe(0)
   })
+
+  // Task 2.6 (PR2) — showPerson(id) only, per design D6. Fetches a single
+  // person's identity data for the detail view's hard-reload case. Matches
+  // UserController::show's real `{ user: ... }` envelope (verified by
+  // reading impulsou-api's controller directly, not the `{res, users}`
+  // shape used by `index()`).
+  it('showPerson fetches api/admin/users/{id} and returns the person', async () => {
+    const person = buildPerson({ id: 5 })
+    mockAxiosGet.mockResolvedValueOnce({ data: { user: person } })
+
+    const store = usePersonsStore()
+    const result = await store.showPerson(5)
+
+    expect(mockAxiosGet).toHaveBeenCalledWith('api/admin/users/5', {
+      headers: { accept: 'application/json' },
+    })
+    expect(result).toEqual(person)
+  })
+
+  it('showPerson returns null and does not throw when the request fails', async () => {
+    mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
+
+    const store = usePersonsStore()
+    const result = await store.showPerson(5)
+
+    expect(result).toBeNull()
+  })
 })

@@ -2,7 +2,7 @@ import axios from '@/axiosConfig'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Person } from '@/interfaces/user'
-import type { PersonsResponse, GraduatesResponse } from '@/interfaces/api'
+import type { PersonsResponse, GraduatesResponse, PersonResponse } from '@/interfaces/api'
 
 export const usePersonsStore = defineStore('personsStore', () => {
   const allPersons = ref<Map<number, Person>>(new Map())
@@ -41,8 +41,27 @@ export const usePersonsStore = defineStore('personsStore', () => {
     }
   }
 
+  // D6 (sdd/becarios-payment-config): the ONLY addition this store gains for
+  // the payment-config feature — read-only, per this store's documented
+  // invariant (no create/update/show for payment data lives here; that's
+  // paymentDataStore's job). Used by the detail view's hard-reload case,
+  // when `allPersons` is still an empty Map. Matches `UserController::show`'s
+  // real `{ user: ... }` envelope (verified directly against the controller).
+  const showPerson = async (id: number): Promise<Person | null> => {
+    try {
+      const res = await axios.get<PersonResponse>(`api/admin/users/${id}`, {
+        headers: { accept: 'application/json' },
+      })
+      return res.data.user
+    } catch (error: unknown) {
+      console.error('Error al cargar la persona:', error)
+      return null
+    }
+  }
+
   return {
     allPersons,
     fetchPersons,
+    showPerson,
   }
 })
