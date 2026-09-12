@@ -71,6 +71,11 @@ const routes = [
         name: 'PersonsView',
         component: () => catchReload(import('@/views/users/PersonsView.vue')),
       },
+      {
+        path: '/becarios/:id',
+        name: 'PersonDetailsView',
+        component: () => catchReload(import('@/views/users/PersonDetailsView.vue')),
+      },
     ],
   },
   {

@@ -94,4 +94,28 @@ describe('router auth guard', () => {
     expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
     expect(router.currentRoute.value.path).toBe('/becarios')
   })
+
+  // /becarios/:id (PersonDetailsView) is a sibling child of /becarios under
+  // the same requiresAuth-gated `/` route (AdminLayout) — same inherited-meta
+  // reasoning as the /becarios tests above.
+  it('redirects unauthenticated access to /becarios/:id to /auth/login', async () => {
+    await router.push('/becarios/5')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /becarios/:id when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/becarios/5')
+
+    expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
+    expect(router.currentRoute.value.path).toBe('/becarios/5')
+    expect(router.currentRoute.value.name).toBe('PersonDetailsView')
+    expect(router.currentRoute.value.params.id).toBe('5')
+  })
 })
