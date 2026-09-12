@@ -92,13 +92,17 @@
     </template>
 
     <!--
-      D6: eye/pencil are always rendered, always :disabled, never emit — a
-      disabled control cannot fire a click, so no @click/emit exists at all.
-      Each icon is wrapped in a <span> because Vuetify's disabled v-btn sets
-      `pointer-events: none`, which otherwise silently suppresses the
-      v-tooltip activator's hover trigger — a well-known Vuetify gotcha.
+      D6/PR3b (sdd/becarios-payment-config): eye is always enabled — it only
+      navigates to the read-only detail view, gated at a higher level by the
+      table even being visible (canRead). Pencil is gated on `canEdit`
+      (authStore.editPaymentData) since it opens the payment-data edit
+      dialog, a write action. Each icon stays wrapped in a <span> because
+      Vuetify's disabled v-btn sets `pointer-events: none`, which otherwise
+      silently suppresses the v-tooltip activator's hover trigger — a
+      well-known Vuetify gotcha, still relevant now that pencil can be
+      conditionally disabled.
     -->
-    <template #[`item.actions`]="{ }">
+    <template #[`item.actions`]="{ item }">
       <div style="width: 100%; text-align: right">
         <v-tooltip text="Editar" location="bottom">
           <template v-slot:activator="{ props: tooltipProps }">
@@ -110,7 +114,8 @@
                 icon="mdi-pencil"
                 class="mr-2"
                 size="small"
-                disabled
+                :disabled="!canEdit"
+                @click="emit('edit', item)"
               ></v-btn>
             </span>
           </template>
@@ -125,7 +130,7 @@
                 icon="mdi-eye"
                 class="mr-2"
                 size="small"
-                disabled
+                @click="router.push(`/becarios/${item.id}`)"
               ></v-btn>
             </span>
           </template>
@@ -138,6 +143,7 @@
 
 <script setup lang="ts">
 import { computed, ref, mergeProps, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Person, PersonType } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
 import type { SelectOption } from '@/constants'
@@ -148,6 +154,11 @@ interface Props {
   loading?: boolean
   generations?: Generation[]
   campusOptions?: SelectOption[]
+  // Gates the pencil (payment-data edit) icon only — mirrors
+  // authStore.editPaymentData, threaded down from PersonsView (design D5/D7,
+  // sdd/becarios-payment-config). The eye icon is NOT gated by this prop —
+  // it only navigates to the read-only detail view.
+  canEdit?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -155,7 +166,15 @@ const props = withDefaults(defineProps<Props>(), {
   loading: false,
   generations: () => [],
   campusOptions: () => [],
+  canEdit: false,
 })
+
+interface Emits {
+  (e: 'edit', person: Person): void
+}
+
+const emit = defineEmits<Emits>()
+const router = useRouter()
 
 const search = ref('')
 const generation_id = ref<number | null>(null)

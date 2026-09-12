@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { ref } from 'vue'
@@ -38,7 +39,16 @@ vi.mock('@/composables/usePersonsPage', () => ({
   }),
 }))
 
+// authStore.ts calls `useRouter()` unconditionally in its setup — PersonsView
+// now depends on authStore (editPaymentData), so this needs the same guard
+// UsersTable.test.ts / authStore.test.ts already use.
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 import PersonsView from '@/views/users/PersonsView.vue'
+import UsersTable from '@/components/users/UsersTable.vue'
+import { useAuthStore } from '@/stores/api/authStore'
 
 const vuetify = createVuetify()
 
@@ -56,10 +66,28 @@ const buildPerson = (overrides: Partial<Person> = {}): Person => ({
   ...overrides,
 })
 
-const mountView = () => mount(PersonsView, { global: { plugins: [vuetify] } })
+// PaymentDataDialog performs its own store call on open (watch immediate) —
+// stubbed here so this view's suite stays a lightweight wiring smoke test;
+// PaymentDataDialog's own behavior is covered by PaymentDataDialog.test.ts.
+const mountView = () =>
+  mount(PersonsView, {
+    global: {
+      plugins: [vuetify],
+      stubs: {
+        PaymentDataDialog: {
+          name: 'PaymentDataDialog',
+          props: ['modelValue', 'userId'],
+          emits: ['update:modelValue', 'saved'],
+          template:
+            '<div class="payment-data-dialog-stub" v-if="modelValue">{{ userId }}<button @click="$emit(\'saved\')">save</button></div>',
+        },
+      },
+    },
+  })
 
 describe('PersonsView — smoke (loading / error / populated states)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     persons.value = []
     generations.value = []
     filteredCampus.value = []
@@ -88,5 +116,59 @@ describe('PersonsView — smoke (loading / error / populated states)', () => {
     const wrapper = mountView()
 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(true)
+  })
+})
+
+// PR3b (sdd/becarios-payment-config): PersonsView hosts the SAME
+// PaymentDataDialog used by PaymentDataCard (design D7) — one dialog, two
+// entry points. This suite covers only the wiring: UsersTable's `edit` emit
+// opens it with the right user id, and `@saved` closes it again.
+describe('PersonsView — PaymentDataDialog wiring (PR3b)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    persons.value = [buildPerson({ id: 8 })]
+    generations.value = []
+    filteredCampus.value = []
+    loadingTable.value = false
+    loadError.value = false
+    canRead.value = true
+  })
+
+  it('threads authStore.editPaymentData into UsersTable as canEdit', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = ['ADM_EDIT_PAYMENT_DATA']
+
+    const wrapper = mountView()
+    const table = wrapper.findComponent(UsersTable)
+
+    expect(table.props('canEdit')).toBe(true)
+  })
+
+  it('opens PaymentDataDialog with the edited person\'s id when UsersTable emits "edit"', async () => {
+    const wrapper = mountView()
+    const table = wrapper.findComponent(UsersTable)
+
+    expect(wrapper.find('.payment-data-dialog-stub').exists()).toBe(false)
+
+    table.vm.$emit('edit', buildPerson({ id: 8 }))
+    await wrapper.vm.$nextTick()
+
+    const dialogStub = wrapper.find('.payment-data-dialog-stub')
+    expect(dialogStub.exists()).toBe(true)
+    expect(dialogStub.text()).toContain('8')
+  })
+
+  it('closes the dialog when it emits "saved"', async () => {
+    const wrapper = mountView()
+    const table = wrapper.findComponent(UsersTable)
+
+    table.vm.$emit('edit', buildPerson({ id: 8 }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.payment-data-dialog-stub').exists()).toBe(true)
+
+    await wrapper.find('.payment-data-dialog-stub button').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.payment-data-dialog-stub').exists()).toBe(false)
   })
 })

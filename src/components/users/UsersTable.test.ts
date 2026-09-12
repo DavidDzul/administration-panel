@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { VBtn, VSelect } from 'vuetify/components'
@@ -7,6 +7,15 @@ import UsersTable from '@/components/users/UsersTable.vue'
 import type { Person } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
 import { campusArray } from '@/constants'
+
+// PR3b (sdd/becarios-payment-config): the eye icon now navigates via
+// `router.push` — mirrors authStore.test.ts's `vi.mock('vue-router', ...)`
+// pattern rather than mounting a real router, since this component only
+// needs `push` to be observable, not real navigation.
+const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }))
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+}))
 
 // v-menu/v-tooltip content teleports/lazily renders — same jsdom shims used
 // elsewhere in this codebase (e.g. AprobacionRefrendTable.test.ts in
@@ -43,9 +52,9 @@ const generations: Generation[] = [
   { id: 2, campus: 'VALLADOLID', generation_active: true, generation_name: 'Gen Valladolid' },
 ]
 
-const mountTable = (persons: Person[] = [buildPerson()]) =>
+const mountTable = (persons: Person[] = [buildPerson()], canEdit = false) =>
   mount(UsersTable, {
-    props: { persons, generations, campusOptions: campusArray },
+    props: { persons, generations, campusOptions: campusArray, canEdit },
     global: { plugins: [vuetify] },
   })
 
@@ -132,22 +141,49 @@ describe('UsersTable — filters narrow the result set (spec: "Sede filter narro
   })
 })
 
-describe('UsersTable — stubbed eye/pencil actions (D6)', () => {
-  it('renders exactly one disabled eye and one disabled pencil icon, and neither emits on click', async () => {
-    const wrapper = mountTable([buildPerson()])
+describe('UsersTable — eye navigation and pencil edit emit (PR3b, sdd/becarios-payment-config)', () => {
+  beforeEach(() => {
+    mockPush.mockReset()
+  })
+
+  it('eye icon is always enabled and navigates to /becarios/:id on click, regardless of canEdit', async () => {
+    const person = buildPerson({ id: 7 })
+    const wrapper = mountTable([person], false)
 
     const eyeButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-eye')
-    const pencilButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-pencil')
-
     expect(eyeButtons).toHaveLength(1)
-    expect(pencilButtons).toHaveLength(1)
-    expect(eyeButtons[0].props('disabled')).toBe(true)
-    expect(pencilButtons[0].props('disabled')).toBe(true)
+    expect(eyeButtons[0].props('disabled')).toBeFalsy()
 
     await eyeButtons[0].trigger('click')
+
+    expect(mockPush).toHaveBeenCalledWith('/becarios/7')
+  })
+
+  // This is the regression guard for the prior fully-inert state: against
+  // the old always-`disabled` pencil (D6), this assertion would have failed
+  // because the button could never receive a click / never emit.
+  it('pencil icon is enabled and emits "edit" with the row person when canEdit is true', async () => {
+    const person = buildPerson({ id: 3 })
+    const wrapper = mountTable([person], true)
+
+    const pencilButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-pencil')
+    expect(pencilButtons).toHaveLength(1)
+    expect(pencilButtons[0].props('disabled')).toBeFalsy()
+
     await pencilButtons[0].trigger('click')
 
-    expect(wrapper.emitted()).toEqual({})
+    expect(wrapper.emitted('edit')).toEqual([[person]])
+  })
+
+  it('pencil icon is disabled when canEdit is false (default) and does not emit on click', async () => {
+    const wrapper = mountTable([buildPerson()], false)
+
+    const pencilButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-pencil')
+    expect(pencilButtons[0].props('disabled')).toBe(true)
+
+    await pencilButtons[0].trigger('click')
+
+    expect(wrapper.emitted('edit')).toBeUndefined()
   })
 
   it('renders no delete icon anywhere', () => {

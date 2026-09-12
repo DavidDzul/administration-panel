@@ -50,10 +50,21 @@ const buildPerson = (overrides: Partial<Person> = {}): Person => ({
   ...overrides,
 })
 
+// PaymentDataCard performs its own API calls on mount (autonomous, design
+// D6/D7) — stubbed here so this view's suite stays a lightweight smoke test
+// of layout/state wiring; PaymentDataCard's own behavior is covered by
+// PaymentDataCard.test.ts.
 const mountView = () =>
   mount(PersonDetailsView, {
     global: {
       plugins: [vuetify],
+      stubs: {
+        PaymentDataCard: {
+          name: 'PaymentDataCard',
+          template: '<div class="payment-data-card-stub">{{ userId }}</div>',
+          props: ['userId'],
+        },
+      },
     },
   })
 
@@ -100,5 +111,18 @@ describe('PersonDetailsView — smoke (loading / error / loaded states)', () => 
     expect(wrapper.text()).not.toContain('Calificaciones')
     expect(wrapper.text()).not.toContain('Documentos')
     expect(wrapper.text()).not.toContain('Historial')
+  })
+
+  // PR3b (sdd/becarios-payment-config): replaces the
+  // `data-testid="payment-data-panel-placeholder"` div from PR3a with the
+  // real card, mounted inside the single "Datos de pago" panel.
+  it('mounts PaymentDataCard with the loaded person id inside the "Datos de pago" panel', () => {
+    selectedPerson.value = buildPerson({ id: 42 })
+    const wrapper = mountView()
+
+    expect(wrapper.find('[data-testid="payment-data-panel-placeholder"]').exists()).toBe(false)
+    const cardStub = wrapper.find('.payment-data-card-stub')
+    expect(cardStub.exists()).toBe(true)
+    expect(cardStub.text()).toBe('42')
   })
 })

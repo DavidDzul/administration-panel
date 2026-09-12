@@ -56,7 +56,7 @@
         <v-expansion-panels model-value="0">
           <v-expansion-panel title="Datos de pago">
             <v-expansion-panel-text>
-              <div data-testid="payment-data-panel-placeholder"></div>
+              <PaymentDataCard :user-id="selectedPerson.id" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -68,6 +68,7 @@
 <script setup lang="ts">
 import { usePersonDetailsPage } from '@/composables/usePersonDetailsPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
+import PaymentDataCard from '@/components/users/PaymentDataCard.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
 const { selectedPerson, loading, loadError } = usePersonDetailsPage()
