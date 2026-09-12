@@ -70,4 +70,28 @@ describe('router auth guard', () => {
     expect(router.currentRoute.value.path).toBe('/404')
     expect(mockGetProfile).not.toHaveBeenCalled()
   })
+
+  // /becarios is a child of the requiresAuth-gated `/` route (AdminLayout),
+  // same as Inicio — vue-router merges parent meta into child routes, so it
+  // inherits `requiresAuth` without needing its own meta entry. Matches
+  // psicol-panel's actual router, which also gates only at the `/` group
+  // level and leaves per-route permission checks to NavMenu's `can()`.
+  it('redirects unauthenticated access to /becarios to /auth/login', async () => {
+    await router.push('/becarios')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /becarios when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/becarios')
+
+    expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
+    expect(router.currentRoute.value.path).toBe('/becarios')
+  })
 })

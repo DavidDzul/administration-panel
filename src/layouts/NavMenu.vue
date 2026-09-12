@@ -1,10 +1,34 @@
 <template>
   <v-list density="compact" nav class="nav-list">
     <v-list-item to="/" title="Inicio" prepend-icon="mdi-home" class="nav-item" exact />
+
+    <v-list-group v-if="can(PERMISSIONS.READ_USERS)" value="Usuarios">
+      <template #activator="{ props }">
+        <v-list-item
+          v-bind="props"
+          title="Usuarios"
+          prepend-icon="mdi-account-multiple"
+          class="nav-item"
+        />
+      </template>
+
+      <v-list-item to="/becarios" title="Becarios y egresados" density="compact" class="nav-subitem" />
+    </v-list-group>
   </v-list>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '@/stores/api/authStore'
+import { PERMISSIONS } from '@/constants'
+
+// Single sub-item under "Usuarios" (per spec's YAGNI resolution) — the group
+// is gated directly off ADM_READ_USERS, with no separate group-level
+// permission.
+const { permissions } = storeToRefs(useAuthStore())
+
+const can = (permission: string): boolean => permissions.value.includes(permission)
+</script>
 
 <style lang="scss" scoped>
 .nav-list {
@@ -38,6 +62,29 @@
 .nav-item:hover :deep(.v-icon) {
   color: #275ffc;
 }
+.nav-subitem {
+  padding-left: 36px !important;
+  min-height: 34px !important;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+.nav-subitem :deep(.v-list-item-title) {
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #000000;
+  transition: color 0.15s ease;
+}
+.nav-subitem:hover {
+  background: rgba(39, 95, 252, 0.06);
+}
+.nav-subitem:hover :deep(.v-list-item-title) {
+  color: #275ffc;
+}
+
+:deep(.v-list-group) {
+  margin-bottom: 4px;
+}
+
 :deep(.v-list-item--active) {
   background: rgba(39, 95, 252, 0.08) !important;
   position: relative;
