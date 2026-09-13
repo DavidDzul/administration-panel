@@ -53,12 +53,16 @@ const links: LinkInterface[] = [
 
 const createDialogOpen = ref(false)
 
-// No explicit re-fetch call is needed here: rolesStore.createRole already
-// inserts the new role into the shared `allRoles` Map (see rolesStore.ts),
-// and `roles` (from useRolesPage) is a computed view over that exact same
-// reactive Map — so the table reflects the new role as soon as the dialog's
-// own `createRole` call resolves. This mirrors the convention
-// syncRolePermissions already established (no re-fetch there either).
+// No explicit re-fetch: rolesStore.createRole's local `allRoles.value.set()`
+// reaches this table reactively via storeToRefs + computed — verified with a
+// real (unmocked) mount + real Pinia store, not just a store-state
+// assertion. A live "table stays stale until reload" report traced to a
+// DIFFERENT bug: AdministrationRoleController::store() wasn't eager-loading
+// `permissions`, so the newly-inserted role's `permissions` was `undefined`
+// and RolesTable.vue's `item.permissions.length` threw — a caught runtime
+// error can visually look identical to "nothing updated." Fixed server-side
+// (store() now sets the relation explicitly, matching every other read
+// path) rather than papering over it with a redundant network round trip.
 const onCreated = (): void => {
   createDialogOpen.value = false
 }

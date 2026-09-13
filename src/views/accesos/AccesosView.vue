@@ -53,13 +53,10 @@ const links: LinkInterface[] = [
 
 const createDialogOpen = ref(false)
 
-// No explicit re-fetch call is needed here: administratorsStore.createAdministrator
-// already inserts the new administrator into the shared `allAdministrators`
-// Map (see administratorsStore.ts), and `administrators` (from
-// useAccesosPage) is a computed view over that exact same reactive Map — so
-// the table reflects the new administrator as soon as the dialog's own
-// `createAdministrator` call resolves. Mirrors RolesView.vue's identical
-// PR6b precedent (no separate re-fetch there either).
+// No explicit re-fetch — see RolesView.vue's identical note for the full
+// rationale. The equivalent bug here (AdministratorController::store() not
+// eager-loading `roles`, crashing AccesosTable.vue's
+// `item.roles[0]?.name`) is fixed server-side.
 const onCreated = (): void => {
   createDialogOpen.value = false
 }

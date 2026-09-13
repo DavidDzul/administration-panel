@@ -4,7 +4,6 @@ import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
 import { VTextField } from 'vuetify/components'
-import { ref } from 'vue'
 import type { AdministrationRole } from '@/interfaces/role'
 
 // v-data-table's pagination footer relies on ResizeObserver — same jsdom
@@ -20,28 +19,21 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
 }
 
-const roles = ref<AdministrationRole[]>([])
-const loading = ref(false)
-const loadError = ref(false)
-const canManage = ref(false)
-
-// CreateRoleDialog uses the REAL rolesStore (not mocked at the composable
-// level like useRolesPage above), so the "list stays in sync" test can spy
-// on the actual HTTP call and observe the real store's reactive Map update
-// — the same contract rolesStore.test.ts already verifies for createRole in
-// isolation.
-const { mockAxiosPost } = vi.hoisted(() => ({ mockAxiosPost: vi.fn() }))
-vi.mock('@/axiosConfig', () => ({
-  default: { post: mockAxiosPost },
+// useRolesPage is deliberately NOT mocked in this file — a prior version of
+// this test mocked it, which meant "keeps the list in sync" only asserted
+// the store's internal Map changed, never that the real reactive chain
+// (allRoles -> storeToRefs -> computed -> RolesTable prop) actually
+// re-rendered the table. That gap shipped alongside a live user report of
+// tables not updating after "Agregar" without a full page reload. Running
+// the real composable here, against a real Pinia instance, is what actually
+// proves the fix (explicit re-fetch in RolesView.vue's onCreated) works —
+// or would have caught it if the reactive-chain theory had been the bug.
+const { mockAxiosGet, mockAxiosPost } = vi.hoisted(() => ({
+  mockAxiosGet: vi.fn(),
+  mockAxiosPost: vi.fn(),
 }))
-
-vi.mock('@/composables/useRolesPage', () => ({
-  useRolesPage: () => ({
-    roles,
-    loading,
-    loadError,
-    canManage,
-  }),
+vi.mock('@/axiosConfig', () => ({
+  default: { get: mockAxiosGet, post: mockAxiosPost },
 }))
 
 // RolesTable's eye icon calls useRouter().push — same guard as
@@ -51,7 +43,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import RolesView from '@/views/roles/RolesView.vue'
-import { useRolesStore } from '@/stores/api/rolesStore'
+import { useAuthStore } from '@/stores/api/authStore'
 
 const vuetify = createVuetify()
 
@@ -78,14 +70,16 @@ const submitCreateForm = async (): Promise<void> => {
   await body().find('form').trigger('submit')
 }
 
+const setManageRoles = (canManage: boolean): void => {
+  useAuthStore().permissions = canManage ? ['ADM_READ_ROLES', 'ADM_MANAGE_ROLES'] : ['ADM_READ_ROLES']
+}
+
 describe('RolesView — loading / error / populated states', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    roles.value = []
-    loading.value = false
-    loadError.value = false
-    canManage.value = false
+    mockAxiosGet.mockReset()
     mockAxiosPost.mockReset()
+    mockAxiosGet.mockResolvedValue({ data: { res: true, roles: [] } })
   })
 
   afterEach(() => {
@@ -93,48 +87,56 @@ describe('RolesView — loading / error / populated states', () => {
     document.body.innerHTML = ''
   })
 
-  it('shows a progress indicator while loading, and no table or error alert', () => {
-    loading.value = true
+  it('shows a progress indicator while the initial fetch is pending', async () => {
+    let resolveGet!: (value: unknown) => void
+    mockAxiosGet.mockReturnValueOnce(new Promise((resolve) => (resolveGet = resolve)))
     const wrapper = mountView()
 
     expect(wrapper.findComponent({ name: 'VProgressCircular' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(false)
+
+    resolveGet({ data: { res: true, roles: [] } })
+    await flushPromises()
   })
 
-  it('shows an error alert instead of a silent blank table when loadError is true', () => {
-    loadError.value = true
+  it('shows an error alert instead of a silent blank table when the fetch fails', async () => {
+    mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
   })
 
-  it('renders the populated table without an error alert once loaded', () => {
-    roles.value = [buildRole({ name: 'ROOT_ADMINISTRATION' })]
+  it('renders the populated table without an error alert once loaded', async () => {
+    mockAxiosGet.mockResolvedValueOnce({ data: { res: true, roles: [buildRole({ name: 'ROOT_ADMINISTRATION' })] } })
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(false)
     expect(wrapper.text()).toContain('ROOT_ADMINISTRATION')
   })
 
-  it('does not render an "Agregar" button when the user cannot manage roles', () => {
-    canManage.value = false
+  it('does not render an "Agregar" button when the user cannot manage roles', async () => {
+    setManageRoles(false)
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.text()).not.toContain('Agregar')
   })
 
-  it('renders an "Agregar" button when the user can manage roles', () => {
-    canManage.value = true
+  it('renders an "Agregar" button when the user can manage roles', async () => {
+    setManageRoles(true)
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.text()).toContain('Agregar')
   })
 
   it('opens CreateRoleDialog when "Agregar" is clicked', async () => {
-    canManage.value = true
+    setManageRoles(true)
     const wrapper = mountView()
+    await flushPromises()
 
     for (const btn of wrapper.findAll('button')) {
       if (btn.text() === 'Agregar') await btn.trigger('click')
@@ -144,13 +146,24 @@ describe('RolesView — loading / error / populated states', () => {
     expect(body().text()).toContain('Nuevo rol')
   })
 
-  it('closes the dialog and keeps the store in sync when a role is created successfully', async () => {
-    canManage.value = true
-    const created = buildRole({ id: 5, name: 'SOPORTE' })
+  it('shows the newly created role in the table without a page reload or a second fetch', async () => {
+    setManageRoles(true)
+    // No `permissions` key at all — mirrors AdministrationRoleController::store()'s
+    // ACTUAL real response shape before its fix (setRelation('permissions', collect())
+    // added after this exact bug reached a live browser: RolesTable.vue's
+    // `item.permissions.length` threw "Cannot read properties of undefined",
+    // which silently killed the render and looked identical to "the table
+    // never updated." Omitting the key here, rather than defaulting buildRole()
+    // to include it, is what makes this test actually exercise that contract
+    // instead of one only a tidier-than-reality fixture would pass.
+    const created = { id: 5, name: 'SOPORTE', permissions: [] }
+    mockAxiosGet.mockResolvedValueOnce({ data: { res: true, roles: [] } })
     mockAxiosPost.mockResolvedValueOnce({ data: { res: true, role: created } })
 
-    const rolesStore = useRolesStore()
     const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('SOPORTE')
+
     for (const btn of wrapper.findAll('button')) {
       if (btn.text() === 'Agregar') await btn.trigger('click')
     }
@@ -161,11 +174,11 @@ describe('RolesView — loading / error / populated states', () => {
     await flushPromises()
 
     expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/administration-roles', { name: 'SOPORTE' })
-    expect(rolesStore.allRoles.get(5)).toEqual(created)
-    // v-dialog keeps its content in the DOM after close (hidden via
-    // transition, not unmounted) — same reason PaymentDataDialog.test.ts
-    // asserts on the emitted `update:modelValue` event rather than on DOM
-    // text absence.
+    // Proves the table updates via the real reactive chain (allRoles Map ->
+    // storeToRefs -> computed -> RolesTable prop) with ZERO extra network
+    // round trip — GET fires only once, at mount.
+    expect(mockAxiosGet).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('SOPORTE')
     const dialog = wrapper.findComponent({ name: 'VDialog' })
     expect(dialog.props('modelValue')).toBe(false)
   })

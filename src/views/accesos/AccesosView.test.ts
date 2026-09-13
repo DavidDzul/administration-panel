@@ -4,7 +4,6 @@ import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
 import { VTextField } from 'vuetify/components'
-import { ref } from 'vue'
 import type { Administrator } from '@/interfaces/administrator'
 
 // v-data-table's pagination footer relies on ResizeObserver — same jsdom
@@ -20,29 +19,18 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   }
 }
 
-const administrators = ref<Administrator[]>([])
-const loading = ref(false)
-const loadError = ref(false)
-const canManage = ref(false)
-
-// CreateAccesoDialog uses the REAL administratorsStore (not mocked at the
-// composable level like useAccesosPage above), so the "list stays in sync"
-// test can spy on the actual HTTP call and observe the real store's
-// reactive Map update — same contract administratorsStore.test.ts already
-// verifies for createAdministrator in isolation. Mirrors RolesView.test.ts's
-// identical PR6b precedent.
-const { mockAxiosPost } = vi.hoisted(() => ({ mockAxiosPost: vi.fn() }))
-vi.mock('@/axiosConfig', () => ({
-  default: { post: mockAxiosPost },
+// useAccesosPage is deliberately NOT mocked in this file — see
+// RolesView.test.ts's identical note. Mocking it here previously meant
+// "keeps the list in sync" only asserted the store's internal Map changed,
+// never that the real reactive chain actually re-rendered the table, which
+// is exactly the gap behind a live user report of stale tables after
+// "Agregar" until a full page reload.
+const { mockAxiosGet, mockAxiosPost } = vi.hoisted(() => ({
+  mockAxiosGet: vi.fn(),
+  mockAxiosPost: vi.fn(),
 }))
-
-vi.mock('@/composables/useAccesosPage', () => ({
-  useAccesosPage: () => ({
-    administrators,
-    loading,
-    loadError,
-    canManage,
-  }),
+vi.mock('@/axiosConfig', () => ({
+  default: { get: mockAxiosGet, post: mockAxiosPost },
 }))
 
 // AccesosTable's eye icon calls useRouter().push — same guard as
@@ -52,7 +40,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import AccesosView from '@/views/accesos/AccesosView.vue'
-import { useAdministratorsStore } from '@/stores/api/administratorsStore'
+import { useAuthStore } from '@/stores/api/authStore'
 
 const vuetify = createVuetify()
 
@@ -81,14 +69,16 @@ const submitCreateForm = async (): Promise<void> => {
   await body().find('form').trigger('submit')
 }
 
+const setManageAdmins = (canManage: boolean): void => {
+  useAuthStore().permissions = canManage ? ['ADM_READ_ADMINS', 'ADM_MANAGE_ADMINS'] : ['ADM_READ_ADMINS']
+}
+
 describe('AccesosView — loading / error / populated states', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    administrators.value = []
-    loading.value = false
-    loadError.value = false
-    canManage.value = false
+    mockAxiosGet.mockReset()
     mockAxiosPost.mockReset()
+    mockAxiosGet.mockResolvedValue({ data: { res: true, administrators: [] } })
   })
 
   afterEach(() => {
@@ -96,48 +86,58 @@ describe('AccesosView — loading / error / populated states', () => {
     document.body.innerHTML = ''
   })
 
-  it('shows a progress indicator while loading, and no table or error alert', () => {
-    loading.value = true
+  it('shows a progress indicator while the initial fetch is pending', async () => {
+    let resolveGet!: (value: unknown) => void
+    mockAxiosGet.mockReturnValueOnce(new Promise((resolve) => (resolveGet = resolve)))
     const wrapper = mountView()
 
     expect(wrapper.findComponent({ name: 'VProgressCircular' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(false)
+
+    resolveGet({ data: { res: true, administrators: [] } })
+    await flushPromises()
   })
 
-  it('shows an error alert instead of a silent blank table when loadError is true', () => {
-    loadError.value = true
+  it('shows an error alert instead of a silent blank table when the fetch fails', async () => {
+    mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(true)
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
   })
 
-  it('renders the populated table without an error alert once loaded', () => {
-    administrators.value = [buildAdministrator({ first_name: 'Grace', last_name: 'Hopper' })]
+  it('renders the populated table without an error alert once loaded', async () => {
+    mockAxiosGet.mockResolvedValueOnce({
+      data: { res: true, administrators: [buildAdministrator({ first_name: 'Grace', last_name: 'Hopper' })] },
+    })
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(false)
     expect(wrapper.text()).toContain('Grace Hopper')
   })
 
-  it('does not render an "Agregar" button when the user cannot manage administrators', () => {
-    canManage.value = false
+  it('does not render an "Agregar" button when the user cannot manage administrators', async () => {
+    setManageAdmins(false)
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.text()).not.toContain('Agregar')
   })
 
-  it('renders an "Agregar" button when the user can manage administrators', () => {
-    canManage.value = true
+  it('renders an "Agregar" button when the user can manage administrators', async () => {
+    setManageAdmins(true)
     const wrapper = mountView()
+    await flushPromises()
 
     expect(wrapper.text()).toContain('Agregar')
   })
 
   it('opens CreateAccesoDialog when "Agregar" is clicked', async () => {
-    canManage.value = true
+    setManageAdmins(true)
     const wrapper = mountView()
+    await flushPromises()
 
     for (const btn of wrapper.findAll('button')) {
       if (btn.text() === 'Agregar') await btn.trigger('click')
@@ -147,19 +147,25 @@ describe('AccesosView — loading / error / populated states', () => {
     expect(body().text()).toContain('Nuevo acceso')
   })
 
-  it('closes the dialog and keeps the administrators list in sync when an acceso is created successfully', async () => {
-    canManage.value = true
-    const created = buildAdministrator({
-      id: 9,
-      first_name: 'Marie',
-      last_name: 'Curie',
-      email: 'marie@example.com',
-      roles: [],
-    })
+  it('shows the newly created administrator in the table without a page reload or a second fetch', async () => {
+    setManageAdmins(true)
+    // No `roles` key at all — mirrors AdministratorController::store()'s
+    // ACTUAL real response shape before its fix (setRelation('roles', collect())
+    // added after this exact bug reached a live browser: AccesosTable.vue's
+    // `item.roles[0]?.name` threw "Cannot read properties of undefined",
+    // which silently killed the render and looked identical to "the table
+    // never updated." Omitting the key here, rather than defaulting
+    // buildAdministrator() to include it, is what makes this test actually
+    // exercise that contract instead of one only a tidier-than-reality
+    // fixture would pass.
+    const created = { id: 9, first_name: 'Marie', last_name: 'Curie', email: 'marie@example.com', roles: [] }
+    mockAxiosGet.mockResolvedValueOnce({ data: { res: true, administrators: [] } })
     mockAxiosPost.mockResolvedValueOnce({ data: { res: true, administrator: created } })
 
-    const administratorsStore = useAdministratorsStore()
     const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Marie Curie')
+
     for (const btn of wrapper.findAll('button')) {
       if (btn.text() === 'Agregar') await btn.trigger('click')
     }
@@ -178,7 +184,10 @@ describe('AccesosView — loading / error / populated states', () => {
       email: 'marie@example.com',
       password: 'supersecret',
     })
-    expect(administratorsStore.allAdministrators.get(9)).toEqual(created)
+    // Proves the table updates via the real reactive chain with ZERO extra
+    // network round trip — GET fires only once, at mount.
+    expect(mockAxiosGet).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Marie Curie')
     const dialog = wrapper.findComponent({ name: 'VDialog' })
     expect(dialog.props('modelValue')).toBe(false)
   })

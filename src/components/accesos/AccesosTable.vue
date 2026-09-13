@@ -5,7 +5,7 @@
     </template>
 
     <template #[`item.role`]="{ item }">
-      {{ item.roles[0]?.name ?? '—' }}
+      {{ item.roles?.[0]?.name ?? '—' }}
     </template>
 
     <!--

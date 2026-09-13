@@ -1,7 +1,7 @@
 <template>
   <v-data-table :headers="tableHeaders" :items="roles" class="elevation-1" :loading="loading" item-value="id">
     <template #[`item.permissionCount`]="{ item }">
-      {{ item.permissions.length }}
+      {{ item.permissions?.length ?? 0 }}
     </template>
 
     <!--
