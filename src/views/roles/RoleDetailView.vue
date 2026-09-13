@@ -29,16 +29,33 @@
     <v-card>
       <v-card-title>Permisos</v-card-title>
       <v-card-text>
-        <v-checkbox
-          v-for="permission in permissionsCatalog"
-          :key="permission.id"
-          v-model="checkedIds"
-          :label="permission.name"
-          :value="permission.id"
-          :disabled="!canManage"
-          hide-details
-          density="compact"
-        ></v-checkbox>
+        <template v-for="(group, index) in permissionsByModule" :key="group.module">
+          <div
+            class="text-caption text-medium-emphasis font-weight-medium mb-1"
+            :class="{ 'mt-4': index > 0 }"
+          >
+            {{ group.module }}
+          </div>
+
+          <v-checkbox
+            v-for="permission in group.permissions"
+            :key="permission.id"
+            v-model="checkedIds"
+            :value="permission.id"
+            :disabled="!canManage"
+            hide-details
+            density="compact"
+          >
+            <template v-slot:label>
+              <div>
+                <div>{{ permission.description || permission.name }}</div>
+                <div v-if="permission.description" class="text-caption text-medium-emphasis">
+                  {{ permission.name }}
+                </div>
+              </div>
+            </template>
+          </v-checkbox>
+        </template>
       </v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
@@ -68,7 +85,7 @@ import { useAlertStore } from '@/stores/alert'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
-const { role, permissionsCatalog, loading, loadError, canManage, savePermissions } = useRoleDetailPage()
+const { role, permissionsByModule, loading, loadError, canManage, savePermissions } = useRoleDetailPage()
 const { showAlert } = useAlertStore()
 
 const saving = ref(false)

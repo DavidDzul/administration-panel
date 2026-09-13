@@ -6,6 +6,12 @@
 export interface AdministrationPermission {
   id: number
   name: string
+  // Optional AND nullable by design (D2): optional covers a frontend build
+  // running against a pre-migration API (the rollback plan treats the two
+  // deploys as independent); nullable covers PS_*/client-tier rows that are
+  // never populated. Every read site must fall back — see D2.
+  description?: string | null
+  module?: string | null
 }
 
 export interface AdministrationRole {

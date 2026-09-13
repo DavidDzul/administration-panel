@@ -4,7 +4,7 @@ import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
 import { VCheckbox } from 'vuetify/components'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { AdministrationRole, AdministrationPermission } from '@/interfaces/role'
 
 // v-checkbox / v-data-table style Vuetify internals rely on ResizeObserver in
@@ -29,10 +29,37 @@ const loadError = ref(false)
 const canManage = ref(false)
 const savePermissions = vi.fn()
 
+// permission-descriptions-modules (design obs #1601): permissionsByModule is
+// what the view now consumes. Computed here (not a plain ref) so it reacts to
+// permissionsCatalog the same way the real composable's computed does —
+// mirrors the exact grouping/sort logic from useRoleDetailPage.ts so this
+// mock stays a faithful stand-in.
+const UNGROUPED_MODULE_LABEL = 'Otros'
+const permissionsByModule = computed(() => {
+  const groups = new Map<string, AdministrationPermission[]>()
+
+  for (const permission of permissionsCatalog.value) {
+    const module = permission.module?.trim() || UNGROUPED_MODULE_LABEL
+    const bucket = groups.get(module)
+
+    if (bucket) bucket.push(permission)
+    else groups.set(module, [permission])
+  }
+
+  return [...groups.entries()]
+    .map(([module, permissions]) => ({ module, permissions }))
+    .sort((a, b) => {
+      if (a.module === UNGROUPED_MODULE_LABEL) return 1
+      if (b.module === UNGROUPED_MODULE_LABEL) return -1
+      return a.module.localeCompare(b.module, 'es')
+    })
+})
+
 vi.mock('@/composables/useRoleDetailPage', () => ({
   useRoleDetailPage: () => ({
     role,
     permissionsCatalog,
+    permissionsByModule,
     loading,
     loadError,
     canManage,
@@ -51,8 +78,8 @@ const buildRole = (overrides: Partial<AdministrationRole> = {}): AdministrationR
 })
 
 const buildCatalog = (): AdministrationPermission[] => [
-  { id: 1, name: 'ADM_READ_ROLES' },
-  { id: 2, name: 'ADM_MANAGE_ROLES' },
+  { id: 1, name: 'ADM_READ_ROLES', module: 'Roles', description: 'Ver la lista de roles y sus permisos' },
+  { id: 2, name: 'ADM_MANAGE_ROLES', module: 'Roles', description: 'Crear roles y editar sus permisos' },
 ]
 
 const mountView = () =>
@@ -117,8 +144,8 @@ describe('RoleDetailView — loading / error / populated states', () => {
     const checkboxes = wrapper.findAllComponents(VCheckbox)
     expect(checkboxes).toHaveLength(2)
 
-    const readCheckbox = checkboxes.find((c) => c.props('label') === 'ADM_READ_ROLES')
-    const manageCheckbox = checkboxes.find((c) => c.props('label') === 'ADM_MANAGE_ROLES')
+    const readCheckbox = checkboxes.find((c) => c.props('value') === 1)
+    const manageCheckbox = checkboxes.find((c) => c.props('value') === 2)
 
     expect(readCheckbox?.find('input').element.checked).toBe(true)
     expect(manageCheckbox?.find('input').element.checked).toBe(false)
@@ -154,7 +181,7 @@ describe('RoleDetailView — loading / error / populated states', () => {
     savePermissions.mockResolvedValue(undefined)
 
     const wrapper = mountView()
-    const manageCheckbox = wrapper.findAllComponents(VCheckbox).find((c) => c.props('label') === 'ADM_MANAGE_ROLES')
+    const manageCheckbox = wrapper.findAllComponents(VCheckbox).find((c) => c.props('value') === 2)
     await manageCheckbox?.find('input').setValue(true)
 
     await clickGuardar(wrapper)
@@ -191,5 +218,61 @@ describe('RoleDetailView — loading / error / populated states', () => {
     const alertStore = useAlertStore()
     expect(alertStore.show).toBe(true)
     expect(alertStore.config.status).toBe('error')
+  })
+
+  // Module-grouped checklist (permission-descriptions-modules, design obs #1601 D4/D5).
+  describe('module-grouped checklist', () => {
+    it('renders one heading per module, in alphabetical (es) order', () => {
+      role.value = buildRole()
+      permissionsCatalog.value = [
+        { id: 1, name: 'ADM_MANAGE_ADMINS', module: 'Accesos', description: 'Crear administradores y asignarles un rol' },
+        { id: 2, name: 'ADM_READ_ROLES', module: 'Roles', description: 'Ver la lista de roles y sus permisos' },
+        { id: 3, name: 'ADM_READ_USERS', module: 'Usuarios', description: 'Ver la lista de becarios y egresados' },
+      ]
+      const wrapper = mountView()
+
+      // Search only within the checklist card, since "Roles" also appears
+      // earlier in the breadcrumb ("Inicio/Roles/Detalle de rol").
+      const text = wrapper.text()
+      const checklistStart = text.indexOf('Permisos')
+      const accesosIndex = text.indexOf('Accesos', checklistStart)
+      const rolesIndex = text.indexOf('Roles', checklistStart)
+      const usuariosIndex = text.indexOf('Usuarios', checklistStart)
+
+      expect(accesosIndex).toBeGreaterThanOrEqual(0)
+      expect(rolesIndex).toBeGreaterThan(accesosIndex)
+      expect(usuariosIndex).toBeGreaterThan(rolesIndex)
+    })
+
+    it('shows description as the primary label and name as a secondary caption', () => {
+      role.value = buildRole()
+      permissionsCatalog.value = buildCatalog()
+      const wrapper = mountView()
+
+      expect(wrapper.text()).toContain('Ver la lista de roles y sus permisos')
+      expect(wrapper.text()).toContain('ADM_READ_ROLES')
+    })
+
+    it('falls back to the raw name with no duplicate caption when description is absent', () => {
+      role.value = buildRole({ permissions: [] })
+      permissionsCatalog.value = [{ id: 1, name: 'ADM_LEGACY_NO_COPY' }]
+      const wrapper = mountView()
+
+      const occurrences = wrapper.text().split('ADM_LEGACY_NO_COPY').length - 1
+      expect(occurrences).toBe(1)
+    })
+
+    it('groups a permission with a null/blank module under the trailing "Otros" heading', () => {
+      role.value = buildRole({ permissions: [] })
+      permissionsCatalog.value = [
+        { id: 1, name: 'ADM_READ_ROLES', module: 'Roles', description: 'Ver la lista de roles y sus permisos' },
+        { id: 2, name: 'ADM_LEGACY_NO_MODULE', module: null, description: null },
+      ]
+      const wrapper = mountView()
+
+      expect(wrapper.text()).toContain('Otros')
+      const text = wrapper.text()
+      expect(text.indexOf('Otros')).toBeGreaterThan(text.indexOf('Roles'))
+    })
   })
 })

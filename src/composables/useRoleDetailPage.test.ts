@@ -171,4 +171,69 @@ describe('useRoleDetailPage', () => {
     await expect(result.savePermissions([1])).rejects.toThrow('422')
     expect(result.role.value).toEqual(role)
   })
+
+  // permissionsByModule (permission-descriptions-modules, design obs #1601 D3/D4):
+  // grouping/sorting derived state, additive alongside permissionsCatalog.
+  describe('permissionsByModule', () => {
+    const setupWithCatalog = async (catalog: AdministrationPermission[]) => {
+      const rolesStore = useRolesStore()
+      vi.spyOn(rolesStore, 'fetchRole').mockResolvedValue(buildRole())
+      vi.spyOn(rolesStore, 'fetchPermissionsCatalog').mockImplementation(async () => {
+        rolesStore.permissionsCatalog = catalog
+        return true
+      })
+
+      const router = await buildRouter('5')
+      const result = withSetup(() => useRoleDetailPage(), router)
+      await flushPromises()
+      return result
+    }
+
+    it('groups permissions by module, sorted alphabetically (es), keeping server order within each group', async () => {
+      // Deliberately interleaved, mirroring the server's orderBy('name') output.
+      const catalog: AdministrationPermission[] = [
+        { id: 1, name: 'ADM_EDIT_PAYMENT_DATA', module: 'Datos de pago', description: 'Editar los datos de pago de un becario' },
+        { id: 2, name: 'ADM_MANAGE_ADMINS', module: 'Accesos', description: 'Crear administradores y asignarles un rol' },
+        { id: 3, name: 'ADM_MANAGE_ROLES', module: 'Roles', description: 'Crear roles y editar sus permisos' },
+        { id: 4, name: 'ADM_READ_ADMINS', module: 'Accesos', description: 'Ver la lista de administradores' },
+        { id: 5, name: 'ADM_READ_PAYMENT_DATA', module: 'Datos de pago', description: 'Ver los datos de pago de un becario' },
+        { id: 6, name: 'ADM_READ_ROLES', module: 'Roles', description: 'Ver la lista de roles y sus permisos' },
+        { id: 7, name: 'ADM_READ_USERS', module: 'Usuarios', description: 'Ver la lista de becarios y egresados' },
+      ]
+
+      const result = await setupWithCatalog(catalog)
+
+      const groups = result.permissionsByModule.value
+      expect(groups.map((g) => g.module)).toEqual(['Accesos', 'Datos de pago', 'Roles', 'Usuarios'])
+
+      const accesos = groups.find((g) => g.module === 'Accesos')
+      expect(accesos?.permissions.map((p) => p.id)).toEqual([2, 4])
+
+      const datosDePago = groups.find((g) => g.module === 'Datos de pago')
+      expect(datosDePago?.permissions.map((p) => p.id)).toEqual([1, 5])
+    })
+
+    it('groups null, undefined, and blank module values into a single trailing "Otros" group', async () => {
+      const catalog: AdministrationPermission[] = [
+        { id: 1, name: 'ADM_READ_ROLES', module: 'Roles', description: 'Ver la lista de roles y sus permisos' },
+        { id: 2, name: 'LEGACY_NULL_MODULE', module: null, description: null },
+        { id: 3, name: 'LEGACY_UNDEFINED_MODULE' },
+        { id: 4, name: 'LEGACY_BLANK_MODULE', module: '   ' },
+      ]
+
+      const result = await setupWithCatalog(catalog)
+
+      const groups = result.permissionsByModule.value
+      expect(groups.map((g) => g.module)).toEqual(['Roles', 'Otros'])
+
+      const otros = groups.find((g) => g.module === 'Otros')
+      expect(otros?.permissions.map((p) => p.id)).toEqual([2, 3, 4])
+    })
+
+    it('returns an empty array for an empty catalog, without throwing', async () => {
+      const result = await setupWithCatalog([])
+
+      expect(result.permissionsByModule.value).toEqual([])
+    })
+  })
 })
