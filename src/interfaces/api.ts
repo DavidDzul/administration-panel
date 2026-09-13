@@ -1,6 +1,8 @@
 import type { Person } from './user'
 import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
+import type { AdministrationRole, AdministrationPermission } from './role'
+import type { Administrator } from './administrator'
 
 export interface LoginResponse {
   token: string
@@ -51,4 +53,43 @@ export interface PaymentDataResponse {
 // directly rather than assuming the `{res, users}` shape used by `index()`.
 export interface PersonResponse {
   user: Person
+}
+
+// Matches AdministrationRoleController's real envelopes, verified by reading
+// impulsou-api/app/Http/Controllers/Admin/AdministrationRoleController.php
+// directly (PR5) — every action shares the `{res, ...}` shape used elsewhere
+// in this controller, and `show`'s 404 body is `{res: false, msg}` (no
+// `role` key at all on that path, so `role` stays required — callers must
+// check the HTTP status, not a nullable field, matching the controller).
+export interface AdministrationRolesResponse {
+  res: boolean
+  roles: AdministrationRole[]
+}
+
+export interface AdministrationRoleResponse {
+  res: boolean
+  role: AdministrationRole
+  msg?: string
+}
+
+export interface AdministrationPermissionsCatalogResponse {
+  res: boolean
+  permissions: AdministrationPermission[]
+}
+
+// Matches AdministratorController's real envelopes, verified by reading
+// impulsou-api/app/Http/Controllers/Admin/AdministratorController.php
+// directly (PR8) — every action shares the `{res, ...}` shape used
+// elsewhere in this codebase, and `show`'s 404 body is `{res: false, msg}`
+// (no `administrator` key on that path), so `administrator` stays required
+// — callers must check the HTTP status, not a nullable field.
+export interface AdministratorsResponse {
+  res: boolean
+  administrators: Administrator[]
+}
+
+export interface AdministratorResponse {
+  res: boolean
+  administrator: Administrator
+  msg?: string
 }

@@ -20,6 +20,8 @@ const router = createRouter({
   routes: [
     { path: '/', component: { template: '<div />' } },
     { path: '/becarios', component: { template: '<div />' } },
+    { path: '/control/roles', component: { template: '<div />' } },
+    { path: '/control/accesos', component: { template: '<div />' } },
   ],
 })
 
@@ -54,5 +56,50 @@ describe('NavMenu — "Usuarios" group gating on ADM_READ_USERS', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.text()).toContain('Inicio')
+  })
+})
+
+describe('NavMenu — "Control" group gating on ADM_READ_ROLES / ADM_READ_ADMINS', () => {
+  beforeEach(() => {
+    mockPermissions.value = []
+  })
+
+  it('shows "Control" > "Roles" only when the user holds ADM_READ_ROLES', async () => {
+    mockPermissions.value = ['ADM_READ_ROLES']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).toContain('Roles')
+    expect(wrapper.text()).not.toContain('Accesos')
+  })
+
+  it('shows "Control" > "Accesos" only when the user holds ADM_READ_ADMINS', async () => {
+    mockPermissions.value = ['ADM_READ_ADMINS']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).toContain('Accesos')
+    expect(wrapper.text()).not.toContain('Roles')
+  })
+
+  it('shows both "Roles" and "Accesos" when the user holds both permissions', async () => {
+    mockPermissions.value = ['ADM_READ_ROLES', 'ADM_READ_ADMINS']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Roles')
+    expect(wrapper.text()).toContain('Accesos')
+  })
+
+  it('hides the entire "Control" group when the user lacks both permissions', async () => {
+    mockPermissions.value = []
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Control')
+    expect(wrapper.text()).not.toContain('Roles')
+    expect(wrapper.text()).not.toContain('Accesos')
   })
 })

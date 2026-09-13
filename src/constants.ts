@@ -35,4 +35,11 @@ export const PERMISSIONS = {
   // D5 (sdd/becarios-payment-config) for the read/edit split rationale.
   READ_PAYMENT_DATA: 'ADM_READ_PAYMENT_DATA',
   EDIT_PAYMENT_DATA: 'ADM_EDIT_PAYMENT_DATA',
+  // Control (Roles + Accesos) — read/manage split per resource, same naming
+  // convention as above. Values must match the seeded `ADM_*` permission
+  // names exactly (see sdd/control-accesos-administration-panel/design).
+  READ_ROLES: 'ADM_READ_ROLES',
+  MANAGE_ROLES: 'ADM_MANAGE_ROLES',
+  READ_ADMINS: 'ADM_READ_ADMINS',
+  MANAGE_ADMINS: 'ADM_MANAGE_ADMINS',
 } as const

@@ -339,4 +339,63 @@ describe('authStore', () => {
 
     expect(authStore.editPaymentData).toBe(false)
   })
+
+  // Task 4.2 (PR4) — readRoles / manageRoles / readAdmins / manageAdmins
+  // additions, mirroring readUsers/readPaymentData exactly. Pure computed
+  // properties: no axios calls involved.
+  it('readRoles is true when permissions include ADM_READ_ROLES', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.READ_ROLES]
+
+    expect(authStore.readRoles).toBe(true)
+  })
+
+  it('readRoles is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.readRoles).toBe(false)
+  })
+
+  it('manageRoles is true when permissions include ADM_MANAGE_ROLES', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.MANAGE_ROLES]
+
+    expect(authStore.manageRoles).toBe(true)
+  })
+
+  it('manageRoles is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.manageRoles).toBe(false)
+  })
+
+  it('readAdmins is true when permissions include ADM_READ_ADMINS', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.READ_ADMINS]
+
+    expect(authStore.readAdmins).toBe(true)
+  })
+
+  it('readAdmins is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.readAdmins).toBe(false)
+  })
+
+  it('manageAdmins is true when permissions include ADM_MANAGE_ADMINS', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.MANAGE_ADMINS]
+
+    expect(authStore.manageAdmins).toBe(true)
+  })
+
+  it('manageAdmins is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.manageAdmins).toBe(false)
+  })
 })

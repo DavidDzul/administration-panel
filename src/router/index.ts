@@ -76,6 +76,26 @@ const routes = [
         name: 'PersonDetailsView',
         component: () => catchReload(import('@/views/users/PersonDetailsView.vue')),
       },
+      {
+        path: '/control/roles',
+        name: 'RolesView',
+        component: () => catchReload(import('@/views/roles/RolesView.vue')),
+      },
+      {
+        path: '/control/roles/:id',
+        name: 'RoleDetailView',
+        component: () => catchReload(import('@/views/roles/RoleDetailView.vue')),
+      },
+      {
+        path: '/control/accesos',
+        name: 'AccesosView',
+        component: () => catchReload(import('@/views/accesos/AccesosView.vue')),
+      },
+      {
+        path: '/control/accesos/:id',
+        name: 'AccesoDetailView',
+        component: () => catchReload(import('@/views/accesos/AccesoDetailView.vue')),
+      },
     ],
   },
   {

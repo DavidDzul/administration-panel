@@ -151,6 +151,13 @@ export const useAuthStore = defineStore('authStore', () => {
   const readPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_PAYMENT_DATA))
   const editPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.EDIT_PAYMENT_DATA))
 
+  // Control (Roles + Accesos) — read/manage split per resource, mirrors
+  // readUsers/readPaymentData exactly (design, sdd/control-accesos-administration-panel).
+  const readRoles = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_ROLES))
+  const manageRoles = computed<boolean>(() => permissions.value.includes(PERMISSIONS.MANAGE_ROLES))
+  const readAdmins = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_ADMINS))
+  const manageAdmins = computed<boolean>(() => permissions.value.includes(PERMISSIONS.MANAGE_ADMINS))
+
   return {
     login,
     logout,
@@ -167,5 +174,9 @@ export const useAuthStore = defineStore('authStore', () => {
     readUsers,
     readPaymentData,
     editPaymentData,
+    readRoles,
+    manageRoles,
+    readAdmins,
+    manageAdmins,
   }
 })

@@ -14,6 +14,35 @@
 
       <v-list-item to="/becarios" title="Becarios y egresados" density="compact" class="nav-subitem" />
     </v-list-group>
+
+    <v-list-group
+      v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS)"
+      value="Control"
+    >
+      <template #activator="{ props }">
+        <v-list-item
+          v-bind="props"
+          title="Control"
+          prepend-icon="mdi-shield-account"
+          class="nav-item"
+        />
+      </template>
+
+      <v-list-item
+        v-if="can(PERMISSIONS.READ_ROLES)"
+        to="/control/roles"
+        title="Roles"
+        density="compact"
+        class="nav-subitem"
+      />
+      <v-list-item
+        v-if="can(PERMISSIONS.READ_ADMINS)"
+        to="/control/accesos"
+        title="Accesos"
+        density="compact"
+        class="nav-subitem"
+      />
+    </v-list-group>
   </v-list>
 </template>
 

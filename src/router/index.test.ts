@@ -118,4 +118,73 @@ describe('router auth guard', () => {
     expect(router.currentRoute.value.name).toBe('PersonDetailsView')
     expect(router.currentRoute.value.params.id).toBe('5')
   })
+
+  // Task 4.4 (PR4) — /control/roles, /control/roles/:id, /control/accesos,
+  // /control/accesos/:id are children of the same requiresAuth-gated `/`
+  // route (AdminLayout), same inherited-meta reasoning as /becarios above.
+  it('redirects unauthenticated access to /control/roles to /auth/login', async () => {
+    await router.push('/control/roles')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /control/roles when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/control/roles')
+
+    expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
+    expect(router.currentRoute.value.path).toBe('/control/roles')
+    expect(router.currentRoute.value.name).toBe('RolesView')
+  })
+
+  it('allows access to /control/roles/:id when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/control/roles/3')
+
+    expect(router.currentRoute.value.path).toBe('/control/roles/3')
+    expect(router.currentRoute.value.name).toBe('RoleDetailView')
+    expect(router.currentRoute.value.params.id).toBe('3')
+  })
+
+  it('redirects unauthenticated access to /control/accesos to /auth/login', async () => {
+    await router.push('/control/accesos')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /control/accesos when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/control/accesos')
+
+    expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
+    expect(router.currentRoute.value.path).toBe('/control/accesos')
+    expect(router.currentRoute.value.name).toBe('AccesosView')
+  })
+
+  it('allows access to /control/accesos/:id when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/control/accesos/7')
+
+    expect(router.currentRoute.value.path).toBe('/control/accesos/7')
+    expect(router.currentRoute.value.name).toBe('AccesoDetailView')
+    expect(router.currentRoute.value.params.id).toBe('7')
+  })
 })
