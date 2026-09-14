@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref, type Ref } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { usePaymentDocumentPage } from '@/composables/usePaymentDocumentPage'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { PaymentDocument } from '@/interfaces/payment'
 
-// Mirrors useAccesoDetailPage.test.ts's withSetup helper (D4: lifecycle
-// lives in the composable, only fires against a real mounted component
-// instance) — extended with a router plugin since this composable reads the
-// `:refrendId` route param, simpler than useAccesoDetailPage (one fetch, no
-// secondary catalog fetch).
-function withSetup<T>(composable: () => T, router: Router): T {
+// sdd/becario-payment-batch-indicators: the document view moved from a
+// routed page to a dialog (PaymentDocumentDialog.vue), so this composable no
+// longer reads `:refrendId` from `useRoute()` — it now takes a reactive
+// `refrendId` source directly from its caller (the dialog's `refrendId`
+// prop), watched the same way the old route param was. Mirrors
+// useAccesoDetailPage.test.ts's withSetup helper (D4: lifecycle lives in the
+// composable, only fires against a real mounted component instance).
+function withSetup<T>(composable: () => T): T {
   let result!: T
   mount(
     defineComponent({
@@ -22,7 +23,6 @@ function withSetup<T>(composable: () => T, router: Router): T {
         return () => h('div')
       },
     }),
-    { global: { plugins: [router] } },
   )
   return result
 }
@@ -51,21 +51,25 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   ...overrides,
 })
 
-const buildRouter = async (refrendId: string): Promise<Router> => {
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: '/pagos/:refrendId', component: { template: '<div />' } }],
-  })
-  await router.push(`/pagos/${refrendId}`)
-  return router
-}
-
 describe('usePaymentDocumentPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
   })
 
-  it('loads the document for the route refrendId on mount', async () => {
+  it('does not call fetchDocument and stays idle when refrendId starts as null (dialog closed)', () => {
+    const paymentsStore = usePaymentsStore()
+    const fetchDocumentSpy = vi.spyOn(paymentsStore, 'fetchDocument')
+
+    const refrendId: Ref<number | null> = ref(null)
+    const result = withSetup(() => usePaymentDocumentPage(refrendId))
+
+    expect(fetchDocumentSpy).not.toHaveBeenCalled()
+    expect(result.loading.value).toBe(false)
+    expect(result.loadError.value).toBe(false)
+    expect(result.document.value).toBe(null)
+  })
+
+  it('loads the document for the initial refrendId on mount', async () => {
     const document = buildDocument()
     const paymentsStore = usePaymentsStore()
     const fetchDocumentSpy = vi.spyOn(paymentsStore, 'fetchDocument').mockImplementation(async () => {
@@ -73,8 +77,8 @@ describe('usePaymentDocumentPage', () => {
       return true
     })
 
-    const router = await buildRouter('5')
-    const result = withSetup(() => usePaymentDocumentPage(), router)
+    const refrendId: Ref<number | null> = ref(5)
+    const result = withSetup(() => usePaymentDocumentPage(refrendId))
 
     expect(result.loading.value).toBe(true)
     await flushPromises()
@@ -89,37 +93,47 @@ describe('usePaymentDocumentPage', () => {
     const paymentsStore = usePaymentsStore()
     vi.spyOn(paymentsStore, 'fetchDocument').mockResolvedValue(false)
 
-    const router = await buildRouter('5')
-    const result = withSetup(() => usePaymentDocumentPage(), router)
+    const refrendId: Ref<number | null> = ref(5)
+    const result = withSetup(() => usePaymentDocumentPage(refrendId))
     await flushPromises()
 
     expect(result.loadError.value).toBe(true)
     expect(result.loading.value).toBe(false)
   })
 
-  it('sets loadError=true for an invalid route refrendId without calling the store', async () => {
+  it('reloads the document when refrendId changes to a different becario', async () => {
     const paymentsStore = usePaymentsStore()
     const fetchDocumentSpy = vi.spyOn(paymentsStore, 'fetchDocument').mockResolvedValue(true)
 
-    const router = await buildRouter('not-a-number')
-    const result = withSetup(() => usePaymentDocumentPage(), router)
+    const refrendId: Ref<number | null> = ref(5)
+    withSetup(() => usePaymentDocumentPage(refrendId))
     await flushPromises()
 
-    expect(fetchDocumentSpy).not.toHaveBeenCalled()
-    expect(result.loadError.value).toBe(true)
+    refrendId.value = 9
+    await flushPromises()
+
+    expect(fetchDocumentSpy).toHaveBeenNthCalledWith(1, 5)
+    expect(fetchDocumentSpy).toHaveBeenNthCalledWith(2, 9)
   })
 
-  it('reloads the document when the route refrendId changes', async () => {
+  it('resets the document and clears error state when refrendId goes back to null (dialog closed)', async () => {
+    const document = buildDocument()
     const paymentsStore = usePaymentsStore()
-    const fetchDocumentSpy = vi.spyOn(paymentsStore, 'fetchDocument').mockResolvedValue(true)
+    vi.spyOn(paymentsStore, 'fetchDocument').mockImplementation(async () => {
+      paymentsStore.document = document
+      return true
+    })
 
-    const router = await buildRouter('5')
-    withSetup(() => usePaymentDocumentPage(), router)
+    const refrendId: Ref<number | null> = ref(5)
+    const result = withSetup(() => usePaymentDocumentPage(refrendId))
+    await flushPromises()
+    expect(result.document.value).toEqual(document)
+
+    refrendId.value = null
     await flushPromises()
 
-    await router.push('/pagos/9')
-    await flushPromises()
-
-    expect(fetchDocumentSpy).toHaveBeenNthCalledWith(2, 9)
+    expect(result.document.value).toBe(null)
+    expect(result.loading.value).toBe(false)
+    expect(result.loadError.value).toBe(false)
   })
 })

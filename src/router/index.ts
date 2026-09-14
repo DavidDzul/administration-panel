@@ -101,11 +101,6 @@ const routes = [
         name: 'PaymentsView',
         component: () => catchReload(import('@/views/pagos/PaymentsView.vue')),
       },
-      {
-        path: '/pagos/:refrendId',
-        name: 'PaymentDocumentView',
-        component: () => catchReload(import('@/views/pagos/PaymentDocumentView.vue')),
-      },
     ],
   },
   {

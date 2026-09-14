@@ -42,7 +42,7 @@
 
     <v-row>
       <v-col cols="12">
-        <PaymentBatchTable :rows="rows" />
+        <PaymentBatchTable :rows="rows" @view="onViewDocument" />
       </v-col>
     </v-row>
   </template>
@@ -54,6 +54,8 @@
     :processing="processing"
     @confirm="onConfirm"
   />
+
+  <PaymentDocumentDialog v-model="documentDialogOpen" :refrend-id="viewingRefrendId" />
 </template>
 
 <script setup lang="ts">
@@ -68,6 +70,7 @@ import PaymentBatchFilters from '@/components/pagos/PaymentBatchFilters.vue'
 import PaymentBatchSummary from '@/components/pagos/PaymentBatchSummary.vue'
 import PaymentBatchTable from '@/components/pagos/PaymentBatchTable.vue'
 import ProcessPaymentDialog from '@/components/pagos/ProcessPaymentDialog.vue'
+import PaymentDocumentDialog from '@/components/pagos/PaymentDocumentDialog.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
 const {
@@ -97,5 +100,17 @@ const dialogOpen = ref(false)
 const onConfirm = async (): Promise<void> => {
   await confirmProcess()
   dialogOpen.value = false
+}
+
+// PaymentBatchTable's "Ver" now opens this dialog instead of navigating to
+// `/pagos/:refrendId` (sdd/becario-payment-batch-indicators) — PaymentsView
+// owns the open state + selected refrendId, same pattern already used for
+// ProcessPaymentDialog's `dialogOpen`.
+const documentDialogOpen = ref(false)
+const viewingRefrendId = ref<number | null>(null)
+
+const onViewDocument = (refrendId: number): void => {
+  viewingRefrendId.value = refrendId
+  documentDialogOpen.value = true
 }
 </script>

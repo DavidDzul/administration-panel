@@ -33,13 +33,6 @@ vi.mock('@/axiosConfig', () => ({
   default: { get: mockAxiosGet, post: mockAxiosPost },
 }))
 
-// PaymentBatchTable's "Ver" action calls useRouter().push — same guard as
-// RolesTable.test.ts / AccesosView.test.ts.
-const mockPush = vi.fn()
-vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: mockPush }),
-}))
-
 import PaymentsView from '@/views/pagos/PaymentsView.vue'
 import { useAuthStore } from '@/stores/api/authStore'
 
@@ -65,6 +58,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   blocking_reasons: [],
   outcome: null,
   outcome_reason: null,
+  has_incident: false,
+  has_pending_from_previous: false,
   ...overrides,
 })
 
@@ -109,7 +104,6 @@ describe('PaymentsView', () => {
     setActivePinia(createPinia())
     mockAxiosGet.mockReset()
     mockAxiosPost.mockReset()
-    mockPush.mockReset()
     grantPermissions(true)
     mockGenerationsAndBatch([buildRow()], { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
   })
@@ -214,5 +208,64 @@ describe('PaymentsView', () => {
       expected_count: 1,
       expected_total: '1000.00',
     })
+  })
+
+  it('opens the payment document dialog for the clicked row instead of navigating away (sdd/becario-payment-batch-indicators)', async () => {
+    mockAxiosGet.mockImplementation((url: string) => {
+      if (url === 'api/admin/generations') {
+        return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
+      }
+      if (url === 'api/admin/scholarship-payments') {
+        return Promise.resolve({
+          data: {
+            res: true,
+            data: { rows: [buildRow({ refrend_id: 3, snapshot_name: 'Ada Lovelace' })], summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' } },
+          },
+        })
+      }
+      if (url === 'api/admin/scholarship-payments/3/document') {
+        return Promise.resolve({
+          data: {
+            res: true,
+            data: {
+              refrend_id: 3,
+              user_id: 1,
+              enrollment: 'A0001',
+              snapshot_name: 'Ada Lovelace',
+              incidents: [],
+              carryover_months_count: null,
+              carryover_months_detail: null,
+              carryover_percentage: null,
+              atencion_observations: null,
+              pedagogia_observations: null,
+              resolution_notes: null,
+              amount_breakdown: {
+                base_amount: '1000.00',
+                discount_percentage: '0.00',
+                discount_amount: '0.00',
+                amount_pending_from_previous: '0.00',
+                refund_amount_from_previous: '0.00',
+                final_amount: '1000.00',
+                total_to_pay: '1000.00',
+              },
+            },
+          },
+        })
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`))
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const verButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Ver')
+    await verButton?.trigger('click')
+    await flushPromises()
+
+    expect(mockAxiosGet).toHaveBeenCalledWith('api/admin/scholarship-payments/3/document')
+    expect(body().text()).toContain('Documento de pago')
+    // The list view (filters/table) stays mounted underneath — no navigation happened.
+    expect(wrapper.text()).toContain('Ada Lovelace')
   })
 })

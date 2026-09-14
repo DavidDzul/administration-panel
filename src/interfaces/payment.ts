@@ -20,6 +20,13 @@ export interface PaymentBatchRow {
   blocking_reasons: BlockingReason[]
   outcome: 'PAID' | 'SKIPPED' | null
   outcome_reason: string | null
+  // Quick-glance flags added by impulsou-api commit eba5c3d
+  // (PaymentBatchService::rows(), verified batched — no N+1). Purely
+  // informational: incidencias never block payment, and a withheld amount
+  // settled from a previous period is a normal, expected state — neither
+  // flag participates in `is_payable`/`blocking_reasons`.
+  has_incident: boolean
+  has_pending_from_previous: boolean
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against
