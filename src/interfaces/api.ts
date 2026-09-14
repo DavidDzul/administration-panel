@@ -3,7 +3,7 @@ import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
-import type { PaymentBatchRow, PaymentBatchSummary } from './payment'
+import type { PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
 
 export interface LoginResponse {
   token: string
@@ -117,4 +117,12 @@ export interface PaymentBatchProcessResponse {
     batch_id: number
     rows: PaymentBatchRow[]
   }
+}
+
+// Matches ScholarshipPaymentController::document()'s real envelope, verified
+// by reading the controller directly (PR6) — `data` is the flat
+// PaymentDocument shape, no extra nesting.
+export interface PaymentDocumentResponse {
+  res: boolean
+  data: PaymentDocument
 }

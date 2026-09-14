@@ -1,8 +1,12 @@
 import axios from '@/axiosConfig'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { BatchKey, PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
-import type { PaymentBatchIndexResponse, PaymentBatchProcessResponse } from '@/interfaces/api'
+import type { BatchKey, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from '@/interfaces/payment'
+import type {
+  PaymentBatchIndexResponse,
+  PaymentBatchProcessResponse,
+  PaymentDocumentResponse,
+} from '@/interfaces/api'
 
 // Duck-types the HTTP status off a rejected request — same approach as
 // paymentDataStore's getStatus, for the same reason: a caller re-throwing
@@ -35,6 +39,7 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
   const rows = ref<PaymentBatchRow[]>([])
   const summary = ref<PaymentBatchSummary | null>(null)
   const batchId = ref<number | null>(null)
+  const document = ref<PaymentDocument | null>(null)
 
   // Never called unless all 4 BatchKey fields are known — that gate lives in
   // usePaymentsPage (D7), not here. This store is a thin HTTP layer over the
@@ -50,6 +55,20 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       return true
     } catch (error: unknown) {
       console.error('Error al cargar el lote de pagos:', error)
+      return false
+    }
+  }
+
+  // Single-becario payment document (PR6). Same try/catch + boolean-return
+  // shape as fetchBatch — never throws, the composable/view decide how to
+  // surface a failed load.
+  const fetchDocument = async (refrendId: number): Promise<boolean> => {
+    try {
+      const res = await axios.get<PaymentDocumentResponse>(`api/admin/scholarship-payments/${refrendId}/document`)
+      document.value = res.data.data
+      return true
+    } catch (error: unknown) {
+      console.error('Error al cargar el documento de pago:', error)
       return false
     }
   }
@@ -96,7 +115,9 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
     rows,
     summary,
     batchId,
+    document,
     fetchBatch,
+    fetchDocument,
     processBatch,
   }
 })

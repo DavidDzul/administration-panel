@@ -41,3 +41,51 @@ export interface BatchKey {
   period_year: number
   period_month: number
 }
+
+// Matches ScholarshipPaymentController::document()'s real response, verified
+// by reading impulsou-api/app/Http/Controllers/Admin/ScholarshipPaymentController.php
+// directly (PR6) rather than guessing. `incident_category`/`incident_type`
+// are plain strings on ScholarshipRefrendIncident (no cast/enum), and
+// `is_resolved` is the model's real `boolean` cast.
+export interface PaymentDocumentIncident {
+  id: number
+  incident_category: string
+  incident_type: string
+  description: string
+  is_resolved: boolean
+}
+
+// All money/percentage fields are Laravel `decimal:2` casts, which serialize
+// as STRINGS (verified against ScholarshipRefrend.php's $casts and the
+// controller feature test's `assertSame('1000.00', ...)` assertions) — never
+// numbers, same convention as PaymentBatchRow.total_to_pay.
+export interface PaymentAmountBreakdown {
+  base_amount: string
+  discount_percentage: string
+  discount_amount: string
+  amount_pending_from_previous: string
+  refund_amount_from_previous: string
+  final_amount: string
+  total_to_pay: string
+}
+
+// The 3 comentario fields (atencion_observations/pedagogia_observations/
+// resolution_notes) are kept SEPARATE per the spec's resolved decision — this
+// interface mirrors that, they are never merged into one field client-side.
+// `carryover_percentage` reads null/0 in practice today (a known,
+// separately-tracked backend gap) — this type still reflects the real
+// nullable decimal:2 column, not a workaround.
+export interface PaymentDocument {
+  refrend_id: number
+  user_id: number
+  enrollment: string | null
+  snapshot_name: string
+  incidents: PaymentDocumentIncident[]
+  carryover_months_count: number | null
+  carryover_months_detail: string | null
+  carryover_percentage: string | null
+  atencion_observations: string | null
+  pedagogia_observations: string | null
+  resolution_notes: string | null
+  amount_breakdown: PaymentAmountBreakdown
+}

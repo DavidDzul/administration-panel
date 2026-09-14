@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { BatchKey, PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
+import type { BatchKey, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from '@/interfaces/payment'
 
 const { mockAxiosGet, mockAxiosPost } = vi.hoisted(() => ({
   mockAxiosGet: vi.fn(),
@@ -48,6 +48,30 @@ const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatc
   ...overrides,
 })
 
+const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocument => ({
+  refrend_id: 1,
+  user_id: 1,
+  enrollment: 'A0001',
+  snapshot_name: 'Ada Lovelace',
+  incidents: [],
+  carryover_months_count: null,
+  carryover_months_detail: null,
+  carryover_percentage: null,
+  atencion_observations: null,
+  pedagogia_observations: null,
+  resolution_notes: null,
+  amount_breakdown: {
+    base_amount: '1000.00',
+    discount_percentage: '0.00',
+    discount_amount: '0.00',
+    amount_pending_from_previous: '0.00',
+    refund_amount_from_previous: '0.00',
+    final_amount: '1000.00',
+    total_to_pay: '1000.00',
+  },
+  ...overrides,
+})
+
 describe('paymentsStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -79,6 +103,29 @@ describe('paymentsStore', () => {
 
       const store = usePaymentsStore()
       const result = await store.fetchBatch(buildKey())
+
+      expect(result).toBe(false)
+    })
+  })
+
+  describe('fetchDocument', () => {
+    it('GETs the document by refrend id and populates document on success', async () => {
+      const document = buildDocument()
+      mockAxiosGet.mockResolvedValueOnce({ data: { res: true, data: document } })
+
+      const store = usePaymentsStore()
+      const result = await store.fetchDocument(1)
+
+      expect(mockAxiosGet).toHaveBeenCalledWith('api/admin/scholarship-payments/1/document')
+      expect(result).toBe(true)
+      expect(store.document).toEqual(document)
+    })
+
+    it('returns false (not a thrown error) when the fetch fails', async () => {
+      mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
+
+      const store = usePaymentsStore()
+      const result = await store.fetchDocument(1)
 
       expect(result).toBe(false)
     })
