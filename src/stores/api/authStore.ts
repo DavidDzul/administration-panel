@@ -158,6 +158,11 @@ export const useAuthStore = defineStore('authStore', () => {
   const readAdmins = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_ADMINS))
   const manageAdmins = computed<boolean>(() => permissions.value.includes(PERMISSIONS.MANAGE_ADMINS))
 
+  // Pagos — read/process split, mirrors readRoles/manageRoles exactly
+  // (design "New Permissions", sdd/becario-payment-file-generation).
+  const readPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_PAYMENTS))
+  const processPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.PROCESS_PAYMENTS))
+
   return {
     login,
     logout,
@@ -178,5 +183,7 @@ export const useAuthStore = defineStore('authStore', () => {
     manageRoles,
     readAdmins,
     manageAdmins,
+    readPayments,
+    processPayments,
   }
 })

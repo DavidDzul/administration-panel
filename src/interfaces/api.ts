@@ -3,6 +3,7 @@ import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
+import type { PaymentBatchRow, PaymentBatchSummary } from './payment'
 
 export interface LoginResponse {
   token: string
@@ -92,4 +93,28 @@ export interface AdministratorResponse {
   res: boolean
   administrator: Administrator
   msg?: string
+}
+
+// Matches ScholarshipPaymentController::index()'s real envelope, verified by
+// reading impulsou-api/app/Http/Controllers/Admin/ScholarshipPaymentController.php
+// directly rather than guessing — `data` nests both `rows` and `summary`.
+export interface PaymentBatchIndexResponse {
+  res: boolean
+  data: {
+    rows: PaymentBatchRow[]
+    summary: PaymentBatchSummary
+  }
+}
+
+// Matches ScholarshipPaymentController::process()'s 200 envelope. The 422
+// (blocking rows) and 409 (stale expected_count/expected_total) error bodies
+// are NOT modeled here — they arrive as rejected promises and are narrowed
+// by HTTP status in paymentsStore.processBatch, per design's requirement
+// that those two states be surfaced distinctly, not as one generic error.
+export interface PaymentBatchProcessResponse {
+  res: boolean
+  data: {
+    batch_id: number
+    rows: PaymentBatchRow[]
+  }
 }

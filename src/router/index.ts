@@ -96,6 +96,12 @@ const routes = [
         name: 'AccesoDetailView',
         component: () => catchReload(import('@/views/accesos/AccesoDetailView.vue')),
       },
+      {
+        path: '/pagos',
+        name: 'PaymentsView',
+        component: () => catchReload(import('@/views/pagos/PaymentsView.vue')),
+      },
+      // Note: `/pagos/:refrendId` (document view) is PR6, not this batch.
     ],
   },
   {
