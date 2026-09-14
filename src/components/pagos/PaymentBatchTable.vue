@@ -33,9 +33,13 @@
       <v-chip :color="item.is_payable ? 'success' : 'error'" size="small" variant="tonal">
         {{ item.is_payable ? 'Listo' : 'Bloqueado' }}
       </v-chip>
-      <div v-if="!item.is_payable" class="text-caption text-error mt-1">
+    </template>
+
+    <template #[`item.reason`]="{ item }">
+      <span v-if="!item.is_payable" class="text-caption text-error">
         {{ item.blocking_reasons.map((reason) => reason.message).join(', ') }}
-      </div>
+      </span>
+      <span v-else>—</span>
     </template>
 
     <template #[`item.actions`]="{ item }">
@@ -58,6 +62,10 @@
 // `has_pending_from_previous` and the masked account number are quick-glance
 // additions for a reviewer going through a whole batch (impulsou-api commit
 // eba5c3d) — purely informational, they never affect `is_payable`.
+// `Motivo` is its own column (sdd/becario-payment-review-filter) so `Estado`
+// only ever renders the chip — a mixed-length caption under the chip made
+// row height uneven across a whole batch. Payable rows show "—" instead of
+// repeating "Listo" (that's already communicated by the adjacent chip).
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
@@ -84,6 +92,7 @@ const headers = [
   { title: 'Monto', key: 'total_to_pay' },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
+  { title: 'Motivo', key: 'reason' },
   { title: '', key: 'actions' },
 ]
 

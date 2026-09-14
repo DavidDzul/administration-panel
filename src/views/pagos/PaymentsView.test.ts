@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
-import { VSelect, VBtn } from 'vuetify/components'
+import { VSelect, VBtn, VSwitch } from 'vuetify/components'
 import type { Generation } from '@/interfaces/generation'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
@@ -267,5 +267,30 @@ describe('PaymentsView', () => {
     expect(body().text()).toContain('Documento de pago')
     // The list view (filters/table) stays mounted underneath — no navigation happened.
     expect(wrapper.text()).toContain('Ada Lovelace')
+  })
+
+  it('toggling "solo pendientes de revisar" narrows which rows the table receives, without an extra fetch', async () => {
+    mockGenerationsAndBatch(
+      [
+        buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true }),
+        buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false }),
+      ],
+      { total: 2, ready: 1, blocking: 1, total_amount: '1000.00' },
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    expect(wrapper.text()).toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Grace Hopper')
+
+    const fetchCallsBeforeToggle = mockAxiosGet.mock.calls.length
+    const toggle = wrapper.findComponent(VSwitch)
+    await toggle.vm.$emit('update:modelValue', true)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Grace Hopper')
+    expect(mockAxiosGet.mock.calls.length).toBe(fetchCallsBeforeToggle)
   })
 })

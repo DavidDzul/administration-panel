@@ -4,7 +4,7 @@ import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { ProcessBatchResult } from '@/stores/api/paymentsStore'
 import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
-import type { BatchKey } from '@/interfaces/payment'
+import type { BatchKey, PaymentBatchRow } from '@/interfaces/payment'
 import type { Generation } from '@/interfaces/generation'
 
 // D7: unlike usePersonsPage's client-side-filter pattern (UsersTable.vue owns
@@ -34,6 +34,23 @@ export function usePaymentsPage() {
   const loadError = ref<boolean>(false)
   const processing = ref<boolean>(false)
   const processResult = ref<ProcessBatchResult | null>(null)
+
+  // Purely client-side visual filter (sdd/becario-payment-review-filter) —
+  // never triggers a refetch, only narrows what PaymentBatchTable renders.
+  // "Pendiente de revisar" = genuinely blocked OR payable-but-flagged
+  // (incidencia / withheld-month settlement) worth a second look before
+  // confirming the batch. `canProcess`/`summary` below stay derived from
+  // `summary` (the full-batch server aggregate), never from `visibleRows` —
+  // hiding rows here must never mask a still-blocking row from the
+  // all-or-nothing "Pagar todos" gate.
+  const showOnlyPending = ref<boolean>(false)
+
+  const isPendingReview = (row: PaymentBatchRow): boolean =>
+    !row.is_payable || row.has_incident || row.has_pending_from_previous
+
+  const visibleRows = computed<PaymentBatchRow[]>(() =>
+    showOnlyPending.value ? rows.value.filter(isPendingReview) : rows.value,
+  )
 
   const generations = computed<Generation[]>(() => [...resGenerations.value.values()])
 
@@ -103,6 +120,8 @@ export function usePaymentsPage() {
     generations,
     filteredCampus,
     rows,
+    visibleRows,
+    showOnlyPending,
     summary,
     loadingBatch,
     loadError,

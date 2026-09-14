@@ -208,4 +208,59 @@ describe('usePaymentsPage', () => {
 
     expect(result.hasProcessPermission.value).toBe(true)
   })
+
+  describe('showOnlyPending / visibleRows (sdd/becario-payment-review-filter)', () => {
+    const loadRows = async (rows: PaymentBatchRow[]) => {
+      const paymentsStore = usePaymentsStore()
+      vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+        paymentsStore.rows = rows
+        paymentsStore.summary = buildSummary({ total: rows.length })
+        return true
+      })
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
+
+      const result = withSetup(() => usePaymentsPage())
+      result.campus.value = 'MERIDA'
+      result.generationId.value = 1
+      result.periodYear.value = 2026
+      result.periodMonth.value = 9
+      await flushPromises()
+
+      return result
+    }
+
+    it('defaults showOnlyPending to false and visibleRows equals rows', async () => {
+      const rows = [buildRow({ refrend_id: 1 }), buildRow({ refrend_id: 2, is_payable: false })]
+      const result = await loadRows(rows)
+
+      expect(result.showOnlyPending.value).toBe(false)
+      expect(result.visibleRows.value).toEqual(rows)
+    })
+
+    it('excludes fully-ready rows (payable, no incident, no pending) when showOnlyPending is true', async () => {
+      const readyRow = buildRow({ refrend_id: 1, is_payable: true, has_incident: false, has_pending_from_previous: false })
+      const blockedRow = buildRow({ refrend_id: 2, is_payable: false })
+      const incidentRow = buildRow({ refrend_id: 3, is_payable: true, has_incident: true })
+      const pendingRow = buildRow({ refrend_id: 4, is_payable: true, has_pending_from_previous: true })
+      const result = await loadRows([readyRow, blockedRow, incidentRow, pendingRow])
+
+      result.showOnlyPending.value = true
+      await flushPromises()
+
+      expect(result.visibleRows.value).toEqual([blockedRow, incidentRow, pendingRow])
+    })
+
+    it('does not change summary when showOnlyPending toggles (all-or-nothing gate stays full-batch)', async () => {
+      const readyRow = buildRow({ refrend_id: 1, is_payable: true })
+      const blockedRow = buildRow({ refrend_id: 2, is_payable: false })
+      const result = await loadRows([readyRow, blockedRow])
+      const summaryBefore = result.summary.value
+
+      result.showOnlyPending.value = true
+      await flushPromises()
+
+      expect(result.summary.value).toEqual(summaryBefore)
+    })
+  })
 })

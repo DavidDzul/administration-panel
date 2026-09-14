@@ -41,8 +41,20 @@
     </v-row>
 
     <v-row>
+      <v-col cols="12" sm="6" md="4">
+        <v-switch
+          v-model="showOnlyPending"
+          label="Solo pendientes de revisar"
+          color="primary"
+          density="compact"
+          hide-details
+        />
+      </v-col>
+    </v-row>
+
+    <v-row>
       <v-col cols="12">
-        <PaymentBatchTable :rows="rows" @view="onViewDocument" />
+        <PaymentBatchTable :rows="visibleRows" @view="onViewDocument" />
       </v-col>
     </v-row>
   </template>
@@ -80,7 +92,8 @@ const {
   periodMonth,
   generations,
   filteredCampus,
-  rows,
+  visibleRows,
+  showOnlyPending,
   summary,
   loadingBatch,
   loadError,
@@ -113,4 +126,11 @@ const onViewDocument = (refrendId: number): void => {
   viewingRefrendId.value = refrendId
   documentDialogOpen.value = true
 }
+
+// "Solo pendientes de revisar" (sdd/becario-payment-review-filter) is a
+// purely client-side row filter over the already-loaded batch — no refetch.
+// The table receives `visibleRows`, never raw `rows`, but `summary`/
+// `canProcess` above stay wired to the composable's full-batch values, so
+// this toggle can never hide a still-blocking row from the "Pagar todos"
+// gate.
 </script>

@@ -94,4 +94,30 @@ describe('PaymentBatchTable', () => {
 
     expect(wrapper.emitted('view')).toEqual([[7]])
   })
+
+  it('shows the blocking reasons in the "Motivo" column, not under the Estado chip', () => {
+    const wrapper = mountTable([
+      buildRow({
+        refrend_id: 2,
+        is_payable: false,
+        blocking_reasons: [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }],
+      }),
+    ])
+
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    const estadoCell = cells[cells.length - 3]
+    const motivoCell = cells[cells.length - 2]
+
+    expect(estadoCell.text()).not.toContain('Sin matrícula registrada')
+    expect(motivoCell.text()).toContain('Sin matrícula registrada')
+  })
+
+  it('shows a dash in "Motivo" for a payable row with nothing to report', () => {
+    const wrapper = mountTable([buildRow({ refrend_id: 3, is_payable: true, blocking_reasons: [] })])
+
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    const motivoCell = cells[cells.length - 2]
+
+    expect(motivoCell.text()).toBe('—')
+  })
 })
