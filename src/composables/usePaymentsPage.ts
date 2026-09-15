@@ -4,8 +4,14 @@ import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { ProcessBatchResult } from '@/stores/api/paymentsStore'
 import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
-import type { BatchKey, PaymentBatchRow } from '@/interfaces/payment'
+import type { BatchKey, ExportSummary, InvalidBankRow, PaymentBatchRow } from '@/interfaces/payment'
 import type { Generation } from '@/interfaces/generation'
+
+// Distinct from ProcessBatchResult's states — 'blocked' is the export-time
+// all-or-nothing bank-data-validation gate (design D4), 'error' is
+// everything else. Mirrors confirmProcess()'s convention of never
+// collapsing distinct failure states into one generic error.
+export type ExportErrorState = 'blocked' | 'error' | null
 
 // D7: unlike usePersonsPage's client-side-filter pattern (UsersTable.vue owns
 // its own generación/sede filters over an already client-fetched list),
@@ -16,14 +22,14 @@ import type { Generation } from '@/interfaces/generation'
 // stays purely presentational (rows as props, no internal fetching).
 export function usePaymentsPage() {
   const paymentsStore = usePaymentsStore()
-  const { rows, summary } = storeToRefs(paymentsStore)
-  const { fetchBatch, processBatch } = paymentsStore
+  const { rows, summary, batchId, isPaid } = storeToRefs(paymentsStore)
+  const { fetchBatch, processBatch, fetchExportSummary, downloadExportFile } = paymentsStore
 
   const generationStore = useGenerationStore()
   const { resGenerations } = storeToRefs(generationStore)
   const { fetchGenerations } = generationStore
 
-  const { filteredCampus, readPayments, processPayments } = storeToRefs(useAuthStore())
+  const { filteredCampus, readPayments, processPayments, exportPayments } = storeToRefs(useAuthStore())
 
   const campus = ref<string | null>(null)
   const generationId = ref<number | null>(null)
@@ -112,6 +118,50 @@ export function usePaymentsPage() {
     return result
   }
 
+  // Bank-file export (sdd/becario-payment-bank-file-export). `batchId`/
+  // `isPaid` above already reflect index()'s `data.batch` block (D3) so this
+  // works after a page reload, not just right after "Pagar todos".
+  const exportSummary = ref<ExportSummary | null>(null)
+  const loadingExportSummary = ref<boolean>(false)
+  const loadingExport = ref<boolean>(false)
+  const exportError = ref<ExportErrorState>(null)
+  const invalidBankRows = ref<InvalidBankRow[]>([])
+
+  const loadExportSummary = async (): Promise<void> => {
+    if (batchId.value === null) return
+    loadingExportSummary.value = true
+    exportSummary.value = await fetchExportSummary(batchId.value)
+    loadingExportSummary.value = false
+  }
+
+  // Loads automatically once a paid batch is reachable — the admin
+  // shouldn't have to take an extra action just to see the summary card.
+  watch(batchId, (value) => {
+    if (value !== null) {
+      void loadExportSummary()
+    } else {
+      exportSummary.value = null
+    }
+  })
+
+  // Mirrors confirmProcess()'s pattern: surface 'blocked' and 'error'
+  // distinctly, never as one generic failure, and clear stale state on
+  // every retry so a fixed batch doesn't keep showing an old blocked list.
+  const confirmExport = async (): Promise<void> => {
+    if (batchId.value === null) return
+    loadingExport.value = true
+    exportError.value = null
+    invalidBankRows.value = []
+    const result = await downloadExportFile(batchId.value)
+    if (result.status === 'blocked') {
+      exportError.value = 'blocked'
+      invalidBankRows.value = result.invalidRows
+    } else if (result.status === 'error') {
+      exportError.value = 'error'
+    }
+    loadingExport.value = false
+  }
+
   return {
     campus,
     generationId,
@@ -131,5 +181,14 @@ export function usePaymentsPage() {
     confirmProcess,
     canRead: readPayments,
     hasProcessPermission: processPayments,
+    batchId,
+    isPaid,
+    exportSummary,
+    loadingExportSummary,
+    loadingExport,
+    exportError,
+    invalidBankRows,
+    confirmExport,
+    hasExportPermission: exportPayments,
   }
 }

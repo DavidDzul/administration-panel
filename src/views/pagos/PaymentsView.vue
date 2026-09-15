@@ -40,6 +40,15 @@
       </v-col>
     </v-row>
 
+    <BankFileExportCard
+      v-if="isPaid && hasExportPermission"
+      :export-summary="exportSummary"
+      :loading-export="loadingExport"
+      :export-error="exportError"
+      :invalid-rows="invalidBankRows"
+      @download="confirmExport"
+    />
+
     <v-row>
       <v-col cols="12" sm="6" md="4">
         <v-switch
@@ -83,6 +92,7 @@ import PaymentBatchSummary from '@/components/pagos/PaymentBatchSummary.vue'
 import PaymentBatchTable from '@/components/pagos/PaymentBatchTable.vue'
 import ProcessPaymentDialog from '@/components/pagos/ProcessPaymentDialog.vue'
 import PaymentDocumentDialog from '@/components/pagos/PaymentDocumentDialog.vue'
+import BankFileExportCard from '@/components/pagos/BankFileExportCard.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
 const {
@@ -101,6 +111,13 @@ const {
   processing,
   hasProcessPermission,
   confirmProcess,
+  isPaid,
+  exportSummary,
+  loadingExport,
+  exportError,
+  invalidBankRows,
+  confirmExport,
+  hasExportPermission,
 } = usePaymentsPage()
 
 const links: LinkInterface[] = [

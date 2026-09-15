@@ -3,7 +3,7 @@ import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
-import type { PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
+import type { ExportSummary, PaymentBatchBlock, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
 
 export interface LoginResponse {
   token: string
@@ -97,13 +97,25 @@ export interface AdministratorResponse {
 
 // Matches ScholarshipPaymentController::index()'s real envelope, verified by
 // reading impulsou-api/app/Http/Controllers/Admin/ScholarshipPaymentController.php
-// directly rather than guessing — `data` nests both `rows` and `summary`.
+// directly rather than guessing — `data` nests `rows`, `summary`, and the
+// `batch` block (design D3, sdd/becario-payment-bank-file-export).
 export interface PaymentBatchIndexResponse {
   res: boolean
   data: {
     rows: PaymentBatchRow[]
     summary: PaymentBatchSummary
+    batch: PaymentBatchBlock
   }
+}
+
+// Matches ScholarshipPaymentController::exportSummary()'s real envelope
+// (design D4, sdd/becario-payment-bank-file-export). The 422 (blocked rows)
+// and empty-batch error bodies are NOT modeled here — they arrive as
+// rejected promises and are narrowed by HTTP status in
+// paymentsStore.downloadExportFile/fetchExportSummary.
+export interface ExportSummaryResponse {
+  res: boolean
+  data: ExportSummary
 }
 
 // Matches ScholarshipPaymentController::process()'s 200 envelope. The 422

@@ -81,19 +81,24 @@ const setAllFilters = async (wrapper: ReturnType<typeof mountView>): Promise<voi
   await flushPromises()
 }
 
-const grantPermissions = (canProcess: boolean): void => {
-  useAuthStore().permissions = canProcess
-    ? ['ADM_READ_PAYMENTS', 'ADM_PROCESS_PAYMENTS']
-    : ['ADM_READ_PAYMENTS']
+const grantPermissions = (canProcess: boolean, canExport = false): void => {
+  const permissions = ['ADM_READ_PAYMENTS']
+  if (canProcess) permissions.push('ADM_PROCESS_PAYMENTS')
+  if (canExport) permissions.push('ADM_EXPORT_PAYMENTS')
+  useAuthStore().permissions = permissions
 }
 
-const mockGenerationsAndBatch = (rows: PaymentBatchRow[], summary: Record<string, unknown>): void => {
+const mockGenerationsAndBatch = (
+  rows: PaymentBatchRow[],
+  summary: Record<string, unknown>,
+  batch: Record<string, unknown> = { batch_id: null, is_paid: false },
+): void => {
   mockAxiosGet.mockImplementation((url: string) => {
     if (url === 'api/admin/generations') {
       return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
     }
     if (url === 'api/admin/scholarship-payments') {
-      return Promise.resolve({ data: { res: true, data: { rows, summary } } })
+      return Promise.resolve({ data: { res: true, data: { rows, summary, batch } } })
     }
     return Promise.reject(new Error(`unexpected GET ${url}`))
   })
@@ -292,5 +297,124 @@ describe('PaymentsView', () => {
     expect(wrapper.text()).not.toContain('Ada Lovelace')
     expect(wrapper.text()).toContain('Grace Hopper')
     expect(mockAxiosGet.mock.calls.length).toBe(fetchCallsBeforeToggle)
+  })
+
+  describe('bank-file export (sdd/becario-payment-bank-file-export)', () => {
+    const mockExportEndpoints = ({
+      batch = { batch_id: 42, is_paid: true },
+      exportSummary = { count: 1, total_amount: '1000.00', filename: 'PAGO_1_MERIDA_202609_42.TXT' },
+    }: {
+      batch?: Record<string, unknown>
+      exportSummary?: Record<string, unknown>
+    } = {}): void => {
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/generations') {
+          return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
+        }
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: { rows: [buildRow()], summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' }, batch },
+            },
+          })
+        }
+        if (url === 'api/admin/scholarship-payments/batches/42/export/summary') {
+          return Promise.resolve({ data: { res: true, data: exportSummary } })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+    }
+
+    it('does not render the export card without ADM_EXPORT_PAYMENTS, even when the batch is already paid', async () => {
+      grantPermissions(true, false)
+      mockExportEndpoints()
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+
+      expect(wrapper.text()).not.toContain('Descargar archivo de pago')
+    })
+
+    it('does not render the export card when the batch is not yet paid, even with permission', async () => {
+      grantPermissions(true, true)
+      mockExportEndpoints({ batch: { batch_id: null, is_paid: false } })
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+
+      expect(wrapper.text()).not.toContain('Descargar archivo de pago')
+    })
+
+    it('renders the summary and download button once the batch is paid and the permission is held', async () => {
+      grantPermissions(true, true)
+      mockExportEndpoints()
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Empleados a Dispersar')
+      expect(wrapper.text()).toContain('1000.00')
+      expect(wrapper.text()).toContain('Descargar archivo de pago')
+    })
+
+    it('lists each blocked becario by name with its reason when the download is rejected with 422', async () => {
+      grantPermissions(true, true)
+      mockExportEndpoints()
+      const errorBody = JSON.stringify({
+        res: false,
+        msg: 'El lote tiene becarios con datos bancarios inválidos.',
+        data: {
+          invalid_rows: [
+            {
+              refrend_id: 1,
+              snapshot_name: 'Ada Lovelace',
+              account_number: 'ABC123',
+              rfc: null,
+              reasons: [{ code: 'INVALID_ACCOUNT_NUMBER', message: 'Número de cuenta inválido: debe ser numérico de 9 o 10 dígitos' }],
+            },
+          ],
+        },
+      })
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/generations') {
+          return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
+        }
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: {
+                rows: [buildRow()],
+                summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' },
+                batch: { batch_id: 42, is_paid: true },
+              },
+            },
+          })
+        }
+        if (url === 'api/admin/scholarship-payments/batches/42/export/summary') {
+          return Promise.resolve({
+            data: { res: true, data: { count: 1, total_amount: '1000.00', filename: 'PAGO_1_MERIDA_202609_42.TXT' } },
+          })
+        }
+        if (url === 'api/admin/scholarship-payments/batches/42/export') {
+          return Promise.reject({ response: { status: 422, data: new Blob([errorBody], { type: 'application/json' }) } })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+      await flushPromises()
+
+      const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo de pago')
+      await downloadButton?.trigger('click')
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Ada Lovelace')
+      expect(wrapper.text()).toContain('Número de cuenta inválido: debe ser numérico de 9 o 10 dígitos')
+    })
   })
 })

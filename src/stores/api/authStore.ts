@@ -162,6 +162,9 @@ export const useAuthStore = defineStore('authStore', () => {
   // (design "New Permissions", sdd/becario-payment-file-generation).
   const readPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_PAYMENTS))
   const processPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.PROCESS_PAYMENTS))
+  // Bank-file export — dedicated permission, distinct from READ/PROCESS
+  // (spec's requirement, sdd/becario-payment-bank-file-export).
+  const exportPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.EXPORT_PAYMENTS))
 
   return {
     login,
@@ -185,5 +188,6 @@ export const useAuthStore = defineStore('authStore', () => {
     manageAdmins,
     readPayments,
     processPayments,
+    exportPayments,
   }
 })

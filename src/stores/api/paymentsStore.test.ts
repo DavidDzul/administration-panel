@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { BatchKey, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from '@/interfaces/payment'
+import type {
+  BatchKey,
+  ExportSummary,
+  InvalidBankRow,
+  PaymentBatchRow,
+  PaymentBatchSummary,
+  PaymentDocument,
+} from '@/interfaces/payment'
 
 const { mockAxiosGet, mockAxiosPost } = vi.hoisted(() => ({
   mockAxiosGet: vi.fn(),
@@ -86,7 +93,9 @@ describe('paymentsStore', () => {
       const key = buildKey()
       const row = buildRow()
       const summary = buildSummary()
-      mockAxiosGet.mockResolvedValueOnce({ data: { res: true, data: { rows: [row], summary } } })
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { rows: [row], summary, batch: { batch_id: null, is_paid: false } } },
+      })
 
       const store = usePaymentsStore()
       const result = await store.fetchBatch(key)
@@ -98,6 +107,25 @@ describe('paymentsStore', () => {
       expect(result).toBe(true)
       expect(store.rows).toEqual([row])
       expect(store.summary).toEqual(summary)
+      expect(store.batchId).toBeNull()
+      expect(store.isPaid).toBe(false)
+    })
+
+    // D3 — this is what lets the SPA reach the export action after a page
+    // reload: `index()`'s `data.batch` block, not the transient value
+    // processBatch() sets.
+    it('populates batchId/isPaid from data.batch when the batch key is already paid', async () => {
+      const row = buildRow()
+      const summary = buildSummary()
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { rows: [row], summary, batch: { batch_id: 42, is_paid: true } } },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.batchId).toBe(42)
+      expect(store.isPaid).toBe(true)
     })
 
     it('returns false (not a thrown error) when the fetch fails', async () => {
@@ -190,6 +218,108 @@ describe('paymentsStore', () => {
 
       const store = usePaymentsStore()
       const result = await store.processBatch(buildKey(), 1, '1000.00')
+
+      expect(result).toEqual({ status: 'error' })
+    })
+  })
+
+  describe('fetchExportSummary', () => {
+    const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSummary => ({
+      count: 4,
+      total_amount: '2600.02',
+      filename: 'PAGO_1_MERIDA_202609_42.TXT',
+      ...overrides,
+    })
+
+    it('GETs the batch export summary and returns it on success', async () => {
+      const exportSummary = buildExportSummary()
+      mockAxiosGet.mockResolvedValueOnce({ data: { res: true, data: exportSummary } })
+
+      const store = usePaymentsStore()
+      const result = await store.fetchExportSummary(42)
+
+      expect(mockAxiosGet).toHaveBeenCalledWith('api/admin/scholarship-payments/batches/42/export/summary')
+      expect(result).toEqual(exportSummary)
+    })
+
+    it('returns null (not a thrown error) when the fetch fails', async () => {
+      mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
+
+      const store = usePaymentsStore()
+      const result = await store.fetchExportSummary(42)
+
+      expect(result).toBeNull()
+    })
+  })
+
+  // D6 — first blob download in this codebase. Auth is a Bearer header set
+  // on axios.defaults, so this MUST go through axios with
+  // `responseType: 'blob'`, never window.open/<a href>.
+  describe('downloadExportFile', () => {
+    const stubUrlApi = (): { createObjectURL: ReturnType<typeof vi.fn>; revokeObjectURL: ReturnType<typeof vi.fn> } => {
+      const createObjectURL = vi.fn().mockReturnValue('blob:mock-url')
+      const revokeObjectURL = vi.fn()
+      vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL })
+      return { createObjectURL, revokeObjectURL }
+    }
+
+    it('GETs the file with responseType blob and triggers a browser download, without leaking the object URL', async () => {
+      const { createObjectURL, revokeObjectURL } = stubUrlApi()
+      const blob = new Blob(['fake bank file content'], { type: 'text/plain' })
+      mockAxiosGet.mockResolvedValueOnce({
+        data: blob,
+        headers: { 'content-disposition': 'attachment; filename=PAGO_1_MERIDA_202609_42.TXT' },
+      })
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      const store = usePaymentsStore()
+      const result = await store.downloadExportFile(42)
+
+      expect(mockAxiosGet).toHaveBeenCalledWith(
+        'api/admin/scholarship-payments/batches/42/export',
+        expect.objectContaining({ responseType: 'blob' }),
+      )
+      expect(result).toEqual({ status: 'success' })
+      expect(createObjectURL).toHaveBeenCalledWith(blob)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+
+      clickSpy.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
+    // This is the genuinely-easy-to-get-wrong case: with `responseType:
+    // 'blob'` set, axios hands a 422 error body back as a Blob too, NOT
+    // parsed JSON — the store must .text() it, then JSON.parse it.
+    it('unpacks a 422 blob error body into invalidRows instead of treating it as opaque binary', async () => {
+      const invalidRows: InvalidBankRow[] = [
+        {
+          refrend_id: 3,
+          snapshot_name: 'Grace Hopper',
+          account_number: 'ABC123',
+          rfc: null,
+          reasons: [{ code: 'INVALID_ACCOUNT_NUMBER', message: 'Número de cuenta inválido: debe ser numérico de 9 o 10 dígitos' }],
+        },
+      ]
+      const errorBody = JSON.stringify({
+        res: false,
+        msg: 'El lote tiene becarios con datos bancarios inválidos.',
+        data: { invalid_rows: invalidRows },
+      })
+      const errorBlob = new Blob([errorBody], { type: 'application/json' })
+      mockAxiosGet.mockRejectedValueOnce({ response: { status: 422, data: errorBlob } })
+
+      const store = usePaymentsStore()
+      const result = await store.downloadExportFile(42)
+
+      expect(result).toEqual({ status: 'blocked', invalidRows })
+    })
+
+    it('returns a generic "error" result on an unrelated failure, without throwing', async () => {
+      mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
+
+      const store = usePaymentsStore()
+      const result = await store.downloadExportFile(42)
 
       expect(result).toEqual({ status: 'error' })
     })

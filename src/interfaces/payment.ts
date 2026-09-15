@@ -49,6 +49,47 @@ export interface BatchKey {
   period_month: number
 }
 
+// Matches ScholarshipPaymentController::index()'s new `data.batch` block
+// (design D3, sdd/becario-payment-bank-file-export) — derived server-side
+// from the row-level `payment_batch_id` already SELECTed by
+// PaymentBatchService::rows(). `batch_id` is null unless the batch key is
+// already fully paid; this is what lets the SPA reach the export action
+// after a page reload instead of relying on the transient `batchId` set by
+// processBatch().
+export interface PaymentBatchBlock {
+  batch_id: number | null
+  is_paid: boolean
+}
+
+// Matches ScholarshipPaymentController::exportSummary()'s real envelope
+// (design D4) — count/total are sourced from the SAME
+// PaymentBatchService::paidRows() + BankDataValidator gate export() uses, so
+// this can never promise a total the file endpoint fails to deliver.
+// `filename` is server-owned (BankPaymentFileName::forBatch(), design D5) —
+// the SPA never composes it.
+export interface ExportSummary {
+  count: number
+  total_amount: string
+  filename: string
+}
+
+// Matches BankDataValidator::validate()'s per-row rejection shape.
+export interface BankFileReason {
+  code: string
+  message: string
+}
+
+// Matches the 422 `data.invalid_rows[]` shape shared by BOTH export
+// endpoints (design D4's invariant — one gate, two callers), verified
+// against ScholarshipPaymentController::paidAndBankValidatedRows().
+export interface InvalidBankRow {
+  refrend_id: number
+  snapshot_name: string
+  account_number: string | null
+  rfc: string | null
+  reasons: BankFileReason[]
+}
+
 // Matches ScholarshipPaymentController::document()'s real response, verified
 // by reading impulsou-api/app/Http/Controllers/Admin/ScholarshipPaymentController.php
 // directly (PR6) rather than guessing. `incident_category`/`incident_type`

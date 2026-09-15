@@ -5,9 +5,10 @@ import { defineComponent, h } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
+import type { DownloadExportResult } from '@/stores/api/paymentsStore'
 import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
-import type { PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
+import type { ExportSummary, InvalidBankRow, PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
 import type { Generation } from '@/interfaces/generation'
 
 // `onBeforeMount`/`watch` inside a plain composable only register against a
@@ -207,6 +208,128 @@ describe('usePaymentsPage', () => {
     await flushPromises()
 
     expect(result.hasProcessPermission.value).toBe(true)
+  })
+
+  describe('bank-file export (sdd/becario-payment-bank-file-export)', () => {
+    const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSummary => ({
+      count: 4,
+      total_amount: '2600.02',
+      filename: 'PAGO_1_MERIDA_202609_42.TXT',
+      ...overrides,
+    })
+
+    // downloadExportFile is spied BEFORE the composable is created (same
+    // convention as confirmProcess's processBatchSpy above) — usePaymentsPage
+    // destructures the store's action reference once at setup time, so
+    // spying after the composable already exists would silently target the
+    // pre-spy reference and never be observed.
+    const loadPaidBatch = async (
+      downloadResult: DownloadExportResult = { status: 'success' },
+    ) => {
+      const paymentsStore = usePaymentsStore()
+      vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+        paymentsStore.rows = [buildRow()]
+        paymentsStore.summary = buildSummary()
+        paymentsStore.batchId = 42
+        paymentsStore.isPaid = true
+        return true
+      })
+      vi.spyOn(paymentsStore, 'fetchExportSummary').mockResolvedValue(buildExportSummary())
+      const downloadSpy = vi.spyOn(paymentsStore, 'downloadExportFile').mockResolvedValue(downloadResult)
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
+
+      const result = withSetup(() => usePaymentsPage())
+      result.campus.value = 'MERIDA'
+      result.generationId.value = 1
+      result.periodYear.value = 2026
+      result.periodMonth.value = 9
+      await flushPromises()
+
+      return { result, paymentsStore, downloadSpy }
+    }
+
+    it('exposes isPaid/batchId mirrored from the store, populated by the regular fetch (not just processBatch)', async () => {
+      const { result } = await loadPaidBatch()
+
+      expect(result.isPaid.value).toBe(true)
+      expect(result.batchId.value).toBe(42)
+    })
+
+    it('loads the export summary automatically once the batch is paid', async () => {
+      const { result, paymentsStore } = await loadPaidBatch()
+
+      expect(paymentsStore.fetchExportSummary).toHaveBeenCalledWith(42)
+      expect(result.exportSummary.value).toEqual(buildExportSummary())
+    })
+
+    it('does not load an export summary when the batch is not yet paid', async () => {
+      const paymentsStore = usePaymentsStore()
+      vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+        paymentsStore.rows = [buildRow()]
+        paymentsStore.summary = buildSummary()
+        return true
+      })
+      const fetchExportSummarySpy = vi.spyOn(paymentsStore, 'fetchExportSummary')
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
+
+      const result = withSetup(() => usePaymentsPage())
+      result.campus.value = 'MERIDA'
+      result.generationId.value = 1
+      result.periodYear.value = 2026
+      result.periodMonth.value = 9
+      await flushPromises()
+
+      expect(fetchExportSummarySpy).not.toHaveBeenCalled()
+      expect(result.exportSummary.value).toBeNull()
+    })
+
+    it('confirmExport downloads the file for the current batchId and clears prior error state', async () => {
+      const { result, downloadSpy } = await loadPaidBatch({ status: 'success' })
+
+      await result.confirmExport()
+
+      expect(downloadSpy).toHaveBeenCalledWith(42)
+      expect(result.exportError.value).toBeNull()
+      expect(result.invalidBankRows.value).toEqual([])
+      expect(result.loadingExport.value).toBe(false)
+    })
+
+    it('confirmExport surfaces a "blocked" result distinctly, with the offending rows', async () => {
+      const invalidRows: InvalidBankRow[] = [
+        {
+          refrend_id: 3,
+          snapshot_name: 'Grace Hopper',
+          account_number: 'ABC123',
+          rfc: null,
+          reasons: [{ code: 'INVALID_ACCOUNT_NUMBER', message: 'Número de cuenta inválido' }],
+        },
+      ]
+      const { result } = await loadPaidBatch({ status: 'blocked', invalidRows })
+
+      await result.confirmExport()
+
+      expect(result.exportError.value).toBe('blocked')
+      expect(result.invalidBankRows.value).toEqual(invalidRows)
+    })
+
+    it('confirmExport surfaces a generic "error" result distinctly from "blocked"', async () => {
+      const { result } = await loadPaidBatch({ status: 'error' })
+
+      await result.confirmExport()
+
+      expect(result.exportError.value).toBe('error')
+      expect(result.invalidBankRows.value).toEqual([])
+    })
+
+    it('exposes hasExportPermission mirrored from authStore.exportPayments', async () => {
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_READ_PAYMENTS', 'ADM_EXPORT_PAYMENTS']
+      const { result } = await loadPaidBatch()
+
+      expect(result.hasExportPermission.value).toBe(true)
+    })
   })
 
   describe('showOnlyPending / visibleRows (sdd/becario-payment-review-filter)', () => {

@@ -72,4 +72,7 @@ export const PERMISSIONS = {
   // (see sdd/becario-payment-file-generation/design, "New Permissions").
   READ_PAYMENTS: 'ADM_READ_PAYMENTS',
   PROCESS_PAYMENTS: 'ADM_PROCESS_PAYMENTS',
+  // Bank-file export, distinct from READ/PROCESS (spec's "dedicated
+  // permission" requirement, sdd/becario-payment-bank-file-export/design).
+  EXPORT_PAYMENTS: 'ADM_EXPORT_PAYMENTS',
 } as const
