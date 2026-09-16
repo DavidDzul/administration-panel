@@ -5,7 +5,7 @@
         <v-card variant="tonal" color="primary">
           <v-card-text class="d-flex flex-wrap align-center ga-4">
             <div class="text-body-1">
-              <strong>{{ exportSummary.count }}</strong> Empleados a Dispersar
+              <strong>{{ exportSummary.count }}</strong> Becarios a Dispersar
               &middot; <strong>${{ exportSummary.total_amount }}</strong> Cantidad Total a Dispersar
             </div>
             <v-spacer></v-spacer>
@@ -50,9 +50,11 @@
 // `isPaid && hasExportPermission`. Purely presentational, same convention
 // as PaymentBatchSummary/PaymentBatchTable: state and the actual download
 // call live in usePaymentsPage, this component only renders + emits intent.
-// "Empleados a Dispersar" / "Cantidad Total a Dispersar" mirrors the bank's
+// "Becarios a Dispersar" / "Cantidad Total a Dispersar" mirrors the bank's
 // own xls convention (explicit business request), not this app's existing
-// "Total becarios" / "Monto total" copy in PaymentBatchSummary.
+// "Total becarios" / "Monto total" copy in PaymentBatchSummary — "Empleados"
+// was the bank template's own generic payroll wording, corrected here since
+// these are becarios, not employees.
 import type { ExportSummary, InvalidBankRow } from '@/interfaces/payment'
 
 interface Props {

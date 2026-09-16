@@ -33,7 +33,7 @@ describe('BankFileExportCard', () => {
     })
 
     expect(wrapper.text()).toContain('4')
-    expect(wrapper.text()).toContain('Empleados a Dispersar')
+    expect(wrapper.text()).toContain('Becarios a Dispersar')
     expect(wrapper.text()).toContain('2600.02')
     expect(wrapper.text()).toContain('Cantidad Total a Dispersar')
   })

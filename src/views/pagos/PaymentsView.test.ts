@@ -354,7 +354,7 @@ describe('PaymentsView', () => {
       await setAllFilters(wrapper)
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Empleados a Dispersar')
+      expect(wrapper.text()).toContain('Becarios a Dispersar')
       expect(wrapper.text()).toContain('1000.00')
       expect(wrapper.text()).toContain('Descargar archivo de pago')
     })
