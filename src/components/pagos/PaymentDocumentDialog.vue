@@ -55,11 +55,7 @@
                   <div class="text-caption text-medium-emphasis mb-1">Meses retenidos</div>
                   <div class="text-body-1">{{ document.carryover_months_count ?? 0 }}</div>
                 </v-col>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">% retenido</div>
-                  <div class="text-body-1">{{ document.carryover_percentage ?? '0.00' }}</div>
-                </v-col>
-                <v-col cols="12" sm="4">
+                <v-col cols="12" sm="8">
                   <div class="text-caption text-medium-emphasis mb-1">Detalle</div>
                   <div class="text-body-1">{{ document.carryover_months_detail ?? 'Sin detalle' }}</div>
                 </v-col>

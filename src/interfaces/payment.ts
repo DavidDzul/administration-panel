@@ -120,9 +120,8 @@ export interface PaymentAmountBreakdown {
 // The 3 comentario fields (atencion_observations/pedagogia_observations/
 // resolution_notes) are kept SEPARATE per the spec's resolved decision — this
 // interface mirrors that, they are never merged into one field client-side.
-// `carryover_percentage` reads null/0 in practice today (a known,
-// separately-tracked backend gap) — this type still reflects the real
-// nullable decimal:2 column, not a workaround.
+// `carryover_percentage` was removed end-to-end in
+// sdd/withholding-detail-display PR3 (dead column, no write path anywhere).
 export interface PaymentDocument {
   refrend_id: number
   user_id: number
@@ -131,7 +130,6 @@ export interface PaymentDocument {
   incidents: PaymentDocumentIncident[]
   carryover_months_count: number | null
   carryover_months_detail: string | null
-  carryover_percentage: string | null
   atencion_observations: string | null
   pedagogia_observations: string | null
   resolution_notes: string | null

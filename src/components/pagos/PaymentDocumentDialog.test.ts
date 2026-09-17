@@ -51,7 +51,6 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   ],
   carryover_months_count: 2,
   carryover_months_detail: '04/2026: 300.00; 03/2026: 150.00',
-  carryover_percentage: '50.00',
   atencion_observations: 'Llegó tarde dos veces.',
   pedagogia_observations: 'Bajo rendimiento en cálculo.',
   resolution_notes: 'Aprobado tras revisión.',

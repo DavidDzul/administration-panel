@@ -65,7 +65,6 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   incidents: [],
   carryover_months_count: null,
   carryover_months_detail: null,
-  carryover_percentage: null,
   atencion_observations: null,
   pedagogia_observations: null,
   resolution_notes: null,
