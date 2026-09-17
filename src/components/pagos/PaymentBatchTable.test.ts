@@ -35,6 +35,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   outcome_reason: null,
   has_incident: false,
   has_pending_from_previous: false,
+  resolution_type: null,
+  resolution_cause: null,
   ...overrides,
 })
 
@@ -119,5 +121,59 @@ describe('PaymentBatchTable', () => {
     const motivoCell = cells[cells.length - 2]
 
     expect(motivoCell.text()).toBe('—')
+  })
+
+  // ── Resolution indicator chip (sdd/resolution-status-visibility) ─────────
+
+  describe('resolution indicator chip', () => {
+    it.each([
+      ['RETENIDA', 'mdi-lock-outline', 'amber-darken-2', 'Beca retenida'],
+      ['SIN_PAGO', 'mdi-cash-remove', 'red', 'Sin pago'],
+      ['DESCUENTO_DEFINITIVO', 'mdi-cash-minus', 'purple-darken-2', 'Descuento definitivo'],
+      // BECA_MES must chip too, not hide — user override of proposal D5.
+      ['BECA_MES', 'mdi-cash-check', 'green', 'Pago sin penalización'],
+    ])('renders the correct icon/color/aria-label for resolution_type=%s', (resolutionType, icon, color, label) => {
+      const wrapper = mountTable([buildRow({ resolution_type: resolutionType, resolution_cause: null })])
+
+      const chip = wrapper.find('[data-testid="resolution-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.attributes('aria-label')).toBe(label)
+      expect(chip.find('.v-icon').classes()).toContain(icon)
+      expect(chip.classes().join(' ')).toContain(`text-${color}`)
+    })
+
+    it('renders no resolution chip when resolution_type is null', () => {
+      const wrapper = mountTable([buildRow({ resolution_type: null })])
+
+      expect(wrapper.find('[data-testid="resolution-chip"]').exists()).toBe(false)
+    })
+
+    it('coexists with has_incident and has_pending_from_previous chips without displacing either', () => {
+      const wrapper = mountTable([
+        buildRow({
+          has_incident: true,
+          has_pending_from_previous: true,
+          resolution_type: 'RETENIDA',
+        }),
+      ])
+
+      expect(wrapper.text()).toContain('Incidencia registrada')
+      expect(wrapper.text()).toContain('Incluye mes retenido')
+      expect(wrapper.find('[data-testid="resolution-chip"]').exists()).toBe(true)
+    })
+
+    it('appends "· Motivo: {resolution_cause}" to the aria-label when resolution_cause is non-null', () => {
+      const wrapper = mountTable([buildRow({ resolution_type: 'RETENIDA', resolution_cause: 'FALTAS_FI' })])
+
+      const chip = wrapper.find('[data-testid="resolution-chip"]')
+      expect(chip.attributes('aria-label')).toBe('Beca retenida · Motivo: FALTAS_FI')
+    })
+
+    it('aria-label is the label alone when resolution_cause is null', () => {
+      const wrapper = mountTable([buildRow({ resolution_type: 'RETENIDA', resolution_cause: null })])
+
+      const chip = wrapper.find('[data-testid="resolution-chip"]')
+      expect(chip.attributes('aria-label')).toBe('Beca retenida')
+    })
   })
 })

@@ -49,6 +49,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   outcome_reason: null,
   has_incident: false,
   has_pending_from_previous: false,
+  resolution_type: null,
+  resolution_cause: null,
   ...overrides,
 })
 
@@ -384,6 +386,45 @@ describe('usePaymentsPage', () => {
       await flushPromises()
 
       expect(result.summary.value).toEqual(summaryBefore)
+    })
+
+    // sdd/resolution-status-visibility, task 6.1: a payable, incident-free
+    // row with a non-null resolution_type IS grouped as pending review, AND
+    // (in the same test) canProcess/summary stay derived exclusively from
+    // the server aggregate — the client-side filter is structurally
+    // incapable of reaching the payment gate. Mirrors the isolation-invariant
+    // pattern already established above for has_incident/has_pending_from_previous.
+    it('includes a payable row with a non-null resolution_type in visibleRows, without affecting canProcess/summary', async () => {
+      const paymentsStore = usePaymentsStore()
+      const resolvedRow = buildRow({
+        refrend_id: 1,
+        is_payable: true,
+        has_incident: false,
+        has_pending_from_previous: false,
+        resolution_type: 'RETENIDA',
+      })
+      const plainReadyRow = buildRow({ refrend_id: 2, is_payable: true })
+      vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+        paymentsStore.rows = [resolvedRow, plainReadyRow]
+        paymentsStore.summary = buildSummary({ total: 2, ready: 2, blocking: 0 })
+        return true
+      })
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
+
+      const result = withSetup(() => usePaymentsPage())
+      result.campus.value = 'MERIDA'
+      result.generationId.value = 1
+      result.periodYear.value = 2026
+      result.periodMonth.value = 9
+      await flushPromises()
+
+      result.showOnlyPending.value = true
+      await flushPromises()
+
+      expect(result.visibleRows.value).toEqual([resolvedRow])
+      expect(result.canProcess.value).toBe(true)
+      expect(result.summary.value?.blocking).toBe(0)
     })
   })
 })

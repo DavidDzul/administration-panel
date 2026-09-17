@@ -27,6 +27,15 @@ export interface PaymentBatchRow {
   // flag participates in `is_payable`/`blocking_reasons`.
   has_incident: boolean
   has_pending_from_previous: boolean
+  // Row-level resolution indicator (sdd/resolution-status-visibility).
+  // Purely informational, same as the flags above — NEVER participates in
+  // `is_payable`/`blocking_reasons` (PaymentReadinessEvaluator is
+  // structurally unreachable by these two fields). Typed as `string | null`,
+  // not the `ResolutionType` union, because this is server data that must
+  // survive an unknown value — the union + fallback lives in
+  // `@/utils/resolutionMeta`.
+  resolution_type: string | null
+  resolution_cause: string | null
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against

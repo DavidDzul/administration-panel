@@ -46,6 +46,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   outcome_reason: null,
   has_incident: false,
   has_pending_from_previous: false,
+  resolution_type: null,
+  resolution_cause: null,
   ...overrides,
 })
 

@@ -51,8 +51,14 @@ export function usePaymentsPage() {
   // all-or-nothing "Pagar todos" gate.
   const showOnlyPending = ref<boolean>(false)
 
+  // sdd/resolution-status-visibility: a non-null resolution_type joins the
+  // same "pendiente de revisar" class as has_incident. Same isolation
+  // invariant as the flags above — canProcess/summary below derive
+  // exclusively from `summary` (the full-batch server aggregate), never
+  // from visibleRows, so this client-side grouping can never mask a still-
+  // blocking row from the all-or-nothing "Pagar todos" gate.
   const isPendingReview = (row: PaymentBatchRow): boolean =>
-    !row.is_payable || row.has_incident || row.has_pending_from_previous
+    !row.is_payable || row.has_incident || row.has_pending_from_previous || row.resolution_type !== null
 
   const visibleRows = computed<PaymentBatchRow[]>(() =>
     showOnlyPending.value ? rows.value.filter(isPendingReview) : rows.value,
