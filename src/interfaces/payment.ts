@@ -27,6 +27,11 @@ export interface PaymentBatchRow {
   // flag participates in `is_payable`/`blocking_reasons`.
   has_incident: boolean
   has_pending_from_previous: boolean
+  // True only when the current month pays nothing and this payment settles
+  // solely a retained prior month — distinguishes that from the normal case
+  // (current month paid + a retained month settled alongside it), which
+  // has_pending_from_previous alone can't tell apart.
+  only_pending_from_previous: boolean
   // Row-level resolution indicator (sdd/resolution-status-visibility).
   // Purely informational, same as the flags above — NEVER participates in
   // `is_payable`/`blocking_reasons` (PaymentReadinessEvaluator is

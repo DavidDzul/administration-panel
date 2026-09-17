@@ -32,7 +32,7 @@
   </v-row>
 
   <template v-else-if="summary">
-    <PaymentBatchSummary :summary="summary" />
+    <PaymentBatchSummary v-if="!isPaid" :summary="summary" />
 
     <v-row v-if="hasProcessPermission" justify="end">
       <v-col cols="auto">
@@ -150,4 +150,9 @@ const onViewDocument = (refrendId: number): void => {
 // `canProcess` above stay wired to the composable's full-batch values, so
 // this toggle can never hide a still-blocking row from the "Pagar todos"
 // gate.
+
+// Once the batch is paid, the ready/blocking/total-amount cards no longer
+// mean anything actionable — user-requested cleanup. The table, "Pagar
+// todos" (now disabled), and the export card stay, since those still
+// matter after payment.
 </script>

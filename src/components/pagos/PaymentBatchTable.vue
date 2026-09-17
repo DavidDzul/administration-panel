@@ -25,7 +25,7 @@
         prepend-icon="mdi-cash-clock"
         class="mb-1"
       >
-        Incluye mes retenido
+        {{ item.only_pending_from_previous ? 'Solo mes retenido' : 'Incluye mes retenido' }}
       </v-chip>
       <v-tooltip v-if="resolutionMeta(item.resolution_type)" :text="resolutionAriaLabel(item)">
         <template #activator="{ props: tooltipProps }">
@@ -36,9 +36,10 @@
             size="small"
             :color="resolutionMeta(item.resolution_type)?.color"
             variant="tonal"
+            :prepend-icon="resolutionMeta(item.resolution_type)?.icon"
             class="mb-1"
           >
-            <v-icon :icon="resolutionMeta(item.resolution_type)?.icon" size="small" />
+            {{ resolutionMeta(item.resolution_type)?.label }}
           </v-chip>
         </template>
       </v-tooltip>
@@ -51,7 +52,7 @@
     </template>
 
     <template #[`item.reason`]="{ item }">
-      <span v-if="!item.is_payable" class="text-caption text-error">
+      <span v-if="!item.is_payable" class="text-caption" :class="isOnlyAlreadyPaid(item) ? 'text-medium-emphasis' : 'text-error'">
         {{ item.blocking_reasons.map((reason) => reason.message).join(', ') }}
       </span>
       <span v-else>—</span>
@@ -116,10 +117,10 @@ const onView = (refrendId: number): void => {
   emit('view', refrendId)
 }
 
-// Icon-only chip + tooltip/aria-label instead of a text chip (design D4) —
-// the flags column already carries up to two text chips; a third would
-// triple-wrap the cell and make row heights uneven across a batch. Label
-// alone, or "{label} · Motivo: {resolution_cause}" when a cause is present.
+// Chip shows icon + label text directly (user override of design D4's
+// icon-only choice — hover-only text wasn't discoverable enough). The
+// tooltip/aria-label still carries the resolution_cause detail: label alone,
+// or "{label} · Motivo: {resolution_cause}" when a cause is present.
 // resolution_cause is a raw backend code (no CAUSE_LABELS equivalent here —
 // deliberately out of scope, see design's Open Questions).
 const resolutionAriaLabel = (row: PaymentBatchRow): string => {
@@ -127,4 +128,10 @@ const resolutionAriaLabel = (row: PaymentBatchRow): string => {
   if (!meta) return ''
   return row.resolution_cause ? `${meta.label} · Motivo: ${row.resolution_cause}` : meta.label
 }
+
+// ALREADY_PAID is not an error to flag in red — it just means the payment
+// already happened. Only style "Motivo" as an error when a *real* blocking
+// reason is present, alone or alongside ALREADY_PAID.
+const isOnlyAlreadyPaid = (row: PaymentBatchRow): boolean =>
+  row.blocking_reasons.length === 1 && row.blocking_reasons[0].code === 'ALREADY_PAID'
 </script>

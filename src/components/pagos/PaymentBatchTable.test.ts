@@ -35,6 +35,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   outcome_reason: null,
   has_incident: false,
   has_pending_from_previous: false,
+  only_pending_from_previous: false,
   resolution_type: null,
   resolution_cause: null,
   ...overrides,
@@ -88,6 +89,15 @@ describe('PaymentBatchTable', () => {
     expect(rows[1].text()).not.toContain('Incluye mes retenido')
   })
 
+  it('says "Solo mes retenido" when the current month pays nothing, not "Incluye"', () => {
+    const wrapper = mountTable([
+      buildRow({ refrend_id: 1, has_pending_from_previous: true, only_pending_from_previous: true }),
+    ])
+
+    expect(wrapper.text()).toContain('Solo mes retenido')
+    expect(wrapper.text()).not.toContain('Incluye mes retenido')
+  })
+
   it('emits "view" with the refrend_id instead of navigating when "Ver" is clicked', async () => {
     const wrapper = mountTable([buildRow({ refrend_id: 7 })])
 
@@ -123,6 +133,40 @@ describe('PaymentBatchTable', () => {
     expect(motivoCell.text()).toBe('—')
   })
 
+  it('does not style "Motivo" as an error when the only blocking reason is ALREADY_PAID', () => {
+    const wrapper = mountTable([
+      buildRow({
+        refrend_id: 4,
+        is_payable: false,
+        blocking_reasons: [{ code: 'ALREADY_PAID', message: 'Pago ya realizado' }],
+      }),
+    ])
+
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    const motivoCell = cells[cells.length - 2]
+
+    expect(motivoCell.text()).toContain('Pago ya realizado')
+    expect(motivoCell.find('.text-error').exists()).toBe(false)
+  })
+
+  it('still styles "Motivo" as an error when ALREADY_PAID appears alongside a real blocking reason', () => {
+    const wrapper = mountTable([
+      buildRow({
+        refrend_id: 5,
+        is_payable: false,
+        blocking_reasons: [
+          { code: 'ALREADY_PAID', message: 'Pago ya realizado' },
+          { code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' },
+        ],
+      }),
+    ])
+
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    const motivoCell = cells[cells.length - 2]
+
+    expect(motivoCell.find('.text-error').exists()).toBe(true)
+  })
+
   // ── Resolution indicator chip (sdd/resolution-status-visibility) ─────────
 
   describe('resolution indicator chip', () => {
@@ -140,6 +184,13 @@ describe('PaymentBatchTable', () => {
       expect(chip.attributes('aria-label')).toBe(label)
       expect(chip.find('.v-icon').classes()).toContain(icon)
       expect(chip.classes().join(' ')).toContain(`text-${color}`)
+    })
+
+    it('shows the label as visible chip text, not only on hover', () => {
+      const wrapper = mountTable([buildRow({ resolution_type: 'DESCUENTO_DEFINITIVO', resolution_cause: null })])
+
+      const chip = wrapper.find('[data-testid="resolution-chip"]')
+      expect(chip.text()).toContain('Descuento definitivo')
     })
 
     it('renders no resolution chip when resolution_type is null', () => {

@@ -60,6 +60,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   outcome_reason: null,
   has_incident: false,
   has_pending_from_previous: false,
+  only_pending_from_previous: false,
   resolution_type: null,
   resolution_cause: null,
   ...overrides,
@@ -280,6 +281,30 @@ describe('PaymentsView', () => {
     expect(body().text()).toContain('Documento de pago')
     // The list view (filters/table) stays mounted underneath — no navigation happened.
     expect(wrapper.text()).toContain('Ada Lovelace')
+  })
+
+  it('hides the summary cards once the batch is already paid, but keeps the table and "Pagar todos"', async () => {
+    mockGenerationsAndBatch(
+      [buildRow()],
+      { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' },
+      { batch_id: 42, is_paid: true },
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    expect(wrapper.text()).not.toContain('Total becarios')
+    expect(wrapper.text()).not.toContain('Bloqueados')
+    expect(wrapper.text()).toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Pagar todos')
+  })
+
+  it('shows the summary cards while the batch is not yet paid', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    expect(wrapper.text()).toContain('Total becarios')
   })
 
   it('toggling "solo pendientes de revisar" narrows which rows the table receives, without an extra fetch', async () => {
