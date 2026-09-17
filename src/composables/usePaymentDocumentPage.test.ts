@@ -47,6 +47,13 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     final_amount: '1000.00',
     total_to_pay: '1000.00',
   },
+  retentions: {
+    ledger_applied: [],
+    ledger_applied_total: '0.00',
+    origin_withholding: null,
+    attendance_discounts: [],
+    definitive_discount: null,
+  },
   ...overrides,
 })
 

@@ -38,6 +38,7 @@
             <v-tab value="incidencias">Incidencias</v-tab>
             <v-tab value="comentarios">Comentarios</v-tab>
             <v-tab value="desglose">Desglose de monto</v-tab>
+            <v-tab value="retenciones">Retenciones</v-tab>
           </v-tabs>
 
           <v-window v-model="tab" class="mt-4">
@@ -120,6 +121,10 @@
               <div class="text-caption text-medium-emphasis mb-1">Total a pagar</div>
               <div class="text-h5">${{ document.amount_breakdown.total_to_pay }}</div>
             </v-window-item>
+
+            <v-window-item value="retenciones">
+              <RetentionBreakdownPanel :retentions="document.retentions" />
+            </v-window-item>
           </v-window>
         </template>
       </v-card-text>
@@ -139,6 +144,7 @@
 // (atención/pedagogía/resolución) stay separately labeled, never merged.
 import { ref, toRef, watch } from 'vue'
 import { usePaymentDocumentPage } from '@/composables/usePaymentDocumentPage'
+import RetentionBreakdownPanel from '@/components/pagos/RetentionBreakdownPanel.vue'
 
 interface Props {
   modelValue: boolean

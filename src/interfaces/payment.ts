@@ -117,6 +117,75 @@ export interface PaymentAmountBreakdown {
   total_to_pay: string
 }
 
+// Matches `RefrendRetentionBreakdown::forRefrend()`'s real response shape
+// (sdd/withholding-detail-display PR1/PR2, verified against
+// `ScholarshipPaymentControllerTest`'s `document(): retentions` assertions —
+// see apply-progress for the exact field names, not guessed). Kind 1a: money
+// settled NOW by this refrend, from earlier periods.
+export interface RetentionLedgerEntry {
+  payment_id: number
+  withholding_id: number
+  period_year: number
+  period_month: number
+  withheld_amount: string
+  amount_applied_now: string
+  remaining_amount: string
+  cause: string | null
+  withheld_at: string
+  applied_at: string
+  created_by: string | null
+}
+
+// Kind 1b: the retention THIS refrend generated, if any (D2 — `CANCELLED`
+// origins never surface here, so this and `definitive_discount` are mutually
+// exclusive for the same refrend). Object-or-null cardinality is structural,
+// not incidental (`origin_refrend_id` is uniquely indexed) — D3.
+export interface OriginWithholding {
+  withholding_id: number
+  period_year: number
+  period_month: number
+  withheld_amount: string
+  paid_amount: string
+  remaining_amount: string
+  status: 'PENDING' | 'PAID'
+  cause: string | null
+  withheld_at: string
+  created_by: string | null
+}
+
+// Kind 2: attendance-driven discount. Deliberately has NO amount field — the
+// column does not exist on `scholarship_refrend_discounts`, so the frontend
+// must never synthesize a peso value for this kind (D-note in design).
+export interface AttendanceDiscount {
+  id: number
+  discount_type: 'RETARDOS' | 'FALTA_INJUSTIFICADA'
+  discount_percentage: string | null
+  description: string | null
+  created_at: string
+}
+
+// Kind 3: definitive discount. Object-or-null (columns live directly on the
+// refrend, not a related table — D3), and deliberately has no date field
+// (spec's resolved scope correction: no decision-date requirement exists).
+export interface DefinitiveDiscount {
+  discount_amount: string
+  discount_percentage: string
+  resolution_cause: string | null
+}
+
+// Ties the three retention kinds together under one key (D4) so the frontend
+// has a single typed shape instead of three loose optional fields scattered
+// across `PaymentDocument`. `ledger_applied_total` must equal
+// `amount_breakdown.amount_pending_from_previous` (the reconciliation
+// invariant enforced server-side).
+export interface RetentionBreakdown {
+  ledger_applied: RetentionLedgerEntry[]
+  ledger_applied_total: string
+  origin_withholding: OriginWithholding | null
+  attendance_discounts: AttendanceDiscount[]
+  definitive_discount: DefinitiveDiscount | null
+}
+
 // The 3 comentario fields (atencion_observations/pedagogia_observations/
 // resolution_notes) are kept SEPARATE per the spec's resolved decision — this
 // interface mirrors that, they are never merged into one field client-side.
@@ -134,4 +203,5 @@ export interface PaymentDocument {
   pedagogia_observations: string | null
   resolution_notes: string | null
   amount_breakdown: PaymentAmountBreakdown
+  retentions: RetentionBreakdown
 }

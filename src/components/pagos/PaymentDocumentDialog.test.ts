@@ -63,6 +63,27 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     final_amount: '1000.00',
     total_to_pay: '1450.00',
   },
+  retentions: {
+    ledger_applied: [
+      {
+        payment_id: 10,
+        withholding_id: 20,
+        period_year: 2026,
+        period_month: 3,
+        withheld_amount: '450.00',
+        amount_applied_now: '450.00',
+        remaining_amount: '0.00',
+        cause: 'Documentación incompleta',
+        withheld_at: '2026-03-05T00:00:00.000000Z',
+        applied_at: '2026-04-10T00:00:00.000000Z',
+        created_by: 'Ada Lovelace',
+      },
+    ],
+    ledger_applied_total: '450.00',
+    origin_withholding: null,
+    attendance_discounts: [],
+    definitive_discount: null,
+  },
   ...overrides,
 })
 
@@ -164,6 +185,18 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('1000.00')
     expect(body().text()).toContain('450.00')
     expect(body().text()).toContain('1450.00')
+  })
+
+  it('renders the retention breakdown panel with the real document.retentions data under the Retenciones tab', async () => {
+    mockAxiosGet.mockResolvedValue({ data: { res: true, data: buildDocument() } })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Retenciones')
+
+    expect(body().text()).toContain('marzo 2026')
+    expect(body().text()).toContain('Documentación incompleta')
+    expect(body().text()).toContain('Ada Lovelace')
+    expect(body().text()).toContain('Total aplicado en este pago')
   })
 
   it('does not render any edit control (read-only dialog)', async () => {
