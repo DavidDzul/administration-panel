@@ -22,6 +22,7 @@ const router = createRouter({
     { path: '/becarios', component: { template: '<div />' } },
     { path: '/control/roles', component: { template: '<div />' } },
     { path: '/control/accesos', component: { template: '<div />' } },
+    { path: '/pagos', component: { template: '<div />' } },
   ],
 })
 
@@ -101,5 +102,28 @@ describe('NavMenu — "Control" group gating on ADM_READ_ROLES / ADM_READ_ADMINS
     expect(wrapper.text()).not.toContain('Control')
     expect(wrapper.text()).not.toContain('Roles')
     expect(wrapper.text()).not.toContain('Accesos')
+  })
+})
+
+describe('NavMenu — top-level order', () => {
+  it('orders top-level groups Inicio, Usuarios, Pagos, Control', async () => {
+    mockPermissions.value = [
+      'ADM_READ_USERS',
+      'ADM_READ_PAYMENTS',
+      'ADM_READ_ROLES',
+      'ADM_READ_ADMINS',
+    ]
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    const text = wrapper.text()
+    const inicioIdx = text.indexOf('Inicio')
+    const usuariosIdx = text.indexOf('Usuarios')
+    const pagosIdx = text.indexOf('Pagos')
+    const controlIdx = text.indexOf('Control')
+
+    expect(inicioIdx).toBeLessThan(usuariosIdx)
+    expect(usuariosIdx).toBeLessThan(pagosIdx)
+    expect(pagosIdx).toBeLessThan(controlIdx)
   })
 })

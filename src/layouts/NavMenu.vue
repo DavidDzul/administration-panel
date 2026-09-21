@@ -15,6 +15,22 @@
       <v-list-item to="/becarios" title="Becarios y egresados" density="compact" class="nav-subitem" />
     </v-list-group>
 
+    <!--
+      D8 (sdd/becario-payment-file-generation/design): top-level group, NOT
+      nested under "Control" — "Control" is administration-of-the-
+      administration (who may do what); Pagos is operational domain work on
+      becarios, peer to "Usuarios". Single-permission gate mirrors the
+      Usuarios group's pattern exactly. Ordered before "Control" per the
+      user-requested nav order: Inicio, Usuarios, Pagos, Control.
+    -->
+    <v-list-group v-if="can(PERMISSIONS.READ_PAYMENTS)" value="Pagos">
+      <template #activator="{ props }">
+        <v-list-item v-bind="props" title="Pagos" prepend-icon="mdi-cash-multiple" class="nav-item" />
+      </template>
+
+      <v-list-item to="/pagos" title="Lotes de pago" density="compact" class="nav-subitem" />
+    </v-list-group>
+
     <v-list-group
       v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS)"
       value="Control"
@@ -42,21 +58,6 @@
         density="compact"
         class="nav-subitem"
       />
-    </v-list-group>
-
-    <!--
-      D8 (sdd/becario-payment-file-generation/design): top-level group, NOT
-      nested under "Control" — "Control" is administration-of-the-
-      administration (who may do what); Pagos is operational domain work on
-      becarios, peer to "Usuarios". Single-permission gate mirrors the
-      Usuarios group's pattern exactly.
-    -->
-    <v-list-group v-if="can(PERMISSIONS.READ_PAYMENTS)" value="Pagos">
-      <template #activator="{ props }">
-        <v-list-item v-bind="props" title="Pagos" prepend-icon="mdi-cash-multiple" class="nav-item" />
-      </template>
-
-      <v-list-item to="/pagos" title="Lotes de pago" density="compact" class="nav-subitem" />
     </v-list-group>
   </v-list>
 </template>

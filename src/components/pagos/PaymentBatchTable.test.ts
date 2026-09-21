@@ -52,6 +52,14 @@ describe('PaymentBatchTable', () => {
     document.body.innerHTML = ''
   })
 
+  it('does not render a "Matrícula" column header or the enrollment value', () => {
+    const wrapper = mountTable([buildRow({ enrollment: 'A0001' })])
+
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    expect(headers).not.toContain('Matrícula')
+    expect(wrapper.text()).not.toContain('A0001')
+  })
+
   it('never renders the full account number, only the masked last 4 digits', () => {
     const wrapper = mountTable([buildRow({ account_number: '012180001234567895' })])
 

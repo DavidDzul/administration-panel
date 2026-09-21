@@ -104,7 +104,6 @@ const emit = defineEmits<Emits>()
 
 const headers = [
   { title: 'Nombre', key: 'snapshot_name' },
-  { title: 'Matrícula', key: 'enrollment' },
   { title: 'Cuenta', key: 'account_number' },
   { title: 'Monto', key: 'total_to_pay' },
   { title: '', key: 'flags' },
