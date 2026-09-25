@@ -41,6 +41,20 @@ export interface PaymentBatchRow {
   // `@/utils/resolutionMeta`.
   resolution_type: string | null
   resolution_cause: string | null
+  // Advance-paid row indicator (sdd/pago-adelantado, design D6/PR7b).
+  // Purely informational, same invariant as the flags above — NEVER
+  // participates in `is_payable`/`blocking_reasons` (PaymentReadinessEvaluator
+  // does not read these fields). Verified against
+  // PaymentBatchService::rows() directly (impulsou-api PR5) — deliberately
+  // NOT present in `paidRows()`'s row shape (explicit scope boundary,
+  // mirrors resolution_type/resolution_cause's own exclusion from that
+  // method). `advance_paid_amount` is a Laravel `number_format(...,2)`
+  // string, same convention as `total_to_pay`, and is `null` (never
+  // `"0.00"`) when `advance_paid` is `false`.
+  advance_paid: boolean
+  advance_paid_amount: string | null
+  advance_paid_origin_year: number | null
+  advance_paid_origin_month: number | null
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against

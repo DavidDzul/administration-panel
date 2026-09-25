@@ -43,6 +43,22 @@
           </v-chip>
         </template>
       </v-tooltip>
+      <v-tooltip v-if="advancePaymentChip(item)" :text="advancePaymentChip(item)?.ariaLabel">
+        <template #activator="{ props: tooltipProps }">
+          <v-chip
+            v-bind="tooltipProps"
+            data-testid="advance-paid-chip"
+            :aria-label="advancePaymentChip(item)?.ariaLabel"
+            size="small"
+            :color="advancePaymentChip(item)?.color"
+            variant="tonal"
+            :prepend-icon="advancePaymentChip(item)?.icon"
+            class="mb-1"
+          >
+            {{ advancePaymentChip(item)?.label }}
+          </v-chip>
+        </template>
+      </v-tooltip>
     </template>
 
     <template #[`item.status`]="{ item }">
@@ -82,8 +98,13 @@
 // only ever renders the chip — a mixed-length caption under the chip made
 // row height uneven across a whole batch. Payable rows show "—" instead of
 // repeating "Listo" (that's already communicated by the adjacent chip).
+// The advance-paid chip (sdd/pago-adelantado PR7b) lives in the same `flags`
+// column, same non-interactive tonal-chip pattern as the resolution chip —
+// purely informational, it never affects `is_payable`/`blocking_reasons`
+// (design's explicit invariant).
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
+import { advancePaymentChip } from '@/utils/advancePaymentMeta'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {

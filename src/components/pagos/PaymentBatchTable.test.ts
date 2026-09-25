@@ -38,6 +38,10 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   only_pending_from_previous: false,
   resolution_type: null,
   resolution_cause: null,
+  advance_paid: false,
+  advance_paid_amount: null,
+  advance_paid_origin_year: null,
+  advance_paid_origin_month: null,
   ...overrides,
 })
 
@@ -233,6 +237,102 @@ describe('PaymentBatchTable', () => {
 
       const chip = wrapper.find('[data-testid="resolution-chip"]')
       expect(chip.attributes('aria-label')).toBe('Beca retenida')
+    })
+  })
+
+  // ── Advance-paid indicator chip (sdd/pago-adelantado PR7b) ───────────────
+
+  describe('advance-paid indicator chip', () => {
+    it('renders no advance-paid chip when advance_paid is false', () => {
+      const wrapper = mountTable([buildRow({ advance_paid: false })])
+
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the advance-paid chip with a visible label when advance_paid is true', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      const chip = wrapper.find('[data-testid="advance-paid-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('Pago adelantado')
+    })
+
+    it('the aria-label/tooltip shows the amount and origin batch month/year', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      const chip = wrapper.find('[data-testid="advance-paid-chip"]')
+      expect(chip.attributes('aria-label')).toContain('junio 2027')
+      expect(chip.attributes('aria-label')).toContain('$1,500.00')
+    })
+
+    it('uses an icon distinct from mdi-cash-clock (has_pending_from_previous chip)', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      const chip = wrapper.find('[data-testid="advance-paid-chip"]')
+      const iconClasses = chip.find('.v-icon').classes()
+      expect(iconClasses).not.toContain('mdi-cash-clock')
+    })
+
+    it('coexists with has_incident, has_pending_from_previous, and resolution chips without displacing any', () => {
+      const wrapper = mountTable([
+        buildRow({
+          has_incident: true,
+          has_pending_from_previous: true,
+          resolution_type: 'RETENIDA',
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      expect(wrapper.text()).toContain('Incidencia registrada')
+      expect(wrapper.text()).toContain('Incluye mes retenido')
+      expect(wrapper.find('[data-testid="resolution-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+    })
+
+    it('never affects is_payable or the Estado/Motivo columns for a blocked, advance-paid row', () => {
+      const wrapper = mountTable([
+        buildRow({
+          refrend_id: 9,
+          is_payable: false,
+          blocking_reasons: [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }],
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+      const estadoCell = cells[cells.length - 3]
+      const motivoCell = cells[cells.length - 2]
+
+      expect(estadoCell.text()).toContain('Bloqueado')
+      expect(motivoCell.text()).toContain('Sin matrícula registrada')
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
     })
   })
 })
