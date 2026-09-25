@@ -53,6 +53,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_paid_amount: null,
   advance_paid_origin_year: null,
   advance_paid_origin_month: null,
+  advance_payment_amount: '0.00',
   ...overrides,
 })
 

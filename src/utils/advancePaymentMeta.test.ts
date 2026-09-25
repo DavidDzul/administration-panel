@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ADVANCE_PAYMENT_META, advancePaymentChip } from '@/utils/advancePaymentMeta'
+import {
+  ADVANCE_PAYMENT_META,
+  ADVANCE_PAYMENT_REGISTERED_META,
+  advancePaymentChip,
+  advancePaymentRegisteredChip,
+} from '@/utils/advancePaymentMeta'
 
 // sdd/pago-adelantado PR7b: the row-level "advance-paid" indicator catalog.
 // Mirrors resolutionMeta.ts's frozen-catalog + pure-lookup pattern (design
@@ -66,5 +71,52 @@ describe('advancePaymentMeta', () => {
     })
 
     expect(chip?.ariaLabel).toBe('Pago adelantado')
+  })
+})
+
+// ── Origin-refrend "advance payment registered" indicator (sdd/pago-adelantado
+// PR8) ───────────────────────────────────────────────────────────────────────
+//
+// OPPOSITE meaning from advance_paid/advancePaymentChip above: advance_paid
+// means "this row IS one of the future months settled by an advance batch
+// made from some OTHER refrend". advance_payment_amount (this section) means
+// "this row itself HAS an advance-payment batch registered FROM it" — it is
+// the origin refrend, and its total_to_pay already includes the advanced
+// money (design D6). Both can be true on different rows in the same batch;
+// they must never be conflated.
+describe('advancePaymentRegisteredChip (origin-refrend indicator, PR8)', () => {
+  it('ADVANCE_PAYMENT_REGISTERED_META has a non-empty icon, color, and label', () => {
+    expect(ADVANCE_PAYMENT_REGISTERED_META.icon).toBeTruthy()
+    expect(ADVANCE_PAYMENT_REGISTERED_META.color).toBeTruthy()
+    expect(ADVANCE_PAYMENT_REGISTERED_META.label).toBeTruthy()
+  })
+
+  it('uses an icon distinct from mdi-cash-clock and mdi-cash-fast (the other two money chips)', () => {
+    expect(ADVANCE_PAYMENT_REGISTERED_META.icon).not.toBe('mdi-cash-clock')
+    expect(ADVANCE_PAYMENT_REGISTERED_META.icon).not.toBe(ADVANCE_PAYMENT_META.icon)
+  })
+
+  it('advancePaymentRegisteredChip returns null when advance_payment_amount is "0.00"', () => {
+    expect(advancePaymentRegisteredChip({ advance_payment_amount: '0.00' })).toBeNull()
+  })
+
+  it('advancePaymentRegisteredChip returns null when advance_payment_amount is "0"', () => {
+    expect(advancePaymentRegisteredChip({ advance_payment_amount: '0' })).toBeNull()
+  })
+
+  it('advancePaymentRegisteredChip returns the catalog icon/color/label when advance_payment_amount is positive', () => {
+    const chip = advancePaymentRegisteredChip({ advance_payment_amount: '750.50' })
+
+    expect(chip).not.toBeNull()
+    expect(chip?.icon).toBe(ADVANCE_PAYMENT_REGISTERED_META.icon)
+    expect(chip?.color).toBe(ADVANCE_PAYMENT_REGISTERED_META.color)
+    expect(chip?.label).toBe(ADVANCE_PAYMENT_REGISTERED_META.label)
+  })
+
+  it('ariaLabel/tooltip includes the formatted amount', () => {
+    const chip = advancePaymentRegisteredChip({ advance_payment_amount: '750.50' })
+
+    expect(chip?.ariaLabel).toContain('$750.50')
+    expect(chip?.ariaLabel).toContain('Se sumará al monto de esta decisión')
   })
 })

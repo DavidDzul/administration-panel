@@ -59,6 +59,25 @@
           </v-chip>
         </template>
       </v-tooltip>
+      <v-tooltip
+        v-if="advancePaymentRegisteredChip(item)"
+        :text="advancePaymentRegisteredChip(item)?.ariaLabel"
+      >
+        <template #activator="{ props: tooltipProps }">
+          <v-chip
+            v-bind="tooltipProps"
+            data-testid="advance-payment-registered-chip"
+            :aria-label="advancePaymentRegisteredChip(item)?.ariaLabel"
+            size="small"
+            :color="advancePaymentRegisteredChip(item)?.color"
+            variant="tonal"
+            :prepend-icon="advancePaymentRegisteredChip(item)?.icon"
+            class="mb-1"
+          >
+            {{ advancePaymentRegisteredChip(item)?.label }}
+          </v-chip>
+        </template>
+      </v-tooltip>
     </template>
 
     <template #[`item.status`]="{ item }">
@@ -101,10 +120,15 @@
 // The advance-paid chip (sdd/pago-adelantado PR7b) lives in the same `flags`
 // column, same non-interactive tonal-chip pattern as the resolution chip —
 // purely informational, it never affects `is_payable`/`blocking_reasons`
-// (design's explicit invariant).
+// (design's explicit invariant). The advance-payment-registered chip
+// (sdd/pago-adelantado PR8) is the OPPOSITE indicator: it marks the ORIGIN
+// refrend a batch was recorded FROM, rather than a settled future month — see
+// advancePaymentMeta.ts's header comment for the full distinction. Both chips
+// can render on the same row simultaneously and must never displace each
+// other.
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
-import { advancePaymentChip } from '@/utils/advancePaymentMeta'
+import { advancePaymentChip, advancePaymentRegisteredChip } from '@/utils/advancePaymentMeta'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {

@@ -79,3 +79,47 @@ export function advancePaymentChip(row: AdvancePaidRowFields): AdvancePaymentChi
 
   return { ...ADVANCE_PAYMENT_META, ariaLabel }
 }
+
+// ── Origin-refrend "advance payment registered" indicator (sdd/pago-adelantado
+// PR8) ───────────────────────────────────────────────────────────────────────
+//
+// OPPOSITE meaning from advance_paid/advancePaymentChip above: advance_paid
+// means "this row IS one of the future months settled by an advance batch
+// made from some OTHER refrend" (this row is a CHILD). advance_payment_amount
+// means "this row itself HAS an advance-payment batch registered FROM it"
+// (this row is the ORIGIN refrend) — its total_to_pay already includes this
+// amount (design D6). Both can be true on different rows in the same batch at
+// once; never conflate them. mdi-cash-plus is deliberately distinct from both
+// mdi-cash-clock (has_pending_from_previous) and mdi-cash-fast (advance_paid)
+// so none of the three money-related chips are ever visually confused.
+export const ADVANCE_PAYMENT_REGISTERED_META: AdvancePaymentMeta = {
+  icon: 'mdi-cash-plus',
+  color: 'teal',
+  label: 'Pago adelantado registrado',
+}
+
+export interface AdvancePaymentRegisteredChip extends AdvancePaymentMeta {
+  ariaLabel: string
+}
+
+// Matches the field PaymentBatchService::rows() adds to PaymentBatchRow
+// (impulsou-api PR8, sdd/pago-adelantado design D6). Declared narrowly here,
+// same shape-narrowing style as AdvancePaidRowFields above.
+export interface AdvancePaymentRegisteredRowFields {
+  advance_payment_amount: string
+}
+
+/**
+ * `null` -> no advance-payment batch registered from this refrend
+ * (advance_payment_amount is "0.00"/zero). Mirrors advancePaymentChip's
+ * pattern above.
+ */
+export function advancePaymentRegisteredChip(
+  row: AdvancePaymentRegisteredRowFields,
+): AdvancePaymentRegisteredChip | null {
+  if (Number(row.advance_payment_amount) <= 0) return null
+
+  const ariaLabel = `+${formatAmount(row.advance_payment_amount)} · Se sumará al monto de esta decisión`
+
+  return { ...ADVANCE_PAYMENT_REGISTERED_META, ariaLabel }
+}

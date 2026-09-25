@@ -42,6 +42,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_paid_amount: null,
   advance_paid_origin_year: null,
   advance_paid_origin_month: null,
+  advance_payment_amount: '0.00',
   ...overrides,
 })
 
@@ -333,6 +334,91 @@ describe('PaymentBatchTable', () => {
       expect(estadoCell.text()).toContain('Bloqueado')
       expect(motivoCell.text()).toContain('Sin matrícula registrada')
       expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // ── Advance-payment-registered indicator chip (sdd/pago-adelantado PR8) ──
+  //
+  // OPPOSITE meaning from the advance-paid chip above: this chip means "this
+  // row is an origin refrend — staff already recorded an advance-payment
+  // batch FROM it", not "this row was settled by an advance batch made from
+  // another refrend". Both chips may render on the same row simultaneously
+  // in theory; this suite verifies they never displace one another.
+
+  describe('advance-payment-registered indicator chip', () => {
+    it('renders no chip when advance_payment_amount is "0.00"', () => {
+      const wrapper = mountTable([buildRow({ advance_payment_amount: '0.00' })])
+
+      expect(wrapper.find('[data-testid="advance-payment-registered-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the chip with a visible label when advance_payment_amount is positive', () => {
+      const wrapper = mountTable([buildRow({ advance_payment_amount: '750.50' })])
+
+      const chip = wrapper.find('[data-testid="advance-payment-registered-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('Pago adelantado registrado')
+    })
+
+    it('the aria-label/tooltip shows the formatted amount', () => {
+      const wrapper = mountTable([buildRow({ advance_payment_amount: '750.50' })])
+
+      const chip = wrapper.find('[data-testid="advance-payment-registered-chip"]')
+      expect(chip.attributes('aria-label')).toContain('$750.50')
+    })
+
+    it('uses an icon distinct from mdi-cash-clock and the advance-paid chip icon', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_payment_amount: '750.50',
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      const registeredChip = wrapper.find('[data-testid="advance-payment-registered-chip"]')
+      const registeredIconClasses = registeredChip.find('.v-icon').classes()
+      expect(registeredIconClasses).not.toContain('mdi-cash-clock')
+
+      const paidChip = wrapper.find('[data-testid="advance-paid-chip"]')
+      const paidIconClasses = paidChip.find('.v-icon').classes()
+      expect(registeredIconClasses.join(' ')).not.toBe(paidIconClasses.join(' '))
+    })
+
+    it('coexists with the advance-paid chip on the same row without displacing it (both can be true at once)', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_payment_amount: '750.50',
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="advance-payment-registered-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+    })
+
+    it('never affects is_payable or the Estado/Motivo columns for a blocked row with an advance payment registered', () => {
+      const wrapper = mountTable([
+        buildRow({
+          refrend_id: 11,
+          is_payable: false,
+          blocking_reasons: [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }],
+          advance_payment_amount: '750.50',
+        }),
+      ])
+
+      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+      const estadoCell = cells[cells.length - 3]
+      const motivoCell = cells[cells.length - 2]
+
+      expect(estadoCell.text()).toContain('Bloqueado')
+      expect(motivoCell.text()).toContain('Sin matrícula registrada')
+      expect(wrapper.find('[data-testid="advance-payment-registered-chip"]').exists()).toBe(true)
     })
   })
 })

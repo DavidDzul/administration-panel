@@ -55,6 +55,19 @@ export interface PaymentBatchRow {
   advance_paid_amount: string | null
   advance_paid_origin_year: number | null
   advance_paid_origin_month: number | null
+  // Origin-refrend "advance payment registered" indicator (sdd/pago-adelantado
+  // PR8). OPPOSITE meaning from the advance_paid family above: advance_paid
+  // means "this row IS one of the future months settled by an advance batch
+  // made from some OTHER refrend" (this row is a CHILD). advance_payment_amount
+  // means "this row itself HAS an advance-payment batch registered FROM it"
+  // (this row is the ORIGIN refrend) — its total_to_pay already includes this
+  // amount (design D6). Both can be true on different rows in the same batch
+  // simultaneously; never conflate them. Purely informational, same invariant
+  // as the flags above — NEVER participates in `is_payable`/`blocking_reasons`.
+  // Verified against PaymentBatchService::rows() directly (impulsou-api PR8) —
+  // a Laravel `number_format(...,2,'.','')` string, `"0.00"` (never null) when
+  // the refrend has no advance payment registered against it.
+  advance_payment_amount: string
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against
