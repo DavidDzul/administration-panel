@@ -7,96 +7,98 @@
     </template>
 
     <template #[`item.flags`]="{ item }">
-      <v-chip
-        v-if="item.has_incident"
-        size="small"
-        color="warning"
-        variant="tonal"
-        prepend-icon="mdi-alert-circle-outline"
-        class="mr-1 mb-1"
-      >
-        Incidencia registrada
-      </v-chip>
-      <v-chip
-        v-if="item.has_pending_from_previous"
-        size="small"
-        color="info"
-        variant="tonal"
-        prepend-icon="mdi-cash-clock"
-        class="mb-1"
-      >
-        {{ item.only_pending_from_previous ? 'Solo mes retenido' : 'Incluye mes retenido' }}
-      </v-chip>
-      <v-tooltip v-if="resolutionMeta(item.resolution_type)" :text="resolutionAriaLabel(item)">
-        <template #activator="{ props: tooltipProps }">
-          <v-chip
-            v-bind="tooltipProps"
-            data-testid="resolution-chip"
-            :aria-label="resolutionAriaLabel(item)"
-            size="small"
-            :color="resolutionMeta(item.resolution_type)?.color"
-            variant="tonal"
-            :prepend-icon="resolutionMeta(item.resolution_type)?.icon"
-            class="mb-1"
-          >
-            {{ resolutionMeta(item.resolution_type)?.label }}
-          </v-chip>
-        </template>
-      </v-tooltip>
-      <v-tooltip v-if="advancePaymentChip(item)" :text="advancePaymentChip(item)?.ariaLabel">
-        <template #activator="{ props: tooltipProps }">
-          <v-chip
-            v-bind="tooltipProps"
-            data-testid="advance-paid-chip"
-            :aria-label="advancePaymentChip(item)?.ariaLabel"
-            size="small"
-            :color="advancePaymentChip(item)?.color"
-            variant="tonal"
-            :prepend-icon="advancePaymentChip(item)?.icon"
-            class="mb-1"
-          >
-            {{ advancePaymentChip(item)?.label }}
-          </v-chip>
-        </template>
-      </v-tooltip>
-      <v-tooltip
-        v-if="advancePaymentRegisteredChip(item)"
-        :text="advancePaymentRegisteredChip(item)?.ariaLabel"
-      >
-        <template #activator="{ props: tooltipProps }">
-          <v-chip
-            v-bind="tooltipProps"
-            data-testid="advance-payment-registered-chip"
-            :aria-label="advancePaymentRegisteredChip(item)?.ariaLabel"
-            size="small"
-            :color="advancePaymentRegisteredChip(item)?.color"
-            variant="tonal"
-            :prepend-icon="advancePaymentRegisteredChip(item)?.icon"
-            class="mb-1"
-          >
-            {{ advancePaymentRegisteredChip(item)?.label }}
-          </v-chip>
-        </template>
-      </v-tooltip>
-      <v-tooltip
-        v-if="advancePaymentDivergenceChip(item)"
-        :text="advancePaymentDivergenceChip(item)?.ariaLabel"
-      >
-        <template #activator="{ props: tooltipProps }">
-          <v-chip
-            v-bind="tooltipProps"
-            data-testid="advance-payment-divergence-chip"
-            :aria-label="advancePaymentDivergenceChip(item)?.ariaLabel"
-            size="small"
-            :color="advancePaymentDivergenceChip(item)?.color"
-            variant="tonal"
-            :prepend-icon="advancePaymentDivergenceChip(item)?.icon"
-            class="mb-1"
-          >
-            {{ advancePaymentDivergenceChip(item)?.label }}
-          </v-chip>
-        </template>
-      </v-tooltip>
+      <div class="py-2">
+        <v-chip
+          v-if="item.has_incident"
+          size="small"
+          color="warning"
+          variant="tonal"
+          prepend-icon="mdi-alert-circle-outline"
+          class="mr-1 mb-1"
+        >
+          Incidencia registrada
+        </v-chip>
+        <v-chip
+          v-if="item.has_pending_from_previous"
+          size="small"
+          color="info"
+          variant="tonal"
+          prepend-icon="mdi-cash-clock"
+          class="mb-1"
+        >
+          {{ item.only_pending_from_previous ? 'Solo mes retenido' : 'Incluye mes retenido' }}
+        </v-chip>
+        <v-tooltip v-if="resolutionMeta(item.resolution_type)" :text="resolutionAriaLabel(item)">
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="resolution-chip"
+              :aria-label="resolutionAriaLabel(item)"
+              size="small"
+              :color="resolutionMeta(item.resolution_type)?.color"
+              variant="tonal"
+              :prepend-icon="resolutionMeta(item.resolution_type)?.icon"
+              class="mb-1"
+            >
+              {{ resolutionMeta(item.resolution_type)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
+        <v-tooltip v-if="advancePaymentChip(item)" :text="advancePaymentChip(item)?.ariaLabel">
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="advance-paid-chip"
+              :aria-label="advancePaymentChip(item)?.ariaLabel"
+              size="small"
+              :color="advancePaymentChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="advancePaymentChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ advancePaymentChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
+        <v-tooltip
+          v-if="advancePaymentRegisteredChip(item)"
+          :text="advancePaymentRegisteredChip(item)?.ariaLabel"
+        >
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="advance-payment-registered-chip"
+              :aria-label="advancePaymentRegisteredChip(item)?.ariaLabel"
+              size="small"
+              :color="advancePaymentRegisteredChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="advancePaymentRegisteredChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ advancePaymentRegisteredChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
+        <v-tooltip
+          v-if="advancePaymentDivergenceChip(item)"
+          :text="advancePaymentDivergenceChip(item)?.ariaLabel"
+        >
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="advance-payment-divergence-chip"
+              :aria-label="advancePaymentDivergenceChip(item)?.ariaLabel"
+              size="small"
+              :color="advancePaymentDivergenceChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="advancePaymentDivergenceChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ advancePaymentDivergenceChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
+      </div>
     </template>
 
     <template #[`item.status`]="{ item }">
