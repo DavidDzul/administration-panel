@@ -55,6 +55,13 @@ export interface PaymentBatchRow {
   advance_paid_amount: string | null
   advance_paid_origin_year: number | null
   advance_paid_origin_month: number | null
+  // Divergence-reason row indicator (added 2026-09-27, live user request):
+  // set only when this row IS advance_paid AND staff's resolution diverged
+  // from the safe $0 outcome and required a reason
+  // (RecordPaymentSituationAction / ApproveFullPaymentAction's shared
+  // AdvancePaymentReconciler). `null` when advance_paid is false OR the
+  // arrived month was settled at the expected $0.
+  advance_paid_divergence_reason: string | null
   // Origin-refrend "advance payment registered" indicator (sdd/pago-adelantado
   // PR8). OPPOSITE meaning from the advance_paid family above: advance_paid
   // means "this row IS one of the future months settled by an advance batch
@@ -232,6 +239,30 @@ export interface RetentionBreakdown {
 // interface mirrors that, they are never merged into one field client-side.
 // `carryover_percentage` was removed end-to-end in
 // sdd/withholding-detail-display PR3 (dead column, no write path anywhere).
+// Matches `AdvancePaymentDocumentContext::forRefrend()`'s real response
+// shape (impulsou-api, added 2026-09-27). A refrend can independently be
+// BOTH directions at once — settled_as_advance (this refrend IS one of the
+// future months an EARLIER batch settled) and has_registered_batch (this
+// refrend itself HAS a NEW batch registered against it) — never conflate
+// the two, they come from different rows
+// (scholarship_advance_payment_months vs scholarship_advance_payments).
+export interface AdvancePaymentDocumentInfo {
+  settled_as_advance: boolean
+  origin_period_year: number | null
+  origin_period_month: number | null
+  settled_amount: string | null
+  settled_status: 'PENDING' | 'REACHED' | 'OVERRIDDEN' | null
+  settled_resolution_type: string | null
+  divergence_reason: string | null
+  reached_at: string | null
+
+  has_registered_batch: boolean
+  registered_months_count: number | null
+  registered_total_amount: string | null
+  registered_cause: string | null
+  registered_notes: string | null
+}
+
 export interface PaymentDocument {
   refrend_id: number
   user_id: number
@@ -245,4 +276,5 @@ export interface PaymentDocument {
   resolution_notes: string | null
   amount_breakdown: PaymentAmountBreakdown
   retentions: RetentionBreakdown
+  advance_payment: AdvancePaymentDocumentInfo
 }

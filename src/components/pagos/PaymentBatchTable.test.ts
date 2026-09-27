@@ -43,6 +43,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_paid_origin_year: null,
   advance_paid_origin_month: null,
   advance_payment_amount: '0.00',
+  advance_paid_divergence_reason: null,
   ...overrides,
 })
 
@@ -419,6 +420,66 @@ describe('PaymentBatchTable', () => {
       expect(estadoCell.text()).toContain('Bloqueado')
       expect(motivoCell.text()).toContain('Sin matrícula registrada')
       expect(wrapper.find('[data-testid="advance-payment-registered-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // Divergence-reason indicator (added 2026-09-27, live user request): a
+  // reviewer scanning the batch needs to see at a glance that staff overrode
+  // the safe $0 outcome on an arrived advance-paid month, without opening
+  // the "Ver" document.
+  describe('advance-payment divergence-reason chip', () => {
+    it('renders no chip when advance_paid is false, even with a divergence reason present', () => {
+      const wrapper = mountTable([
+        buildRow({ advance_paid: false, advance_paid_divergence_reason: 'Autorizado por dirección.' }),
+      ])
+
+      expect(wrapper.find('[data-testid="advance-payment-divergence-chip"]').exists()).toBe(false)
+    })
+
+    it('renders no chip when advance_paid is true but there is no divergence reason', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+          advance_paid_divergence_reason: null,
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="advance-payment-divergence-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the chip with the reason in the aria-label/tooltip when both conditions hold', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+          advance_paid_divergence_reason: 'Autorizado por dirección.',
+        }),
+      ])
+
+      const chip = wrapper.find('[data-testid="advance-payment-divergence-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('Motivo registrado')
+      expect(chip.attributes('aria-label')).toContain('Autorizado por dirección.')
+    })
+
+    it('coexists with the advance-paid chip on the same row without displacing it', () => {
+      const wrapper = mountTable([
+        buildRow({
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+          advance_paid_divergence_reason: 'Autorizado por dirección.',
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="advance-payment-divergence-chip"]').exists()).toBe(true)
     })
   })
 })

@@ -84,6 +84,21 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     attendance_discounts: [],
     definitive_discount: null,
   },
+  advance_payment: {
+    settled_as_advance: false,
+    origin_period_year: null,
+    origin_period_month: null,
+    settled_amount: null,
+    settled_status: null,
+    settled_resolution_type: null,
+    divergence_reason: null,
+    reached_at: null,
+    has_registered_batch: false,
+    registered_months_count: null,
+    registered_total_amount: null,
+    registered_cause: null,
+    registered_notes: null,
+  },
   ...overrides,
 })
 
@@ -197,6 +212,37 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('Documentación incompleta')
     expect(body().text()).toContain('Ada Lovelace')
     expect(body().text()).toContain('Total aplicado en este pago')
+  })
+
+  it('renders the advance-payment panel with the real document.advance_payment data under the Pago adelantado tab', async () => {
+    mockAxiosGet.mockResolvedValue({
+      data: {
+        res: true,
+        data: buildDocument({
+          advance_payment: {
+            settled_as_advance: true,
+            origin_period_year: 2026,
+            origin_period_month: 9,
+            settled_amount: '1200.00',
+            settled_status: 'OVERRIDDEN',
+            settled_resolution_type: 'BECA_MES',
+            divergence_reason: 'Autorizado por dirección.',
+            reached_at: '2027-06-15T00:00:00.000000Z',
+            has_registered_batch: false,
+            registered_months_count: null,
+            registered_total_amount: null,
+            registered_cause: null,
+            registered_notes: null,
+          },
+        }),
+      },
+    })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Pago adelantado')
+
+    expect(body().text()).toContain('septiembre 2026')
+    expect(body().text()).toContain('Autorizado por dirección.')
   })
 
   it('does not render any edit control (read-only dialog)', async () => {

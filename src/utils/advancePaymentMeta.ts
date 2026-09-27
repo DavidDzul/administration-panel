@@ -123,3 +123,46 @@ export function advancePaymentRegisteredChip(
 
   return { ...ADVANCE_PAYMENT_REGISTERED_META, ariaLabel }
 }
+
+// ── Divergence-reason indicator (added 2026-09-27, live user request) ──────
+//
+// A THIRD, independent fact from the two above: this row IS advance_paid
+// (arrived), AND staff's resolution diverged from the safe $0 outcome and
+// required a reason (RecordPaymentSituationAction / ApproveFullPaymentAction's
+// shared AdvancePaymentReconciler, sdd/pago-adelantado design D4). Only
+// meaningful when advance_paid is true — a divergence reason with
+// advance_paid false should never happen, but the guard is explicit rather
+// than assumed. mdi-alert-circle-outline is distinct from mdi-cash-clock,
+// mdi-cash-fast, and mdi-cash-plus so none of the four chips in this family
+// are ever visually confused.
+export const ADVANCE_PAYMENT_DIVERGENCE_META: AdvancePaymentMeta = {
+  icon: 'mdi-alert-circle-outline',
+  color: 'amber-darken-2',
+  label: 'Motivo registrado',
+}
+
+export interface AdvancePaymentDivergenceChip extends AdvancePaymentMeta {
+  ariaLabel: string
+}
+
+// Matches the field PaymentBatchService::rows() adds to PaymentBatchRow
+// (impulsou-api, added 2026-09-27). Declared narrowly here, same
+// shape-narrowing style as the other row-field interfaces above.
+export interface AdvancePaymentDivergenceRowFields {
+  advance_paid: boolean
+  advance_paid_divergence_reason: string | null
+}
+
+/**
+ * `null` -> no divergence reason to show (either the row was never
+ * advance-paid, or it was settled at the expected $0 outcome).
+ */
+export function advancePaymentDivergenceChip(
+  row: AdvancePaymentDivergenceRowFields,
+): AdvancePaymentDivergenceChip | null {
+  if (!row.advance_paid || !row.advance_paid_divergence_reason) return null
+
+  const ariaLabel = `${ADVANCE_PAYMENT_DIVERGENCE_META.label} · Motivo: ${row.advance_paid_divergence_reason}`
+
+  return { ...ADVANCE_PAYMENT_DIVERGENCE_META, ariaLabel }
+}

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ADVANCE_PAYMENT_DIVERGENCE_META,
   ADVANCE_PAYMENT_META,
   ADVANCE_PAYMENT_REGISTERED_META,
   advancePaymentChip,
+  advancePaymentDivergenceChip,
   advancePaymentRegisteredChip,
 } from '@/utils/advancePaymentMeta'
 
@@ -118,5 +120,46 @@ describe('advancePaymentRegisteredChip (origin-refrend indicator, PR8)', () => {
 
     expect(chip?.ariaLabel).toContain('$750.50')
     expect(chip?.ariaLabel).toContain('Se sumará al monto de esta decisión')
+  })
+})
+
+// Divergence-reason row indicator (added 2026-09-27, live user request): a
+// row that IS advance_paid (arrived) whose resolution diverged from the safe
+// $0 outcome and required a reason (RecordPaymentSituationAction /
+// ApproveFullPaymentAction's shared AdvancePaymentReconciler). A reviewer
+// scanning the batch table needs to see this at a glance, not only inside
+// the "Ver" document.
+describe('advancePaymentDivergenceChip', () => {
+  it('uses an icon distinct from the other three money/advance chips', () => {
+    expect(ADVANCE_PAYMENT_DIVERGENCE_META.icon).not.toBe(ADVANCE_PAYMENT_META.icon)
+    expect(ADVANCE_PAYMENT_DIVERGENCE_META.icon).not.toBe(ADVANCE_PAYMENT_REGISTERED_META.icon)
+  })
+
+  it('returns null when the row is not advance_paid, even with a divergence reason present', () => {
+    expect(
+      advancePaymentDivergenceChip({
+        advance_paid: false,
+        advance_paid_divergence_reason: 'Autorizado por dirección.',
+      }),
+    ).toBeNull()
+  })
+
+  it('returns null when advance_paid but there is no divergence reason', () => {
+    expect(
+      advancePaymentDivergenceChip({ advance_paid: true, advance_paid_divergence_reason: null }),
+    ).toBeNull()
+  })
+
+  it('returns the catalog icon/color/label and includes the reason in ariaLabel when both conditions hold', () => {
+    const chip = advancePaymentDivergenceChip({
+      advance_paid: true,
+      advance_paid_divergence_reason: 'Autorizado por dirección.',
+    })
+
+    expect(chip).not.toBeNull()
+    expect(chip?.icon).toBe(ADVANCE_PAYMENT_DIVERGENCE_META.icon)
+    expect(chip?.color).toBe(ADVANCE_PAYMENT_DIVERGENCE_META.color)
+    expect(chip?.label).toBe(ADVANCE_PAYMENT_DIVERGENCE_META.label)
+    expect(chip?.ariaLabel).toContain('Autorizado por dirección.')
   })
 })

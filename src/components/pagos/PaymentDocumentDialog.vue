@@ -39,6 +39,7 @@
             <v-tab value="comentarios">Comentarios</v-tab>
             <v-tab value="desglose">Desglose de monto</v-tab>
             <v-tab value="retenciones">Retenciones</v-tab>
+            <v-tab value="adelanto">Pago adelantado</v-tab>
           </v-tabs>
 
           <v-window v-model="tab" class="mt-4">
@@ -125,6 +126,10 @@
             <v-window-item value="retenciones">
               <RetentionBreakdownPanel :retentions="document.retentions" />
             </v-window-item>
+
+            <v-window-item value="adelanto">
+              <AdvancePaymentPanel :advance-payment="document.advance_payment" />
+            </v-window-item>
           </v-window>
         </template>
       </v-card-text>
@@ -145,6 +150,7 @@
 import { ref, toRef, watch } from 'vue'
 import { usePaymentDocumentPage } from '@/composables/usePaymentDocumentPage'
 import RetentionBreakdownPanel from '@/components/pagos/RetentionBreakdownPanel.vue'
+import AdvancePaymentPanel from '@/components/pagos/AdvancePaymentPanel.vue'
 
 interface Props {
   modelValue: boolean

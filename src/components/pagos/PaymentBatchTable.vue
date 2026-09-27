@@ -78,6 +78,25 @@
           </v-chip>
         </template>
       </v-tooltip>
+      <v-tooltip
+        v-if="advancePaymentDivergenceChip(item)"
+        :text="advancePaymentDivergenceChip(item)?.ariaLabel"
+      >
+        <template #activator="{ props: tooltipProps }">
+          <v-chip
+            v-bind="tooltipProps"
+            data-testid="advance-payment-divergence-chip"
+            :aria-label="advancePaymentDivergenceChip(item)?.ariaLabel"
+            size="small"
+            :color="advancePaymentDivergenceChip(item)?.color"
+            variant="tonal"
+            :prepend-icon="advancePaymentDivergenceChip(item)?.icon"
+            class="mb-1"
+          >
+            {{ advancePaymentDivergenceChip(item)?.label }}
+          </v-chip>
+        </template>
+      </v-tooltip>
     </template>
 
     <template #[`item.status`]="{ item }">
@@ -128,7 +147,11 @@
 // other.
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
-import { advancePaymentChip, advancePaymentRegisteredChip } from '@/utils/advancePaymentMeta'
+import {
+  advancePaymentChip,
+  advancePaymentDivergenceChip,
+  advancePaymentRegisteredChip,
+} from '@/utils/advancePaymentMeta'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {

@@ -54,6 +54,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_paid_origin_year: null,
   advance_paid_origin_month: null,
   advance_payment_amount: '0.00',
+  advance_paid_divergence_reason: null,
   ...overrides,
 })
 
@@ -91,6 +92,21 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     origin_withholding: null,
     attendance_discounts: [],
     definitive_discount: null,
+  },
+  advance_payment: {
+    settled_as_advance: false,
+    origin_period_year: null,
+    origin_period_month: null,
+    settled_amount: null,
+    settled_status: null,
+    settled_resolution_type: null,
+    divergence_reason: null,
+    reached_at: null,
+    has_registered_batch: false,
+    registered_months_count: null,
+    registered_total_amount: null,
+    registered_cause: null,
+    registered_notes: null,
   },
   ...overrides,
 })
