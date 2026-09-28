@@ -1,6 +1,7 @@
 import type { Person } from './user'
 import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
+import type { ScholarshipProfileConfig } from './scholarshipProfile'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
 import type { ExportSummary, PaymentBatchBlock, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
@@ -46,6 +47,17 @@ export interface GenerationsResponse {
 export interface PaymentDataResponse {
   res: boolean
   data: PaymentData | null
+  msg?: string
+}
+
+// Matches ScholarshipProfileController::show()/updateConfig()'s real
+// envelope (design D5/D2, sdd/scholarship-profile-config-to-admin),
+// verified by reading impulsou-api's controller directly — `data` is
+// `null` alongside `res: false` on the 404 "not found" path, same shape as
+// PaymentDataResponse above.
+export interface ScholarshipProfileConfigResponse {
+  res: boolean
+  data: ScholarshipProfileConfig | null
   msg?: string
 }
 

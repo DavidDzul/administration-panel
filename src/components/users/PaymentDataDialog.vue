@@ -16,6 +16,55 @@
         </v-toolbar>
         <v-card-text>
           <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
+
+          <!-- Configuración de beca — visually separate section (design's
+               requirement + D6), gated field-by-field on
+               editScholarshipProfile so a partially-permissioned admin sees
+               (but cannot change) these values. -->
+          <div class="text-subtitle-2 mb-2">Configuración de beca</div>
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-select
+                v-model="configForm.scholarship_type"
+                :items="scholarshipTypeOptions"
+                item-title="text"
+                item-value="value"
+                label="Tipo de beca *"
+                :rules="[requiredRule]"
+                :disabled="!editScholarshipProfile"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-switch
+                v-model="configForm.advance_payment_eligible"
+                label="¿Estudia en el CERT de Mérida o UNID Tizimín?"
+                color="primary"
+                :disabled="!editScholarshipProfile"
+              ></v-switch>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field
+                v-model.number="configForm.monthly_amount"
+                type="number"
+                label="Monto mensual *"
+                :rules="[nonNegativeNumberRule]"
+                :disabled="!editScholarshipProfile"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field
+                v-model.number="configForm.monto_apoyo"
+                type="number"
+                label="Apoyo *"
+                :rules="[nonNegativeNumberRule]"
+                :disabled="!editScholarshipProfile"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-4" />
+
+          <div class="text-subtitle-2 mb-2">Datos bancarios</div>
           <v-row>
             <v-col cols="12">
               <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
@@ -47,9 +96,14 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
+import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
+import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import type { PaymentDataForm } from '@/interfaces/paymentData'
+import type { ScholarshipProfileConfigForm } from '@/interfaces/scholarshipProfile'
+import type { SelectOption } from '@/constants'
 
 interface Props {
   modelValue: boolean
@@ -69,11 +123,18 @@ interface Emits {
 const emit = defineEmits<Emits>()
 
 const paymentDataStore = usePaymentDataStore()
+const scholarshipProfileStore = useScholarshipProfileStore()
+const { editScholarshipProfile } = storeToRefs(useAuthStore())
 const { showAlert } = useAlertStore()
 
 const formRef = ref()
 const loading = ref(false)
 const saving = ref(false)
+
+const scholarshipTypeOptions: SelectOption[] = [
+  { value: 'IU', text: 'IU' },
+  { value: 'TELMEX', text: 'TELMEX' },
+]
 
 const emptyForm = (): PaymentDataForm => ({
   bank_name: '',
@@ -82,7 +143,15 @@ const emptyForm = (): PaymentDataForm => ({
   rfc: '',
 })
 
+const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
+  scholarship_type: 'IU',
+  monthly_amount: 0,
+  monto_apoyo: 0,
+  advance_payment_eligible: false,
+})
+
 const form = reactive<PaymentDataForm>(emptyForm())
+const configForm = reactive<ScholarshipProfileConfigForm>(emptyConfigForm())
 
 // Mirrors impulsou-api's App\Rules\Curp / App\Rules\Rfc bounded
 // length+charset validation exactly (design D3, spec obs #1582's explicit
@@ -99,6 +168,17 @@ const rfcRule = (v: unknown): true | string => {
   )
 }
 
+// Spec requirement: monthly_amount/monto_apoyo must allow $0 — no
+// positive-only client validation. `min: 0` on the backend (design's
+// UpdateScholarshipProfileConfigRequest), so 0 is valid and only a blank or
+// negative value is rejected here.
+const nonNegativeNumberRule = (v: unknown): true | string => {
+  if (v === null || v === undefined || v === '') return 'Campo requerido.'
+  const num = Number(v)
+  if (Number.isNaN(num)) return 'Debe ser un número.'
+  return num >= 0 || 'Debe ser mayor o igual a 0.'
+}
+
 // D7: this dialog is the ONE edit surface for BOTH entry points (table
 // pencil, card "Editar" button). The pencil only ever has the row's Person —
 // never a pre-fetched payment-data row — so the dialog fetches for itself on
@@ -109,7 +189,11 @@ const rfcRule = (v: unknown): true | string => {
 const loadExisting = async (userId: number): Promise<void> => {
   loading.value = true
   try {
-    const existing = await paymentDataStore.fetchPaymentData(userId)
+    const [existing, existingConfig] = await Promise.all([
+      paymentDataStore.fetchPaymentData(userId),
+      scholarshipProfileStore.fetchProfileConfig(userId),
+    ])
+
     if (existing) {
       form.bank_name = existing.bank_name
       form.account_number = existing.account_number
@@ -118,9 +202,19 @@ const loadExisting = async (userId: number): Promise<void> => {
     } else {
       Object.assign(form, emptyForm())
     }
+
+    if (existingConfig) {
+      configForm.scholarship_type = existingConfig.scholarship_type
+      configForm.monthly_amount = Number(existingConfig.monthly_amount)
+      configForm.monto_apoyo = existingConfig.monto_apoyo !== null ? Number(existingConfig.monto_apoyo) : 0
+      configForm.advance_payment_eligible = existingConfig.advance_payment_eligible
+    } else {
+      Object.assign(configForm, emptyConfigForm())
+    }
   } catch (error: unknown) {
     console.error('Error al cargar los datos de pago:', error)
     Object.assign(form, emptyForm())
+    Object.assign(configForm, emptyConfigForm())
   } finally {
     loading.value = false
   }
@@ -158,6 +252,11 @@ const close = (): void => {
   emit('update:modelValue', false)
 }
 
+// Two sequential, independently-caught saves (design D6): a failure in one
+// section must not roll back or mask the other's success. The config save
+// is skipped entirely (not attempted) when the admin lacks
+// editScholarshipProfile — avoids a needless 403 for a
+// partially-permissioned admin.
 const onSubmit = async (): Promise<void> => {
   if (props.userId === null) return
 
@@ -165,6 +264,8 @@ const onSubmit = async (): Promise<void> => {
   if (!result?.valid) return
 
   saving.value = true
+
+  let paymentDataOk = true
   try {
     await paymentDataStore.savePaymentData(props.userId, {
       bank_name: form.bank_name,
@@ -172,14 +273,34 @@ const onSubmit = async (): Promise<void> => {
       curp: form.curp,
       rfc: form.rfc || null,
     })
+  } catch (error: unknown) {
+    paymentDataOk = false
+    console.error('Error al guardar los datos de pago:', error)
+    showAlert({ title: 'Error al guardar los datos de pago, intenta nuevamente.', status: 'error' })
+  }
+
+  let configOk = true
+  if (editScholarshipProfile.value) {
+    try {
+      await scholarshipProfileStore.saveProfileConfig(props.userId, {
+        scholarship_type: configForm.scholarship_type,
+        monthly_amount: configForm.monthly_amount,
+        monto_apoyo: configForm.monto_apoyo,
+        advance_payment_eligible: configForm.advance_payment_eligible,
+      })
+    } catch (error: unknown) {
+      configOk = false
+      console.error('Error al guardar la configuración de beca:', error)
+      showAlert({ title: 'Error al guardar la configuración de beca, intenta nuevamente.', status: 'error' })
+    }
+  }
+
+  saving.value = false
+
+  if (paymentDataOk && configOk) {
     showAlert({ title: 'Datos de pago guardados exitosamente.', status: 'success' })
     emit('saved')
     close()
-  } catch (error: unknown) {
-    console.error('Error al guardar los datos de pago:', error)
-    showAlert({ title: 'Error al guardar los datos de pago, intenta nuevamente.', status: 'error' })
-  } finally {
-    saving.value = false
   }
 }
 </script>

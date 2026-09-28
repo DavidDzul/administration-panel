@@ -125,4 +125,22 @@ describe('PersonDetailsView — smoke (loading / error / loaded states)', () => 
     expect(cardStub.exists()).toBe(true)
     expect(cardStub.text()).toBe('42')
   })
+
+  // Task 5.3 (design D7, sdd/scholarship-profile-config-to-admin): the
+  // spec's "4 values visible without navigating to the payment-data modal"
+  // requirement is satisfied by composition — PaymentDataCard is embedded
+  // directly (not behind a modal open) inside this view's single expansion
+  // panel, and PaymentDataCard itself (design D6) renders the config
+  // section's read values unconditionally. No direct template change is
+  // needed in PersonDetailsView.vue; this test documents/locks that
+  // composition instead of duplicating PaymentDataCard's own coverage.
+  it('renders PaymentDataCard (which independently displays the 4 scholarship-profile config values) inline, not behind a modal', () => {
+    selectedPerson.value = buildPerson({ id: 42 })
+    const wrapper = mountView()
+
+    const panel = wrapper.findComponent({ name: 'VExpansionPanel' })
+    expect(panel.exists()).toBe(true)
+    expect(panel.props('title')).toBe('Datos de pago')
+    expect(panel.find('.payment-data-card-stub').exists()).toBe(true)
+  })
 })
