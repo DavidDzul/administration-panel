@@ -13,6 +13,7 @@ import { createVuetify } from 'vuetify'
 // same store instance.
 import { VBtn } from 'vuetify/components'
 import type { PaymentData } from '@/interfaces/paymentData'
+import type { ScholarshipProfileConfig } from '@/interfaces/scholarshipProfile'
 
 if (!('visualViewport' in window)) {
   Object.defineProperty(window, 'visualViewport', { value: null, writable: true })
@@ -28,6 +29,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 const vuetify = createVuetify()
 
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
+import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import PaymentDataCard from '@/components/users/PaymentDataCard.vue'
 
@@ -38,6 +40,14 @@ const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => 
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
+  ...overrides,
+})
+
+const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): ScholarshipProfileConfig => ({
+  scholarship_type: 'IU',
+  monthly_amount: '1500.00',
+  monto_apoyo: '200.00',
+  advance_payment_eligible: true,
   ...overrides,
 })
 
@@ -52,6 +62,16 @@ const mountCard = (userId = 5) =>
     global: { plugins: [vuetify] },
   })
 
+// Default: every test stubs both independent fetches unless a specific test
+// overrides one, so no test accidentally issues a real, unmocked axios call.
+const stubDefaults = () => {
+  const paymentDataStore = usePaymentDataStore()
+  const scholarshipProfileStore = useScholarshipProfileStore()
+  vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+  vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
+  return { paymentDataStore, scholarshipProfileStore }
+}
+
 describe('PaymentDataCard', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -63,7 +83,7 @@ describe('PaymentDataCard', () => {
   })
 
   it('fetches payment data for the given user id on mount', () => {
-    const paymentDataStore = usePaymentDataStore()
+    const { paymentDataStore } = stubDefaults()
     const fetchSpy = vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
 
     mountCard(5)
@@ -72,8 +92,7 @@ describe('PaymentDataCard', () => {
   })
 
   it('shows the "not configured" empty state when fetchPaymentData resolves null', async () => {
-    const paymentDataStore = usePaymentDataStore()
-    vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+    stubDefaults()
 
     const wrapper = mountCard(5)
     await flushPromises()
@@ -83,7 +102,7 @@ describe('PaymentDataCard', () => {
   })
 
   it('displays the existing payment data when fetchPaymentData resolves a row', async () => {
-    const paymentDataStore = usePaymentDataStore()
+    const { paymentDataStore } = stubDefaults()
     vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(buildPaymentData())
 
     const wrapper = mountCard(5)
@@ -96,8 +115,8 @@ describe('PaymentDataCard', () => {
     expect(wrapper.text()).not.toContain('Sin datos de pago configurados')
   })
 
-  it('disables the "Editar" button when authStore.editPaymentData is false', async () => {
-    const paymentDataStore = usePaymentDataStore()
+  it('disables the "Editar" button when both editPaymentData and editScholarshipProfile are false', async () => {
+    const { paymentDataStore } = stubDefaults()
     vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(buildPaymentData())
     const authStore = useAuthStore()
     authStore.permissions = []
@@ -110,7 +129,7 @@ describe('PaymentDataCard', () => {
   })
 
   it('enables the "Editar" button and opens the shared PaymentDataDialog when authStore.editPaymentData is true', async () => {
-    const paymentDataStore = usePaymentDataStore()
+    const { paymentDataStore } = stubDefaults()
     vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(buildPaymentData())
     const authStore = useAuthStore()
     authStore.permissions = ['ADM_EDIT_PAYMENT_DATA']
@@ -128,8 +147,23 @@ describe('PaymentDataCard', () => {
     expect(body().find('input').exists()).toBe(true)
   })
 
+  // Design D9: a partially-permissioned admin (only the scholarship-profile
+  // config permission, not bank-data) must still be able to reach the
+  // dialog — the shared button is gated by EITHER permission.
+  it('enables the "Editar" button when only authStore.editScholarshipProfile is true', async () => {
+    stubDefaults()
+    const authStore = useAuthStore()
+    authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+
+    const wrapper = mountCard(5)
+    await flushPromises()
+
+    const editButton = wrapper.findAllComponents(VBtn).find((b) => b.text().includes('Editar'))
+    expect(editButton?.props('disabled')).toBeFalsy()
+  })
+
   it('re-fetches payment data after the dialog emits saved', async () => {
-    const paymentDataStore = usePaymentDataStore()
+    const { paymentDataStore } = stubDefaults()
     const fetchSpy = vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
     const authStore = useAuthStore()
     authStore.permissions = ['ADM_EDIT_PAYMENT_DATA']
@@ -143,5 +177,76 @@ describe('PaymentDataCard', () => {
     await flushPromises()
 
     expect(fetchSpy).toHaveBeenCalledWith(5)
+  })
+
+  // Task 6.2 — direct regression for the flagged gotcha (design D6):
+  // PaymentDataCard used to gate ALL content on `paymentData` truthy, which
+  // hid the config section entirely for a becario with no bank data yet.
+  describe('Configuración de beca (independent section, design D6)', () => {
+    it('fetches the scholarship-profile config for the given user id on mount', () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      const fetchSpy = vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
+
+      mountCard(7)
+
+      expect(fetchSpy).toHaveBeenCalledWith(7)
+    })
+
+    it('renders the config section with real values EVEN WHEN paymentData is null (no bank data yet)', async () => {
+      const { paymentDataStore, scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      // Bank section still shows its own independent empty state...
+      expect(wrapper.text()).toContain('Sin datos de pago configurados')
+      // ...while the config section renders fully regardless.
+      expect(wrapper.text()).toContain('Configuración de beca')
+      expect(wrapper.text()).toContain('IU')
+      expect(wrapper.text()).toContain('1500.00')
+      expect(wrapper.text()).toContain('200.00')
+      expect(wrapper.text()).toContain('¿Estudia en el CERT de Mérida o UNID Tizimín?')
+    })
+
+    it('renders the config section even when paymentData exists (both sections independent)', async () => {
+      const { paymentDataStore, scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(buildPaymentData())
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('BBVA')
+      expect(wrapper.text()).toContain('Configuración de beca')
+      expect(wrapper.text()).toContain('IU')
+    })
+
+    it('shows a "Sin configurar" state when the scholarship profile itself 404s', async () => {
+      stubDefaults()
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Sin configurar')
+    })
+
+    it('re-fetches the scholarship-profile config after the dialog emits saved', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      const fetchSpy = vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+      fetchSpy.mockClear()
+
+      const dialog = wrapper.findComponent({ name: 'PaymentDataDialog' })
+      dialog.vm.$emit('saved')
+      await flushPromises()
+
+      expect(fetchSpy).toHaveBeenCalledWith(5)
+    })
   })
 })
