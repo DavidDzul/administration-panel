@@ -17,28 +17,6 @@
         <v-card-text>
           <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
 
-          <div class="text-subtitle-2 mb-2">Datos bancarios</div>
-          <v-row>
-            <v-col cols="12">
-              <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
-            </v-col>
-            <v-col cols="12">
-              <v-text-field
-                v-model="form.account_number"
-                label="Número de cuenta / CLABE *"
-                :rules="[requiredRule]"
-              ></v-text-field>
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field v-model="form.curp" label="CURP *" :rules="[requiredRule, curpRule]"></v-text-field>
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field v-model="form.rfc" label="RFC" :rules="[rfcRule]" clearable></v-text-field>
-            </v-col>
-          </v-row>
-
-          <v-divider class="my-4" />
-
           <!-- Configuración de beca — visually separate section (design's
                requirement + D6), gated field-by-field on
                editScholarshipProfile so a partially-permissioned admin sees
@@ -60,6 +38,7 @@
               <v-switch
                 v-model="configForm.advance_payment_eligible"
                 label="¿Estudia en el CERT de Mérida o UNID Tizimín?"
+                color="primary"
                 :disabled="!editScholarshipProfile"
               ></v-switch>
             </v-col>
@@ -80,6 +59,28 @@
                 :rules="[nonNegativeNumberRule]"
                 :disabled="!editScholarshipProfile"
               ></v-text-field>
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-4" />
+
+          <div class="text-subtitle-2 mb-2">Datos bancarios</div>
+          <v-row>
+            <v-col cols="12">
+              <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
+            </v-col>
+            <v-col cols="12">
+              <v-text-field
+                v-model="form.account_number"
+                label="Número de cuenta / CLABE *"
+                :rules="[requiredRule]"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.curp" label="CURP *" :rules="[requiredRule, curpRule]"></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field v-model="form.rfc" label="RFC" :rules="[rfcRule]" clearable></v-text-field>
             </v-col>
           </v-row>
         </v-card-text>

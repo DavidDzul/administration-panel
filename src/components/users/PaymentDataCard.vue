@@ -1,37 +1,5 @@
 <template>
   <div>
-    <!-- Datos bancarios — unchanged logic (design D6), now scoped to its own
-         subsection instead of gating the whole card. -->
-    <div class="text-subtitle-2 mb-2">Datos bancarios</div>
-    <v-progress-linear v-if="loadingPaymentData" indeterminate color="primary" class="mb-3" />
-
-    <template v-else-if="paymentData">
-      <v-row dense>
-        <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Banco</div>
-          <div class="font-weight-medium">{{ paymentData.bank_name }}</div>
-        </v-col>
-        <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Número de cuenta / CLABE</div>
-          <div class="font-weight-medium">{{ paymentData.account_number }}</div>
-        </v-col>
-        <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">CURP</div>
-          <div class="font-weight-medium">{{ paymentData.curp }}</div>
-        </v-col>
-        <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">RFC</div>
-          <div class="font-weight-medium">{{ paymentData.rfc || 'N/A' }}</div>
-        </v-col>
-      </v-row>
-    </template>
-
-    <v-alert v-else type="info" variant="tonal" density="compact">
-      Sin datos de pago configurados.
-    </v-alert>
-
-    <v-divider class="my-4" />
-
     <!-- Configuración de beca — independent section (design D6). Renders
          regardless of whether `paymentData` exists: fixes the flagged
          gotcha where this whole card used to gate ALL content on
@@ -62,6 +30,38 @@
 
     <v-alert v-else type="info" variant="tonal" density="compact">
       Sin configurar.
+    </v-alert>
+
+    <v-divider class="my-4" />
+
+    <!-- Datos bancarios — unchanged logic (design D6), now scoped to its own
+         subsection instead of gating the whole card. -->
+    <div class="text-subtitle-2 mb-2">Datos bancarios</div>
+    <v-progress-linear v-if="loadingPaymentData" indeterminate color="primary" class="mb-3" />
+
+    <template v-else-if="paymentData">
+      <v-row dense>
+        <v-col cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Banco</div>
+          <div class="font-weight-medium">{{ paymentData.bank_name }}</div>
+        </v-col>
+        <v-col cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Número de cuenta / CLABE</div>
+          <div class="font-weight-medium">{{ paymentData.account_number }}</div>
+        </v-col>
+        <v-col cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">CURP</div>
+          <div class="font-weight-medium">{{ paymentData.curp }}</div>
+        </v-col>
+        <v-col cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">RFC</div>
+          <div class="font-weight-medium">{{ paymentData.rfc || 'N/A' }}</div>
+        </v-col>
+      </v-row>
+    </template>
+
+    <v-alert v-else type="info" variant="tonal" density="compact">
+      Sin datos de pago configurados.
     </v-alert>
 
     <!-- One shared "Editar" button for both sections (design D6), enabled
