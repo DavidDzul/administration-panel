@@ -151,6 +151,13 @@ export const useAuthStore = defineStore('authStore', () => {
   const readPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_PAYMENT_DATA))
   const editPaymentData = computed<boolean>(() => permissions.value.includes(PERMISSIONS.EDIT_PAYMENT_DATA))
 
+  // Scholarship-profile config edit gate — mirrors editPaymentData exactly
+  // (design D9, sdd/scholarship-profile-config-to-admin). No read-gate
+  // counterpart: visibility is scoped by readUsers instead (see constants.ts).
+  const editScholarshipProfile = computed<boolean>(() =>
+    permissions.value.includes(PERMISSIONS.EDIT_SCHOLARSHIP_PROFILE),
+  )
+
   // Control (Roles + Accesos) — read/manage split per resource, mirrors
   // readUsers/readPaymentData exactly (design, sdd/control-accesos-administration-panel).
   const readRoles = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_ROLES))
@@ -182,6 +189,7 @@ export const useAuthStore = defineStore('authStore', () => {
     readUsers,
     readPaymentData,
     editPaymentData,
+    editScholarshipProfile,
     readRoles,
     manageRoles,
     readAdmins,

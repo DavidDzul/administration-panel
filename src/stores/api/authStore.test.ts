@@ -398,4 +398,20 @@ describe('authStore', () => {
 
     expect(authStore.manageAdmins).toBe(false)
   })
+
+  // Task 4.2 (PR3, sdd/scholarship-profile-config-to-admin) —
+  // editScholarshipProfile addition, mirroring editPaymentData exactly.
+  it('editScholarshipProfile is true when permissions include ADM_EDIT_SCHOLARSHIP_PROFILE', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.EDIT_SCHOLARSHIP_PROFILE]
+
+    expect(authStore.editScholarshipProfile).toBe(true)
+  })
+
+  it('editScholarshipProfile is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.editScholarshipProfile).toBe(false)
+  })
 })

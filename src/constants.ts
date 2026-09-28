@@ -75,4 +75,10 @@ export const PERMISSIONS = {
   // Bank-file export, distinct from READ/PROCESS (spec's "dedicated
   // permission" requirement, sdd/becario-payment-bank-file-export/design).
   EXPORT_PAYMENTS: 'ADM_EXPORT_PAYMENTS',
+  // Gated write for the 4 scholarship-profile config fields (scholarship
+  // type, monthly amount, apoyo, CERT eligibility) — no read-gate (design
+  // D9, sdd/scholarship-profile-config-to-admin): the GET route is shared
+  // infrastructure with psicol-panel, so visibility is scoped naturally by
+  // READ_USERS instead.
+  EDIT_SCHOLARSHIP_PROFILE: 'ADM_EDIT_SCHOLARSHIP_PROFILE',
 } as const
