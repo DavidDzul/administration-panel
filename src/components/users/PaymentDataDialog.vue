@@ -60,6 +60,33 @@
                 :disabled="!editScholarshipProfile"
               ></v-text-field>
             </v-col>
+            <!-- "Pago IU" (sdd/scholarship-telmex-iu-split, design D2/spec
+                 "iu_payment_amount field"): visible and required ONLY when
+                 scholarship_type is TELMEX_IU — hidden entirely otherwise, so
+                 v-form never registers/validates it for IU/TELMEX profiles. -->
+            <v-col v-if="configForm.scholarship_type === 'TELMEX_IU'" cols="12" md="6">
+              <v-text-field
+                v-model.number="configForm.iu_payment_amount"
+                type="number"
+                label="Pago IU *"
+                :rules="[nonNegativeNumberRule]"
+                :disabled="!editScholarshipProfile"
+              ></v-text-field>
+            </v-col>
+            <!-- Reference-only "Monto base Telmex" hint (design D9's
+                 informational-hint requirement): purely display, never
+                 coupled to validation or auto-fill. Shown for TELMEX and
+                 TELMEX_IU only — this money is never payable for those
+                 types, so the reference value helps staff sanity-check
+                 monthly_amount/monto_apoyo. -->
+            <v-col
+              v-if="configForm.scholarship_type === 'TELMEX' || configForm.scholarship_type === 'TELMEX_IU'"
+              cols="12"
+            >
+              <div class="text-caption text-medium-emphasis">
+                Monto base Telmex (referencia): {{ telmexBaseAmount ?? 'N/A' }}
+              </div>
+            </v-col>
           </v-row>
 
           <v-divider class="my-4" />
@@ -99,6 +126,7 @@ import { reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
+import { useScholarshipSettingsStore } from '@/stores/api/scholarshipSettingsStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import type { PaymentDataForm } from '@/interfaces/paymentData'
@@ -124,16 +152,23 @@ const emit = defineEmits<Emits>()
 
 const paymentDataStore = usePaymentDataStore()
 const scholarshipProfileStore = useScholarshipProfileStore()
+const scholarshipSettingsStore = useScholarshipSettingsStore()
 const { editScholarshipProfile } = storeToRefs(useAuthStore())
 const { showAlert } = useAlertStore()
 
 const formRef = ref()
 const loading = ref(false)
 const saving = ref(false)
+// Reference-only Telmex base amount (design D8/D9) — fetched independently
+// of the bank-data/config loads below (see loadTelmexBaseAmount) so a
+// failure here never blocks or resets the rest of the dialog. `null` while
+// loading or if the fetch fails.
+const telmexBaseAmount = ref<string | null>(null)
 
 const scholarshipTypeOptions: SelectOption[] = [
   { value: 'IU', text: 'IU' },
   { value: 'TELMEX', text: 'TELMEX' },
+  { value: 'TELMEX_IU', text: 'Telmex - IU' },
 ]
 
 const emptyForm = (): PaymentDataForm => ({
@@ -148,6 +183,7 @@ const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
   monthly_amount: 0,
   monto_apoyo: 0,
   advance_payment_eligible: false,
+  iu_payment_amount: 0,
 })
 
 const form = reactive<PaymentDataForm>(emptyForm())
@@ -208,6 +244,8 @@ const loadExisting = async (userId: number): Promise<void> => {
       configForm.monthly_amount = Number(existingConfig.monthly_amount)
       configForm.monto_apoyo = existingConfig.monto_apoyo !== null ? Number(existingConfig.monto_apoyo) : 0
       configForm.advance_payment_eligible = existingConfig.advance_payment_eligible
+      configForm.iu_payment_amount =
+        existingConfig.iu_payment_amount !== null ? Number(existingConfig.iu_payment_amount) : 0
     } else {
       Object.assign(configForm, emptyConfigForm())
     }
@@ -220,11 +258,25 @@ const loadExisting = async (userId: number): Promise<void> => {
   }
 }
 
+// Independent of loadExisting's try/catch (design D9's "purely
+// informational" invariant) — a failure fetching the reference hint must
+// never reset the bank-data/config forms the admin is actively editing.
+const loadTelmexBaseAmount = async (): Promise<void> => {
+  try {
+    const setting = await scholarshipSettingsStore.fetchSetting()
+    telmexBaseAmount.value = setting.telmex_base_amount
+  } catch (error: unknown) {
+    console.error('Error al cargar el monto base Telmex:', error)
+    telmexBaseAmount.value = null
+  }
+}
+
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen && props.userId !== null) {
       void loadExisting(props.userId)
+      void loadTelmexBaseAmount()
     }
   },
   { immediate: true },
@@ -287,6 +339,7 @@ const onSubmit = async (): Promise<void> => {
         monthly_amount: configForm.monthly_amount,
         monto_apoyo: configForm.monto_apoyo,
         advance_payment_eligible: configForm.advance_payment_eligible,
+        iu_payment_amount: configForm.iu_payment_amount,
       })
     } catch (error: unknown) {
       configOk = false
