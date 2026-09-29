@@ -44,6 +44,7 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_paid_origin_month: null,
   advance_payment_amount: '0.00',
   advance_paid_divergence_reason: null,
+  excluded_from_bank_file: false,
   ...overrides,
 })
 
@@ -480,6 +481,74 @@ describe('PaymentBatchTable', () => {
 
       expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="advance-payment-divergence-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // ── Telmex bank-file exclusion chip (sdd/scholarship-telmex-iu-split,
+  // design D9) ──────────────────────────────────────────────────────────
+  //
+  // Marks a $0.00 TELMEX row that Filter B will silently omit from the
+  // exported bank file, so staff can predict that outcome before running the
+  // export. Server-computed, same non-interactive tonal-chip pattern as
+  // every other chip in this column.
+  describe('telmex bank-file exclusion chip', () => {
+    it('renders no chip when excluded_from_bank_file is false', () => {
+      const wrapper = mountTable([buildRow({ excluded_from_bank_file: false })])
+
+      expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the chip with a visible label when excluded_from_bank_file is true', () => {
+      const wrapper = mountTable([buildRow({ excluded_from_bank_file: true })])
+
+      const chip = wrapper.find('[data-testid="telmex-exclusion-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('No entra al archivo')
+    })
+
+    it('the aria-label/tooltip explains the row will not appear in the bank file', () => {
+      const wrapper = mountTable([buildRow({ excluded_from_bank_file: true })])
+
+      const chip = wrapper.find('[data-testid="telmex-exclusion-chip"]')
+      expect(chip.attributes('aria-label')).toContain('No se incluirá en el archivo bancario')
+    })
+
+    it('coexists with the other flags-column chips without displacing any', () => {
+      const wrapper = mountTable([
+        buildRow({
+          has_incident: true,
+          has_pending_from_previous: true,
+          resolution_type: 'RETENIDA',
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+          excluded_from_bank_file: true,
+        }),
+      ])
+
+      expect(wrapper.text()).toContain('Incidencia registrada')
+      expect(wrapper.text()).toContain('Incluye mes retenido')
+      expect(wrapper.find('[data-testid="resolution-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
+    })
+
+    it('never affects is_payable or the Estado/Motivo columns for a payable, excluded row', () => {
+      const wrapper = mountTable([
+        buildRow({
+          refrend_id: 12,
+          is_payable: true,
+          blocking_reasons: [],
+          excluded_from_bank_file: true,
+        }),
+      ])
+
+      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+      const estadoCell = cells[cells.length - 3]
+
+      expect(estadoCell.text()).toContain('Listo')
+      expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
     })
   })
 })

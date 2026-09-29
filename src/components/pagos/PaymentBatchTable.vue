@@ -98,6 +98,22 @@
             </v-chip>
           </template>
         </v-tooltip>
+        <v-tooltip v-if="telmexExportExclusionChip(item)" :text="telmexExportExclusionChip(item)?.ariaLabel">
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="telmex-exclusion-chip"
+              :aria-label="telmexExportExclusionChip(item)?.ariaLabel"
+              size="small"
+              :color="telmexExportExclusionChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="telmexExportExclusionChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ telmexExportExclusionChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
       </div>
     </template>
 
@@ -146,7 +162,10 @@
 // refrend a batch was recorded FROM, rather than a settled future month — see
 // advancePaymentMeta.ts's header comment for the full distinction. Both chips
 // can render on the same row simultaneously and must never displace each
-// other.
+// other. The telmex-exclusion chip (sdd/scholarship-telmex-iu-split, design
+// D9) is the newest addition — same non-interactive tonal-chip pattern,
+// server-computed via `excluded_from_bank_file`, and it too must never
+// displace or be displaced by any other chip in this column.
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
 import {
@@ -154,6 +173,7 @@ import {
   advancePaymentDivergenceChip,
   advancePaymentRegisteredChip,
 } from '@/utils/advancePaymentMeta'
+import { telmexExportExclusionChip } from '@/utils/telmexExportMeta'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
