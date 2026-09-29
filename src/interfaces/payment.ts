@@ -75,6 +75,17 @@ export interface PaymentBatchRow {
   // a Laravel `number_format(...,2,'.','')` string, `"0.00"` (never null) when
   // the refrend has no advance payment registered against it.
   advance_payment_amount: string
+  // Telmex/IU split (sdd/scholarship-telmex-iu-split, design D9): true only
+  // for a TELMEX row whose total_to_pay is exactly $0 — the row still counts
+  // toward the batch/Pagos table, but PaymentBatchService::paidRows()'s
+  // Filter B will silently omit it from the exported bank file. Server-
+  // computed via TelmexPaymentPolicy::isExcludedFromBankFile(), the SAME
+  // predicate Filter B itself uses — deliberately NOT derived client-side
+  // (see telmexExportMeta.ts). Always false for IU/TELMEX_IU rows and for any
+  // TELMEX row with a positive total_to_pay. Purely informational, same
+  // invariant as every other flag above — NEVER participates in
+  // `is_payable`/`blocking_reasons`.
+  excluded_from_bank_file: boolean
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against

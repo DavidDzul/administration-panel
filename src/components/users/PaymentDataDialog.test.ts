@@ -22,9 +22,11 @@ const vuetify = createVuetify()
 
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
+import { useScholarshipSettingsStore } from '@/stores/api/scholarshipSettingsStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
+import type { ScholarshipSetting } from '@/interfaces/scholarshipSetting'
 
 const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => ({
   id: 1,
@@ -41,6 +43,13 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
+  iu_payment_amount: null,
+  ...overrides,
+})
+
+const buildSetting = (overrides: Partial<ScholarshipSetting> = {}): ScholarshipSetting => ({
+  id: 1,
+  telmex_base_amount: '1000.00',
   ...overrides,
 })
 
@@ -68,12 +77,15 @@ const submitForm = async (): Promise<void> => {
   await body().find('form').trigger('submit')
 }
 
-// Every test stubs fetchProfileConfig to a resolved default unless a
-// specific test overrides it, so no test accidentally issues a real,
-// unmocked axios call for the new independent config section.
+// Every test stubs fetchProfileConfig (and, per
+// sdd/scholarship-telmex-iu-split, fetchSetting) to a resolved default unless
+// a specific test overrides it, so no test accidentally issues a real,
+// unmocked axios call for the config section or the Telmex base-amount hint.
 const stubProfileConfigDefaults = () => {
   const scholarshipProfileStore = useScholarshipProfileStore()
   vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
+  const scholarshipSettingsStore = useScholarshipSettingsStore()
+  vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
   return scholarshipProfileStore
 }
 
@@ -245,19 +257,24 @@ describe('PaymentDataDialog', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
+  // Shared by both "Configuración de beca section" and the Telmex/IU split
+  // describe blocks below.
+  const openWithConfig = async (config: ScholarshipProfileConfig | null, userId = 5) => {
+    const paymentDataStore = usePaymentDataStore()
+    vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+    const scholarshipProfileStore = useScholarshipProfileStore()
+    vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(config)
+    const scholarshipSettingsStore = useScholarshipSettingsStore()
+    vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
+
+    const wrapper = mountDialog({ modelValue: true, userId })
+    await flushPromises()
+    return { wrapper, scholarshipProfileStore, paymentDataStore, scholarshipSettingsStore }
+  }
+
   // Task 5.2/6.3 (design D6, sdd/scholarship-profile-config-to-admin): new
   // "Configuración de beca" section, independent from the bank-data one.
   describe('Configuración de beca section', () => {
-    const openWithConfig = async (config: ScholarshipProfileConfig | null, userId = 5) => {
-      const paymentDataStore = usePaymentDataStore()
-      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
-      const scholarshipProfileStore = useScholarshipProfileStore()
-      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(config)
-
-      const wrapper = mountDialog({ modelValue: true, userId })
-      await flushPromises()
-      return { wrapper, scholarshipProfileStore, paymentDataStore }
-    }
 
     it('pre-fills the config form when opened for a user with an existing profile', async () => {
       const { wrapper } = await openWithConfig(buildProfileConfig())
@@ -360,6 +377,7 @@ describe('PaymentDataDialog', () => {
         monthly_amount: 1500,
         monto_apoyo: 200,
         advance_payment_eligible: true,
+        iu_payment_amount: 0,
       })
       expect(wrapper.emitted('saved')).toHaveLength(1)
     })
@@ -407,6 +425,107 @@ describe('PaymentDataDialog', () => {
       expect(alertStore.config.status).toBe('error')
       // Not fully successful — stays open so the admin can retry the failed section.
       expect(wrapper.emitted('saved')).toBeUndefined()
+    })
+  })
+
+  // sdd/scholarship-telmex-iu-split, design D2/D9: TELMEX_IU scholarship
+  // type, conditional "Pago IU" field, and the reference-only "Monto base
+  // Telmex" hint.
+  describe('Telmex/IU split (scholarship_type=TELMEX_IU)', () => {
+    it('includes "Telmex - IU" as a scholarship_type option', async () => {
+      stubProfileConfigDefaults()
+      const wrapper = mountDialog({ modelValue: true, userId: 5 })
+      await flushPromises()
+
+      const select = selectByLabelPrefix(wrapper, 'Tipo de beca')
+      const items = select?.props('items') as Array<{ value: string; text: string }> | undefined
+      expect(items).toContainEqual({ value: 'TELMEX_IU', text: 'Telmex - IU' })
+    })
+
+    it('does not show the "Pago IU" field when scholarship_type is IU', async () => {
+      const { wrapper } = await openWithConfig(buildProfileConfig({ scholarship_type: 'IU' }))
+
+      expect(fieldByLabelPrefix(wrapper, 'Pago IU')).toBeUndefined()
+    })
+
+    it('does not show the "Pago IU" field when scholarship_type is TELMEX', async () => {
+      const { wrapper } = await openWithConfig(buildProfileConfig({ scholarship_type: 'TELMEX' }))
+
+      expect(fieldByLabelPrefix(wrapper, 'Pago IU')).toBeUndefined()
+    })
+
+    it('shows and pre-fills the "Pago IU" field when scholarship_type is TELMEX_IU', async () => {
+      const { wrapper } = await openWithConfig(
+        buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
+      )
+
+      const field = fieldByLabelPrefix(wrapper, 'Pago IU')
+      expect(field).toBeDefined()
+      expect(field?.props('modelValue')).toBe(300)
+    })
+
+    it('requires "Pago IU" — blocks submit when TELMEX_IU and the field is blank', async () => {
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+      const { wrapper, scholarshipProfileStore, paymentDataStore } = await openWithConfig(
+        buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
+      )
+      const saveConfigSpy = vi.spyOn(scholarshipProfileStore, 'saveProfileConfig')
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+      await fieldByLabelPrefix(wrapper, 'Pago IU')?.setValue('')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(saveConfigSpy).not.toHaveBeenCalled()
+    })
+
+    it('includes iu_payment_amount in the save payload when scholarship_type is TELMEX_IU', async () => {
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+      const { wrapper, scholarshipProfileStore, paymentDataStore } = await openWithConfig(
+        buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
+      )
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+      vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(
+        buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
+      )
+
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(scholarshipProfileStore.saveProfileConfig).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ scholarship_type: 'TELMEX_IU', iu_payment_amount: 300 }),
+      )
+    })
+
+    it('shows no reference hint when scholarship_type is IU', async () => {
+      await openWithConfig(buildProfileConfig({ scholarship_type: 'IU' }))
+
+      expect(body().text()).not.toContain('Monto base Telmex')
+    })
+
+    it('shows the "Monto base Telmex" reference hint when scholarship_type is TELMEX', async () => {
+      await openWithConfig(buildProfileConfig({ scholarship_type: 'TELMEX' }), 5)
+
+      expect(body().text()).toContain('Monto base Telmex')
+      expect(body().text()).toContain('1000.00')
+    })
+
+    it('shows the "Monto base Telmex" reference hint when scholarship_type is TELMEX_IU', async () => {
+      await openWithConfig(buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }))
+
+      expect(body().text()).toContain('Monto base Telmex')
+      expect(body().text()).toContain('1000.00')
     })
   })
 })

@@ -414,4 +414,21 @@ describe('authStore', () => {
 
     expect(authStore.editScholarshipProfile).toBe(false)
   })
+
+  // Task 6.3 (sdd/scholarship-telmex-iu-split) — manageScholarshipSettings
+  // addition, mirroring editScholarshipProfile exactly. Dedicated permission,
+  // distinct from EDIT_SCHOLARSHIP_PROFILE (design D8).
+  it('manageScholarshipSettings is true when permissions include ADM_MANAGE_SCHOLARSHIP_SETTINGS', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS]
+
+    expect(authStore.manageScholarshipSettings).toBe(true)
+  })
+
+  it('manageScholarshipSettings is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.manageScholarshipSettings).toBe(false)
+  })
 })

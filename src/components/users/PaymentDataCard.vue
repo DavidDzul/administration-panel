@@ -11,7 +11,7 @@
       <v-row dense>
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Tipo de beca</div>
-          <div class="font-weight-medium">{{ profileConfig.scholarship_type }}</div>
+          <div class="font-weight-medium">{{ scholarshipTypeLabel(profileConfig.scholarship_type) }}</div>
         </v-col>
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Monto mensual</div>
@@ -24,6 +24,13 @@
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">¿Estudia en el CERT de Mérida o UNID Tizimín?</div>
           <div class="font-weight-medium">{{ profileConfig.advance_payment_eligible ? 'Sí' : 'No' }}</div>
+        </v-col>
+        <!-- "Pago IU" row (sdd/scholarship-telmex-iu-split) — read-only,
+             renders only for TELMEX_IU, matching PaymentDataDialog's
+             visibility condition exactly. -->
+        <v-col v-if="profileConfig.scholarship_type === 'TELMEX_IU'" cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Pago IU</div>
+          <div class="font-weight-medium">{{ profileConfig.iu_payment_amount ?? 'N/A' }}</div>
         </v-col>
       </v-row>
     </template>
@@ -109,6 +116,18 @@ const paymentData = ref<PaymentData | null>(null)
 const loadingProfileConfig = ref(false)
 const profileConfig = ref<ScholarshipProfileConfig | null>(null)
 const dialogOpen = ref(false)
+
+// Label map (design's Interfaces/Contracts section, sdd/scholarship-telmex-iu-split):
+// both panels render the raw scholarship_type value today, so without this
+// map TELMEX_IU would leak to users verbatim. Falls back to the raw value
+// for forward-compat with an unmapped future type.
+const SCHOLARSHIP_TYPE_LABELS: Record<string, string> = {
+  IU: 'IU',
+  TELMEX: 'TELMEX',
+  TELMEX_IU: 'Telmex - IU',
+}
+
+const scholarshipTypeLabel = (value: string): string => SCHOLARSHIP_TYPE_LABELS[value] ?? value
 
 const loadPaymentData = async (): Promise<void> => {
   loadingPaymentData.value = true

@@ -158,6 +158,13 @@ export const useAuthStore = defineStore('authStore', () => {
     permissions.value.includes(PERMISSIONS.EDIT_SCHOLARSHIP_PROFILE),
   )
 
+  // Org-wide Telmex reference-amount setting — mirrors editScholarshipProfile
+  // exactly (design D8, sdd/scholarship-telmex-iu-split). Dedicated
+  // permission, distinct blast radius from EDIT_SCHOLARSHIP_PROFILE.
+  const manageScholarshipSettings = computed<boolean>(() =>
+    permissions.value.includes(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS),
+  )
+
   // Control (Roles + Accesos) — read/manage split per resource, mirrors
   // readUsers/readPaymentData exactly (design, sdd/control-accesos-administration-panel).
   const readRoles = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_ROLES))
@@ -190,6 +197,7 @@ export const useAuthStore = defineStore('authStore', () => {
     readPaymentData,
     editPaymentData,
     editScholarshipProfile,
+    manageScholarshipSettings,
     readRoles,
     manageRoles,
     readAdmins,

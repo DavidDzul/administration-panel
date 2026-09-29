@@ -32,7 +32,7 @@
     </v-list-group>
 
     <v-list-group
-      v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS)"
+      v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS) || can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS)"
       value="Control"
     >
       <template #activator="{ props }">
@@ -55,6 +55,17 @@
         v-if="can(PERMISSIONS.READ_ADMINS)"
         to="/control/accesos"
         title="Accesos"
+        density="compact"
+        class="nav-subitem"
+      />
+      <!-- Org-wide Telmex reference-amount setting (design D8,
+           sdd/scholarship-telmex-iu-split) — gated directly on
+           MANAGE_SCHOLARSHIP_SETTINGS, mirroring the Roles/Accesos pattern;
+           no separate read permission exists for this single-value surface. -->
+      <v-list-item
+        v-if="can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS)"
+        to="/control/becas"
+        title="Configuración de becas"
         density="compact"
         class="nav-subitem"
       />

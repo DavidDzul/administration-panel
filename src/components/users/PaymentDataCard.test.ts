@@ -48,6 +48,7 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
+  iu_payment_amount: null,
   ...overrides,
 })
 
@@ -247,6 +248,53 @@ describe('PaymentDataCard', () => {
       await flushPromises()
 
       expect(fetchSpy).toHaveBeenCalledWith(5)
+    })
+  })
+
+  // sdd/scholarship-telmex-iu-split, design's Interfaces section: the type
+  // label map (`{ IU: 'IU', TELMEX: 'TELMEX', TELMEX_IU: 'Telmex - IU' }`)
+  // and the read-only "Pago IU" row.
+  describe('Telmex/IU split (scholarship_type=TELMEX_IU)', () => {
+    it.each([
+      ['IU', 'IU'],
+      ['TELMEX', 'TELMEX'],
+      ['TELMEX_IU', 'Telmex - IU'],
+    ])('displays "%s" as "%s" for the Tipo de beca value', async (rawType, displayLabel) => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ scholarship_type: rawType as ScholarshipProfileConfig['scholarship_type'] }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain(displayLabel)
+      expect(wrapper.text()).not.toContain('TELMEX_IU')
+    })
+
+    it('does not render a "Pago IU" row when scholarship_type is IU', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ scholarship_type: 'IU' }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Pago IU')
+    })
+
+    it('renders the "Pago IU" row with its value when scholarship_type is TELMEX_IU', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Pago IU')
+      expect(wrapper.text()).toContain('300.00')
     })
   })
 })

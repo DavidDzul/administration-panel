@@ -22,6 +22,7 @@ const router = createRouter({
     { path: '/becarios', component: { template: '<div />' } },
     { path: '/control/roles', component: { template: '<div />' } },
     { path: '/control/accesos', component: { template: '<div />' } },
+    { path: '/control/becas', component: { template: '<div />' } },
     { path: '/pagos', component: { template: '<div />' } },
   ],
 })
@@ -102,6 +103,43 @@ describe('NavMenu — "Control" group gating on ADM_READ_ROLES / ADM_READ_ADMINS
     expect(wrapper.text()).not.toContain('Control')
     expect(wrapper.text()).not.toContain('Roles')
     expect(wrapper.text()).not.toContain('Accesos')
+  })
+})
+
+// sdd/scholarship-telmex-iu-split, design D8: "Configuración de becas" nav
+// item, gated directly on ADM_MANAGE_SCHOLARSHIP_SETTINGS (no separate read
+// permission exists for this single-value surface) — same "Control" group
+// as Roles/Accesos.
+describe('NavMenu — "Control" > "Configuración de becas" gating on ADM_MANAGE_SCHOLARSHIP_SETTINGS', () => {
+  beforeEach(() => {
+    mockPermissions.value = []
+  })
+
+  it('shows "Control" > "Configuración de becas" when the user holds ADM_MANAGE_SCHOLARSHIP_SETTINGS alone', async () => {
+    mockPermissions.value = ['ADM_MANAGE_SCHOLARSHIP_SETTINGS']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).toContain('Configuración de becas')
+  })
+
+  it('hides "Configuración de becas" when the user lacks ADM_MANAGE_SCHOLARSHIP_SETTINGS', async () => {
+    mockPermissions.value = ['ADM_READ_ROLES']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).not.toContain('Configuración de becas')
+  })
+
+  it('hides the entire "Control" group when the user holds none of the three Control permissions', async () => {
+    mockPermissions.value = []
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Control')
+    expect(wrapper.text()).not.toContain('Configuración de becas')
   })
 })
 
