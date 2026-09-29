@@ -22,6 +22,7 @@ const buildConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): Scholar
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
+  iu_payment_amount: null,
   ...overrides,
 })
 
@@ -30,6 +31,7 @@ const buildForm = (overrides: Partial<ScholarshipProfileConfigForm> = {}): Schol
   monthly_amount: 1500,
   monto_apoyo: 200,
   advance_payment_eligible: true,
+  iu_payment_amount: 0,
   ...overrides,
 })
 

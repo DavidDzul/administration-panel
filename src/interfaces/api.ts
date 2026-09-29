@@ -2,6 +2,7 @@ import type { Person } from './user'
 import type { Generation } from './generation'
 import type { PaymentData } from './paymentData'
 import type { ScholarshipProfileConfig } from './scholarshipProfile'
+import type { ScholarshipSetting } from './scholarshipSetting'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
 import type { ExportSummary, PaymentBatchBlock, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
@@ -59,6 +60,14 @@ export interface ScholarshipProfileConfigResponse {
   res: boolean
   data: ScholarshipProfileConfig | null
   msg?: string
+}
+
+// Matches ScholarshipSettingController::show()/update()'s real envelope
+// (design D8, sdd/scholarship-telmex-iu-split) — `data` is never null, the
+// single settings row always exists (firstOrCreate).
+export interface ScholarshipSettingResponse {
+  res: boolean
+  data: ScholarshipSetting
 }
 
 // Matches UserController::show's real envelope (`{ user: ... }`, no `res`
