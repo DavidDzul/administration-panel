@@ -81,4 +81,9 @@ export const PERMISSIONS = {
   // infrastructure with psicol-panel, so visibility is scoped naturally by
   // READ_USERS instead.
   EDIT_SCHOLARSHIP_PROFILE: 'ADM_EDIT_SCHOLARSHIP_PROFILE',
+  // Org-wide Telmex reference-amount setting — dedicated permission, distinct
+  // from EDIT_SCHOLARSHIP_PROFILE (design D8, sdd/scholarship-telmex-iu-split):
+  // the existing permission is scoped "de un becario"; this is a single
+  // org-wide value with a different blast radius.
+  MANAGE_SCHOLARSHIP_SETTINGS: 'ADM_MANAGE_SCHOLARSHIP_SETTINGS',
 } as const
