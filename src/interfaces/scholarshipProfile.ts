@@ -17,6 +17,19 @@ export interface ScholarshipProfileConfig {
   monto_apoyo: string | null
   advance_payment_eligible: boolean
   iu_payment_amount: string | null
+  // Read-only (sdd/temporary-increase-visibility). GET
+  // scholarship-profiles/{userId} already returns the whole model, so these
+  // 4 fields arrive today — administration-panel simply never typed them.
+  // NEVER sent back: ScholarshipProfileConfigForm and
+  // UpdateScholarshipProfileConfigRequest stay byte-for-byte unchanged.
+  // `_amount` is a `decimal:2` cast -> STRING. `_valid_from`/`_valid_until`
+  // are `date` casts -> ISO datetime strings with a bogus 00:00:00Z time
+  // component (see utils/temporaryIncreaseVigencia.ts for the safe way to
+  // read them).
+  temporary_increase_amount: string | null
+  temporary_increase_valid_from: string | null
+  temporary_increase_valid_until: string | null
+  temporary_increase_reason: string | null
 }
 
 // Submission shape for `PUT scholarship-profiles/{userId}/config`. Numeric
