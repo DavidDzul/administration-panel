@@ -114,6 +114,22 @@
             </v-chip>
           </template>
         </v-tooltip>
+        <v-tooltip v-if="temporaryIncreaseChip(item)" :text="temporaryIncreaseChip(item)?.ariaLabel">
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="temporary-increase-chip"
+              :aria-label="temporaryIncreaseChip(item)?.ariaLabel"
+              size="small"
+              :color="temporaryIncreaseChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="temporaryIncreaseChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ temporaryIncreaseChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
       </div>
     </template>
 
@@ -165,6 +181,11 @@
 // other. The telmex-exclusion chip (sdd/scholarship-telmex-iu-split, design
 // D9) is the newest addition — same non-interactive tonal-chip pattern,
 // server-computed via `excluded_from_bank_file`, and it too must never
+// displace or be displaced by any other chip in this column. The
+// temporary-increase chip (sdd/temporary-increase-visibility, design D6/D8)
+// is the newest addition — same non-interactive tonal-chip pattern, sourced
+// ONLY from `snapshot_temporary_increase_amount`/`_reason` (never
+// `has_incident` or any incident-related field), and it too must never
 // displace or be displaced by any other chip in this column.
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
@@ -174,6 +195,7 @@ import {
   advancePaymentRegisteredChip,
 } from '@/utils/advancePaymentMeta'
 import { telmexExportExclusionChip } from '@/utils/telmexExportMeta'
+import { temporaryIncreaseChip } from '@/utils/temporaryIncreaseMeta'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
