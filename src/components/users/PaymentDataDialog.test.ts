@@ -44,6 +44,10 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
   iu_payment_amount: null,
+  temporary_increase_amount: null,
+  temporary_increase_valid_from: null,
+  temporary_increase_valid_until: null,
+  temporary_increase_reason: null,
   ...overrides,
 })
 
@@ -526,6 +530,114 @@ describe('PaymentDataDialog', () => {
 
       expect(body().text()).toContain('Monto base Telmex')
       expect(body().text()).toContain('1000.00')
+    })
+  })
+
+  // sdd/temporary-increase-visibility, spec "Read-only vigencia block in
+  // PaymentDataDialog/Card": renders whenever Number(amount) > 0, regardless
+  // of current vigencia, always labeled explicitly.
+  describe('Temporary increase display (sdd/temporary-increase-visibility)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows amount, range, reason, and "Vigente" when the increase is currently active', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0)) // local 2026-10-15
+
+      await openWithConfig(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+          temporary_increase_reason: 'Ajuste especial',
+        }),
+      )
+
+      expect(body().text()).toContain('Aumento temporal')
+      expect(body().text()).toContain('500.00')
+      expect(body().text()).toContain('Vigente')
+      expect(body().text()).toContain('Ajuste especial')
+    })
+
+    it('still shows the block labeled "Expirado" when valid_until is in the past', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2027, 0, 15, 12, 0, 0)) // local 2027-01-15
+
+      await openWithConfig(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+          temporary_increase_reason: 'Ajuste especial',
+        }),
+      )
+
+      expect(body().text()).toContain('Aumento temporal')
+      expect(body().text()).toContain('500.00')
+      expect(body().text()).toContain('Expirado')
+    })
+
+    it('shows "Programado" when valid_from is in the future', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 7, 1, 12, 0, 0)) // local 2026-08-01
+
+      await openWithConfig(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+        }),
+      )
+
+      expect(body().text()).toContain('Programado')
+    })
+
+    it('does not render the block when temporary_increase_amount is null', async () => {
+      await openWithConfig(buildProfileConfig({ temporary_increase_amount: null }))
+
+      expect(body().text()).not.toContain('Aumento temporal')
+    })
+
+    it('does not render the block when temporary_increase_amount is "0.00"', async () => {
+      await openWithConfig(buildProfileConfig({ temporary_increase_amount: '0.00' }))
+
+      expect(body().text()).not.toContain('Aumento temporal')
+    })
+
+    it('does not render the block when the profile has no existing config at all', async () => {
+      await openWithConfig(null)
+
+      expect(body().text()).not.toContain('Aumento temporal')
+    })
+
+    // Design-flagged gotcha: profileConfig must reset to null on a FAILED
+    // reload (catch branch), not just when there is no existing config
+    // (else branch) — otherwise a stale block could survive a failed fetch.
+    it('clears the temporary-increase block after a failed reload (catch branch reset)', async () => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+      const scholarshipProfileStore = useScholarshipProfileStore()
+      const scholarshipSettingsStore = useScholarshipSettingsStore()
+      vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValueOnce(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-01-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+        }),
+      )
+
+      const wrapper = mountDialog({ modelValue: true, userId: 5 })
+      await flushPromises()
+      expect(body().text()).toContain('Aumento temporal')
+
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockRejectedValueOnce(new Error('network error'))
+      await wrapper.setProps({ modelValue: false })
+      await wrapper.setProps({ modelValue: true })
+      await flushPromises()
+
+      expect(body().text()).not.toContain('Aumento temporal')
     })
   })
 })

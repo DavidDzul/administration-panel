@@ -87,6 +87,23 @@
                 Monto base Telmex (referencia): {{ telmexBaseAmount ?? 'N/A' }}
               </div>
             </v-col>
+            <!-- Temporary-increase read-only block (sdd/temporary-increase-visibility,
+                 design D3): shown whenever Number(amount) > 0, regardless of
+                 current vigencia — an expired/future increase still explains
+                 past/upcoming figures. No v-text-field, no v-form
+                 registration — purely informational. -->
+            <v-col v-if="temporaryIncrease" cols="12">
+              <div class="text-caption text-medium-emphasis">
+                Aumento temporal (solo lectura): {{ temporaryIncrease.amount }}
+                · {{ temporaryIncrease.range }}
+                <v-chip size="x-small" variant="tonal" :color="temporaryIncrease.stateColor" class="ml-1">
+                  {{ temporaryIncrease.stateLabel }}
+                </v-chip>
+              </div>
+              <div v-if="temporaryIncrease.reason" class="text-caption text-medium-emphasis">
+                Motivo: {{ temporaryIncrease.reason }}
+              </div>
+            </v-col>
           </v-row>
 
           <v-divider class="my-4" />
@@ -122,15 +139,16 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
 import { useScholarshipSettingsStore } from '@/stores/api/scholarshipSettingsStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
+import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
 import type { PaymentDataForm } from '@/interfaces/paymentData'
-import type { ScholarshipProfileConfigForm } from '@/interfaces/scholarshipProfile'
+import type { ScholarshipProfileConfig, ScholarshipProfileConfigForm } from '@/interfaces/scholarshipProfile'
 import type { SelectOption } from '@/constants'
 
 interface Props {
@@ -164,6 +182,13 @@ const saving = ref(false)
 // failure here never blocks or resets the rest of the dialog. `null` while
 // loading or if the fetch fails.
 const telmexBaseAmount = ref<string | null>(null)
+// Raw response holder (sdd/temporary-increase-visibility, design's flagged
+// gotcha): `configForm` is a form DTO with no increase fields, so the
+// temporary-increase block needs the raw profile config kept separately.
+// Reset to `null` in BOTH the `else` (no existing config) and `catch`
+// (fetch error) branches of loadExisting() — missing the catch-branch reset
+// would leave a stale block visible after a failed reload.
+const profileConfig = ref<ScholarshipProfileConfig | null>(null)
 
 const scholarshipTypeOptions: SelectOption[] = [
   { value: 'IU', text: 'IU' },
@@ -246,13 +271,16 @@ const loadExisting = async (userId: number): Promise<void> => {
       configForm.advance_payment_eligible = existingConfig.advance_payment_eligible
       configForm.iu_payment_amount =
         existingConfig.iu_payment_amount !== null ? Number(existingConfig.iu_payment_amount) : 0
+      profileConfig.value = existingConfig
     } else {
       Object.assign(configForm, emptyConfigForm())
+      profileConfig.value = null
     }
   } catch (error: unknown) {
     console.error('Error al cargar los datos de pago:', error)
     Object.assign(form, emptyForm())
     Object.assign(configForm, emptyConfigForm())
+    profileConfig.value = null
   } finally {
     loading.value = false
   }
@@ -298,6 +326,10 @@ watch(
       form.rfc = value.toUpperCase()
     }
   },
+)
+
+const temporaryIncrease = computed(() =>
+  profileConfig.value ? temporaryIncreaseDisplay(profileConfig.value) : null,
 )
 
 const close = (): void => {
