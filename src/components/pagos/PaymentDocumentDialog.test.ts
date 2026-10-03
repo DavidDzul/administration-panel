@@ -56,6 +56,8 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   resolution_notes: 'Aprobado tras revisión.',
   amount_breakdown: {
     base_amount: '1000.00',
+    temporary_increase_amount: null,
+    temporary_increase_reason: null,
     discount_percentage: '0.00',
     discount_amount: '0.00',
     amount_pending_from_previous: '450.00',

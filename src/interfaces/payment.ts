@@ -168,6 +168,13 @@ export interface PaymentDocumentIncident {
 // numbers, same convention as PaymentBatchRow.total_to_pay.
 export interface PaymentAmountBreakdown {
   base_amount: string
+  // Frozen snapshot of a temporary increase already included in base_amount
+  // above (sdd/payment-document-temp-increase-breakdown, design D1/D7) —
+  // purely an annotation for display, never a separate addend. `null` when
+  // no temporary increase was frozen on this refrend's snapshot; both keys
+  // are always present, identically for IU and TELMEX_IU.
+  temporary_increase_amount: string | null
+  temporary_increase_reason: string | null
   discount_percentage: string
   discount_amount: string
   amount_pending_from_previous: string
