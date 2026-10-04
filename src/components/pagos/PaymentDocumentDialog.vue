@@ -118,6 +118,21 @@
                   <div class="text-body-1">${{ document.amount_breakdown.final_amount }}</div>
                 </v-col>
               </v-row>
+              <v-alert
+                v-if="temporaryIncrease"
+                class="mt-2"
+                variant="tonal"
+                density="compact"
+                :color="TEMPORARY_INCREASE_META.color"
+                :icon="TEMPORARY_INCREASE_META.icon"
+              >
+                <div class="text-body-2">
+                  Incluye un aumento temporal de ${{ temporaryIncrease.amount }}, ya contemplado en el monto base.
+                </div>
+                <div v-if="temporaryIncrease.reason" class="text-caption text-medium-emphasis mt-1">
+                  Motivo: {{ temporaryIncrease.reason }}
+                </div>
+              </v-alert>
               <v-divider class="my-4"></v-divider>
               <div class="text-caption text-medium-emphasis mb-1">Total a pagar</div>
               <div class="text-h5">${{ document.amount_breakdown.total_to_pay }}</div>
@@ -147,10 +162,11 @@
 // redistributed across tabs — never re-derived. Still read-only: no form
 // inputs, no save action, and the 3 comentario fields
 // (atención/pedagogía/resolución) stay separately labeled, never merged.
-import { ref, toRef, watch } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { usePaymentDocumentPage } from '@/composables/usePaymentDocumentPage'
 import RetentionBreakdownPanel from '@/components/pagos/RetentionBreakdownPanel.vue'
 import AdvancePaymentPanel from '@/components/pagos/AdvancePaymentPanel.vue'
+import { TEMPORARY_INCREASE_META } from '@/utils/temporaryIncreaseMeta'
 
 interface Props {
   modelValue: boolean
@@ -168,6 +184,18 @@ const emit = defineEmits<Emits>()
 const { document, loading, loadError } = usePaymentDocumentPage(toRef(props, 'refrendId'))
 
 const tab = ref('resumen')
+
+// Annotation, never a peer line item: these pesos are already INSIDE
+// base_amount. Guard mirrors temporaryIncreaseMeta.ts's temporaryIncreaseChip
+// — "0.00" and malformed strings are truthy, so coerce numerically, never
+// `?? value`. Identical for IU and TELMEX_IU — no type-conditional logic.
+const temporaryIncrease = computed<{ amount: string; reason: string | null } | null>(() => {
+  const breakdown = document.value?.amount_breakdown
+  if (!breakdown) return null
+  const raw = Number(breakdown.temporary_increase_amount ?? 0)
+  if (!Number.isFinite(raw) || raw <= 0) return null
+  return { amount: breakdown.temporary_increase_amount as string, reason: breakdown.temporary_increase_reason }
+})
 
 // Always starts on the first tab for each becario, same "reset on open"
 // convention as CreateAccesoDialog.vue's resetForm().

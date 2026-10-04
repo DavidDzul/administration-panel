@@ -56,6 +56,8 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   resolution_notes: 'Aprobado tras revisión.',
   amount_breakdown: {
     base_amount: '1000.00',
+    temporary_increase_amount: null,
+    temporary_increase_reason: null,
     discount_percentage: '0.00',
     discount_amount: '0.00',
     amount_pending_from_previous: '450.00',
@@ -200,6 +202,100 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('1000.00')
     expect(body().text()).toContain('450.00')
     expect(body().text()).toContain('1450.00')
+  })
+
+  it('shows the temporary-increase alert with amount and reason for an IU document', async () => {
+    mockAxiosGet.mockResolvedValue({
+      data: {
+        res: true,
+        data: buildDocument({
+          amount_breakdown: {
+            base_amount: '1000.00',
+            temporary_increase_amount: '500.00',
+            temporary_increase_reason: 'Ajuste de renta',
+            discount_percentage: '0.00',
+            discount_amount: '0.00',
+            amount_pending_from_previous: '450.00',
+            refund_amount_from_previous: '0.00',
+            final_amount: '1000.00',
+            total_to_pay: '1450.00',
+          },
+        }),
+      },
+    })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Desglose de monto')
+
+    expect(body().text()).toContain('aumento temporal')
+    expect(body().text()).toContain('500.00')
+    expect(body().text()).toContain('ya contemplado en el monto base')
+    expect(body().text()).toContain('Ajuste de renta')
+  })
+
+  it('shows the identical temporary-increase alert for a TELMEX_IU document (no type-conditional difference)', async () => {
+    mockAxiosGet.mockResolvedValue({
+      data: {
+        res: true,
+        data: buildDocument({
+          enrollment: 'TELMEX-0001',
+          amount_breakdown: {
+            base_amount: '1000.00',
+            temporary_increase_amount: '500.00',
+            temporary_increase_reason: 'Ajuste de renta',
+            discount_percentage: '0.00',
+            discount_amount: '0.00',
+            amount_pending_from_previous: '450.00',
+            refund_amount_from_previous: '0.00',
+            final_amount: '1000.00',
+            total_to_pay: '1450.00',
+          },
+        }),
+      },
+    })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Desglose de monto')
+
+    expect(body().text()).toContain('aumento temporal')
+    expect(body().text()).toContain('500.00')
+    expect(body().text()).toContain('ya contemplado en el monto base')
+    expect(body().text()).toContain('Ajuste de renta')
+  })
+
+  it('does not show the temporary-increase alert when temporary_increase_amount is null', async () => {
+    mockAxiosGet.mockResolvedValue({ data: { res: true, data: buildDocument() } })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Desglose de monto')
+
+    expect(body().text()).not.toContain('aumento temporal')
+  })
+
+  it('does not show the temporary-increase alert when temporary_increase_amount is "0.00" (truthy string guard)', async () => {
+    mockAxiosGet.mockResolvedValue({
+      data: {
+        res: true,
+        data: buildDocument({
+          amount_breakdown: {
+            base_amount: '1000.00',
+            temporary_increase_amount: '0.00',
+            temporary_increase_reason: null,
+            discount_percentage: '0.00',
+            discount_amount: '0.00',
+            amount_pending_from_previous: '450.00',
+            refund_amount_from_previous: '0.00',
+            final_amount: '1000.00',
+            total_to_pay: '1450.00',
+          },
+        }),
+      },
+    })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Desglose de monto')
+
+    expect(body().text()).not.toContain('aumento temporal')
   })
 
   it('renders the retention breakdown panel with the real document.retentions data under the Retenciones tab', async () => {
