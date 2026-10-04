@@ -32,6 +32,22 @@
           <div class="text-caption text-medium-emphasis mb-1">Pago IU</div>
           <div class="font-weight-medium">{{ profileConfig.iu_payment_amount ?? 'N/A' }}</div>
         </v-col>
+        <!-- Temporary-increase read-only block (sdd/temporary-increase-visibility,
+             design D3): same show condition and labeling as
+             PaymentDataDialog's equivalent block — shown whenever
+             Number(amount) > 0, regardless of current vigencia. -->
+        <v-col v-if="temporaryIncrease" cols="12">
+          <div class="text-caption text-medium-emphasis mb-1">Aumento temporal</div>
+          <div class="font-weight-medium">
+            {{ temporaryIncrease.amount }} · {{ temporaryIncrease.range }}
+            <v-chip size="x-small" variant="tonal" :color="temporaryIncrease.stateColor" class="ml-1">
+              {{ temporaryIncrease.stateLabel }}
+            </v-chip>
+          </div>
+          <div v-if="temporaryIncrease.reason" class="text-caption text-medium-emphasis">
+            Motivo: {{ temporaryIncrease.reason }}
+          </div>
+        </v-col>
       </v-row>
     </template>
 
@@ -88,12 +104,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
+import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
 import type { PaymentData } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig } from '@/interfaces/scholarshipProfile'
 
@@ -128,6 +145,13 @@ const SCHOLARSHIP_TYPE_LABELS: Record<string, string> = {
 }
 
 const scholarshipTypeLabel = (value: string): string => SCHOLARSHIP_TYPE_LABELS[value] ?? value
+
+// sdd/temporary-increase-visibility: profileConfig already holds the raw
+// response here (unlike the dialog, which needed a new ref) — only the
+// computed is added.
+const temporaryIncrease = computed(() =>
+  profileConfig.value ? temporaryIncreaseDisplay(profileConfig.value) : null,
+)
 
 const loadPaymentData = async (): Promise<void> => {
   loadingPaymentData.value = true

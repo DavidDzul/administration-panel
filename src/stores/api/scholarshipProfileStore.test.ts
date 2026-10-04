@@ -23,6 +23,10 @@ const buildConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): Scholar
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
   iu_payment_amount: null,
+  temporary_increase_amount: null,
+  temporary_increase_valid_from: null,
+  temporary_increase_valid_until: null,
+  temporary_increase_reason: null,
   ...overrides,
 })
 

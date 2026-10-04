@@ -49,6 +49,10 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   monto_apoyo: '200.00',
   advance_payment_eligible: true,
   iu_payment_amount: null,
+  temporary_increase_amount: null,
+  temporary_increase_valid_from: null,
+  temporary_increase_valid_until: null,
+  temporary_increase_reason: null,
   ...overrides,
 })
 
@@ -295,6 +299,106 @@ describe('PaymentDataCard', () => {
 
       expect(wrapper.text()).toContain('Pago IU')
       expect(wrapper.text()).toContain('300.00')
+    })
+  })
+
+  // sdd/temporary-increase-visibility, spec "Read-only vigencia block in
+  // PaymentDataDialog/Card": same show condition and labeling as the dialog.
+  describe('Temporary increase display (sdd/temporary-increase-visibility)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('shows amount, range, reason, and "Vigente" when the increase is currently active', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0)) // local 2026-10-15
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+          temporary_increase_reason: 'Ajuste especial',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Aumento temporal')
+      expect(wrapper.text()).toContain('500.00')
+      expect(wrapper.text()).toContain('Vigente')
+      expect(wrapper.text()).toContain('Ajuste especial')
+    })
+
+    it('still shows the block labeled "Expirado" when valid_until is in the past', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2027, 0, 15, 12, 0, 0)) // local 2027-01-15
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Aumento temporal')
+      expect(wrapper.text()).toContain('Expirado')
+    })
+
+    it('shows "Programado" when valid_from is in the future', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date(2026, 7, 1, 12, 0, 0)) // local 2026-08-01
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({
+          temporary_increase_amount: '500.00',
+          temporary_increase_valid_from: '2026-09-01T00:00:00.000000Z',
+          temporary_increase_valid_until: '2026-12-31T00:00:00.000000Z',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Programado')
+    })
+
+    it('does not render the block when temporary_increase_amount is null', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ temporary_increase_amount: null }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Aumento temporal')
+    })
+
+    it('does not render the block when temporary_increase_amount is "0.00"', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ temporary_increase_amount: '0.00' }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Aumento temporal')
+    })
+
+    it('does not render the block when the profile has no existing config at all', async () => {
+      stubDefaults()
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Aumento temporal')
     })
   })
 })
