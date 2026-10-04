@@ -2,15 +2,22 @@
 // Plain frozen record + pure lookup — no reactive state, so this lives in
 // utils/, not composables/ (design D3; mirrors maskAccountNumber.ts's exact
 // precedent). Mirrors psicol-panel's statusChip() (useRefrendTableDisplay.ts)
-// icon/color choices for 7 of the 8 real resolution_type values (design D2)
+// icon/color choices for 8 of the 9 real resolution_type values (design D2)
 // so an admin who has seen psicol-panel's refrendo table reads the same
 // glyph for the same state. REEMBOLSO_PARCIAL is the one invention here,
 // borrowed from SITUATION_MENU_ITEMS's PAGO_MESES entry (same "money
 // flowing back" semantic, the one glyph not already spoken for).
 //
-// The 8 values are verified against ScholarshipRefrendController.php:334's
+// 8 of the 9 values are verified against ScholarshipRefrendController.php:334's
 // validation rule. PAGO_MESES is deliberately NOT a key here — it is a
 // psicol-panel-only action-menu key, never a resolution_type value.
+// EGRESO_RETICULA (sdd/egresado-status-timing) is the 9th value: it is
+// server-only, written exclusively by GenerateMonthlyRefrendsService for a
+// becario's retícula month+2, and deliberately absent from
+// ScholarshipRefrendController.php:352's staff-facing whitelist — same
+// status as the existing 'BAJA' precedent. It stays a distinct stored value
+// from the manual EGRESADO entry above (different icon/color, never
+// conflated at the data layer).
 export type ResolutionType =
   | 'BECA_MES'
   | 'SIN_PAGO'
@@ -20,6 +27,7 @@ export type ResolutionType =
   | 'EGRESADO'
   | 'REEMBOLSO_PARCIAL'
   | 'DESCUENTO_DEFINITIVO'
+  | 'EGRESO_RETICULA'
 
 export interface ResolutionMeta {
   icon: string
@@ -36,6 +44,7 @@ export const RESOLUTION_META: Record<ResolutionType, ResolutionMeta> = {
   EGRESADO: { icon: 'mdi-account-check-outline', color: 'blue-grey', label: 'Egresado' },
   REEMBOLSO_PARCIAL: { icon: 'mdi-cash-refund', color: 'teal', label: 'Reembolso parcial' },
   DESCUENTO_DEFINITIVO: { icon: 'mdi-cash-minus', color: 'purple-darken-2', label: 'Descuento definitivo' },
+  EGRESO_RETICULA: { icon: 'mdi-account-clock-outline', color: 'indigo', label: 'Egresado (retícula)' },
 }
 
 /**
