@@ -6,15 +6,15 @@ import { RESOLUTION_META, resolutionMeta } from '@/utils/resolutionMeta'
 // for 7 of the 8 values (design D2) — REEMBOLSO_PARCIAL is the one
 // invention, borrowed from SITUATION_MENU_ITEMS's PAGO_MESES entry.
 describe('resolutionMeta', () => {
-  it('RESOLUTION_META has exactly 8 keys', () => {
-    expect(Object.keys(RESOLUTION_META)).toHaveLength(8)
+  it('RESOLUTION_META has exactly 9 keys (8 staff-selectable + 1 server-only)', () => {
+    expect(Object.keys(RESOLUTION_META)).toHaveLength(9)
   })
 
   it('does not include PAGO_MESES — it is a psicol-panel-only menu key, never a resolution_type value', () => {
     expect(RESOLUTION_META).not.toHaveProperty('PAGO_MESES')
   })
 
-  it('includes all 8 real resolution_type values from ScholarshipRefrendController.php:334', () => {
+  it('includes all 8 real resolution_type values from ScholarshipRefrendController.php:334, plus the server-only EGRESO_RETICULA', () => {
     expect(Object.keys(RESOLUTION_META).sort()).toEqual(
       [
         'BECA_MES',
@@ -25,6 +25,7 @@ describe('resolutionMeta', () => {
         'EGRESADO',
         'REEMBOLSO_PARCIAL',
         'DESCUENTO_DEFINITIVO',
+        'EGRESO_RETICULA',
       ].sort(),
     )
   })
@@ -52,5 +53,18 @@ describe('resolutionMeta', () => {
       color: 'grey',
       label: 'SOME_FUTURE_VALUE',
     })
+  })
+
+  it('EGRESO_RETICULA renders with the correct label, icon, and color', () => {
+    expect(resolutionMeta('EGRESO_RETICULA')).toEqual({
+      icon: 'mdi-account-clock-outline',
+      color: 'indigo',
+      label: 'Egresado (retícula)',
+    })
+  })
+
+  it('EGRESO_RETICULA is visually and data-distinct from the manual EGRESADO entry (different icon and color)', () => {
+    expect(RESOLUTION_META.EGRESO_RETICULA.icon).not.toBe(RESOLUTION_META.EGRESADO.icon)
+    expect(RESOLUTION_META.EGRESO_RETICULA.color).not.toBe(RESOLUTION_META.EGRESADO.color)
   })
 })
