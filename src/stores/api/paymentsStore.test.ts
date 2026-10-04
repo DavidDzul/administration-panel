@@ -56,6 +56,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_payment_amount: '0.00',
   advance_paid_divergence_reason: null,
   excluded_from_bank_file: false,
+  snapshot_temporary_increase_amount: null,
+  snapshot_temporary_increase_reason: null,
   ...overrides,
 })
 

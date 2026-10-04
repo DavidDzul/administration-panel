@@ -86,6 +86,16 @@ export interface PaymentBatchRow {
   // invariant as every other flag above — NEVER participates in
   // `is_payable`/`blocking_reasons`.
   excluded_from_bank_file: boolean
+  // Row-level temporary-increase indicator (sdd/temporary-increase-visibility,
+  // design D7/D8). Frozen-at-processing-time snapshot columns exposed by
+  // PaymentBatchService::rows() (impulsou-api PR1) — raw pass-through,
+  // DB::table() bypasses the decimal:2 cast so the amount arrives as a raw
+  // string|null exactly as stored. Purely informational, same invariant as
+  // every other flag above — NEVER participates in `is_payable`/
+  // `blocking_reasons`, and its data source is these 2 fields ONLY, never
+  // `has_incident` or any incident-related field (see temporaryIncreaseMeta.ts).
+  snapshot_temporary_increase_amount: string | null
+  snapshot_temporary_increase_reason: string | null
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against

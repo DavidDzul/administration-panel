@@ -45,6 +45,8 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   advance_payment_amount: '0.00',
   advance_paid_divergence_reason: null,
   excluded_from_bank_file: false,
+  snapshot_temporary_increase_amount: null,
+  snapshot_temporary_increase_reason: null,
   ...overrides,
 })
 
@@ -549,6 +551,114 @@ describe('PaymentBatchTable', () => {
 
       expect(estadoCell.text()).toContain('Listo')
       expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // ── Temporary-increase indicator chip (sdd/temporary-increase-visibility,
+  // design D6/D8/P2b) ───────────────────────────────────────────────────────
+  //
+  // Data source is `snapshot_temporary_increase_amount`/`_reason` ONLY —
+  // this suite includes an explicit regression test asserting the chip never
+  // derives from `has_incident`/incident data, since the two indicators are
+  // data-independent flags that happen to live in the same column.
+  describe('temporary-increase indicator chip', () => {
+    it('renders no chip when snapshot_temporary_increase_amount is null', () => {
+      const wrapper = mountTable([buildRow({ snapshot_temporary_increase_amount: null })])
+
+      expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(false)
+    })
+
+    it('renders no chip when snapshot_temporary_increase_amount is "0.00"', () => {
+      const wrapper = mountTable([buildRow({ snapshot_temporary_increase_amount: '0.00' })])
+
+      expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the chip with a visible label when the amount is positive', () => {
+      const wrapper = mountTable([buildRow({ snapshot_temporary_increase_amount: '500.00' })])
+
+      const chip = wrapper.find('[data-testid="temporary-increase-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('Aumento temporal')
+    })
+
+    it('the aria-label/tooltip includes the amount and the reason when present', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_temporary_increase_amount: '500.00',
+          snapshot_temporary_increase_reason: 'Ajuste especial',
+        }),
+      ])
+
+      const chip = wrapper.find('[data-testid="temporary-increase-chip"]')
+      expect(chip.attributes('aria-label')).toBe('Aumento temporal · $500.00 · Motivo: Ajuste especial')
+    })
+
+    it('the aria-label/tooltip is the label plus amount alone when there is no reason', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_temporary_increase_amount: '500.00', snapshot_temporary_increase_reason: null }),
+      ])
+
+      const chip = wrapper.find('[data-testid="temporary-increase-chip"]')
+      expect(chip.attributes('aria-label')).toBe('Aumento temporal · $500.00')
+    })
+
+    it('coexists with the other flags-column chips without displacing any', () => {
+      const wrapper = mountTable([
+        buildRow({
+          has_incident: true,
+          has_pending_from_previous: true,
+          resolution_type: 'RETENIDA',
+          advance_paid: true,
+          advance_paid_amount: '1500.00',
+          advance_paid_origin_year: 2027,
+          advance_paid_origin_month: 6,
+          excluded_from_bank_file: true,
+          snapshot_temporary_increase_amount: '500.00',
+        }),
+      ])
+
+      expect(wrapper.text()).toContain('Incidencia registrada')
+      expect(wrapper.text()).toContain('Incluye mes retenido')
+      expect(wrapper.find('[data-testid="resolution-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="advance-paid-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(true)
+    })
+
+    // Regression lock: the chip's data source is the snapshot_temporary_
+    // increase_* pair ONLY, never has_incident or any incident-related field
+    // — a row with an active incident driven solely by
+    // snapshot_discount_percentage (not modeled on PaymentBatchRow, but
+    // has_incident stands in for "incident is true for unrelated reasons"
+    // here) and no temporary increase must show the incidencia chip WITHOUT
+    // the temporary-increase chip appearing.
+    it('never derives from has_incident — chip absent when has_incident is true but there is no increase', () => {
+      const wrapper = mountTable([
+        buildRow({ has_incident: true, snapshot_temporary_increase_amount: '0.00' }),
+      ])
+
+      expect(wrapper.text()).toContain('Incidencia registrada')
+      expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(false)
+    })
+
+    it('never affects is_payable or the Estado/Motivo columns for a blocked row with a temporary increase', () => {
+      const wrapper = mountTable([
+        buildRow({
+          refrend_id: 13,
+          is_payable: false,
+          blocking_reasons: [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }],
+          snapshot_temporary_increase_amount: '500.00',
+        }),
+      ])
+
+      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+      const estadoCell = cells[cells.length - 3]
+      const motivoCell = cells[cells.length - 2]
+
+      expect(estadoCell.text()).toContain('Bloqueado')
+      expect(motivoCell.text()).toContain('Sin matrícula registrada')
+      expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(true)
     })
   })
 })
