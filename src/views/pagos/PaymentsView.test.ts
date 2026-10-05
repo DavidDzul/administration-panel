@@ -4,7 +4,6 @@ import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
 import { VSelect, VBtn, VSwitch } from 'vuetify/components'
-import type { Generation } from '@/interfaces/generation'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 // v-data-table's pagination footer relies on ResizeObserver — same jsdom
@@ -37,14 +36,6 @@ import PaymentsView from '@/views/pagos/PaymentsView.vue'
 import { useAuthStore } from '@/stores/api/authStore'
 
 const vuetify = createVuetify()
-
-const buildGeneration = (overrides: Partial<Generation> = {}): Generation => ({
-  id: 1,
-  campus: 'MERIDA',
-  generation_active: true,
-  generation_name: 'Generación 1',
-  ...overrides,
-})
 
 const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => ({
   refrend_id: 1,
@@ -87,7 +78,6 @@ const selectByLabel = (wrapper: ReturnType<typeof mountView>, label: string) =>
 
 const setAllFilters = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
   await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
-  await selectByLabel(wrapper, 'Generación')?.vm.$emit('update:modelValue', 1)
   await selectByLabel(wrapper, 'Año')?.vm.$emit('update:modelValue', 2026)
   await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 9)
   await flushPromises()
@@ -100,15 +90,12 @@ const grantPermissions = (canProcess: boolean, canExport = false): void => {
   useAuthStore().permissions = permissions
 }
 
-const mockGenerationsAndBatch = (
+const mockBatch = (
   rows: PaymentBatchRow[],
   summary: Record<string, unknown>,
   batch: Record<string, unknown> = { batch_id: null, is_paid: false },
 ): void => {
   mockAxiosGet.mockImplementation((url: string) => {
-    if (url === 'api/admin/generations') {
-      return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
-    }
     if (url === 'api/admin/scholarship-payments') {
       return Promise.resolve({ data: { res: true, data: { rows, summary, batch } } })
     }
@@ -122,7 +109,7 @@ describe('PaymentsView', () => {
     mockAxiosGet.mockReset()
     mockAxiosPost.mockReset()
     grantPermissions(true)
-    mockGenerationsAndBatch([buildRow()], { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
+    mockBatch([buildRow()], { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
   })
 
   afterEach(() => {
@@ -130,7 +117,7 @@ describe('PaymentsView', () => {
     document.body.innerHTML = ''
   })
 
-  it('does not fetch the batch or show a table until all 4 filters are chosen', async () => {
+  it('does not fetch the batch or show a table until all 3 filters are chosen', async () => {
     const wrapper = mountView()
     await flushPromises()
 
@@ -138,7 +125,7 @@ describe('PaymentsView', () => {
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
   })
 
-  it('fetches the batch with the exact key once all 4 filters are chosen, and renders summary + table', async () => {
+  it('fetches the batch with the exact key once all 3 filters are chosen, and renders summary + table', async () => {
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)
@@ -146,7 +133,7 @@ describe('PaymentsView', () => {
     expect(mockAxiosGet).toHaveBeenCalledWith(
       'api/admin/scholarship-payments',
       expect.objectContaining({
-        params: { generation_id: 1, campus: 'MERIDA', period_year: 2026, period_month: 9 },
+        params: { campus: 'MERIDA', period_year: 2026, period_month: 9 },
       }),
     )
     expect(wrapper.text()).toContain('Ada Lovelace')
@@ -154,7 +141,7 @@ describe('PaymentsView', () => {
   })
 
   it('shows the readiness chip and the specific blocking reason per row', async () => {
-    mockGenerationsAndBatch(
+    mockBatch(
       [
         buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true }),
         buildRow({
@@ -183,7 +170,7 @@ describe('PaymentsView', () => {
   })
 
   it('disables "Pagar todos" when the batch has a blocking row', async () => {
-    mockGenerationsAndBatch(
+    mockBatch(
       [buildRow({ refrend_id: 1, is_payable: true }), buildRow({ refrend_id: 2, is_payable: false })],
       { total: 2, ready: 1, blocking: 1, total_amount: '1000.00' },
     )
@@ -218,7 +205,6 @@ describe('PaymentsView', () => {
     await flushPromises()
 
     expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/process', {
-      generation_id: 1,
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 9,
@@ -227,11 +213,17 @@ describe('PaymentsView', () => {
     })
   })
 
+  it('renders no Generación selector, chip, or column anywhere in Pagos', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    expect(selectByLabel(wrapper, 'Generación')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('Generación')
+  })
+
   it('opens the payment document dialog for the clicked row instead of navigating away (sdd/becario-payment-batch-indicators)', async () => {
     mockAxiosGet.mockImplementation((url: string) => {
-      if (url === 'api/admin/generations') {
-        return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
-      }
       if (url === 'api/admin/scholarship-payments') {
         return Promise.resolve({
           data: {
@@ -293,7 +285,7 @@ describe('PaymentsView', () => {
   })
 
   it('hides the summary cards once the batch is already paid, but keeps the table and "Pagar todos"', async () => {
-    mockGenerationsAndBatch(
+    mockBatch(
       [buildRow()],
       { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' },
       { batch_id: 42, is_paid: true },
@@ -317,7 +309,7 @@ describe('PaymentsView', () => {
   })
 
   it('toggling "solo pendientes de revisar" narrows which rows the table receives, without an extra fetch', async () => {
-    mockGenerationsAndBatch(
+    mockBatch(
       [
         buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true }),
         buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false }),
@@ -344,15 +336,12 @@ describe('PaymentsView', () => {
   describe('bank-file export (sdd/becario-payment-bank-file-export)', () => {
     const mockExportEndpoints = ({
       batch = { batch_id: 42, is_paid: true },
-      exportSummary = { count: 1, total_amount: '1000.00', filename: 'PAGO_1_MERIDA_202609_42.TXT' },
+      exportSummary = { count: 1, total_amount: '1000.00', filename: 'PAGO_MERIDA_202609_42.TXT' },
     }: {
       batch?: Record<string, unknown>
       exportSummary?: Record<string, unknown>
     } = {}): void => {
       mockAxiosGet.mockImplementation((url: string) => {
-        if (url === 'api/admin/generations') {
-          return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
-        }
         if (url === 'api/admin/scholarship-payments') {
           return Promise.resolve({
             data: {
@@ -420,9 +409,6 @@ describe('PaymentsView', () => {
         },
       })
       mockAxiosGet.mockImplementation((url: string) => {
-        if (url === 'api/admin/generations') {
-          return Promise.resolve({ data: { res: true, generations: [buildGeneration()] } })
-        }
         if (url === 'api/admin/scholarship-payments') {
           return Promise.resolve({
             data: {
@@ -437,7 +423,7 @@ describe('PaymentsView', () => {
         }
         if (url === 'api/admin/scholarship-payments/batches/42/export/summary') {
           return Promise.resolve({
-            data: { res: true, data: { count: 1, total_amount: '1000.00', filename: 'PAGO_1_MERIDA_202609_42.TXT' } },
+            data: { res: true, data: { count: 1, total_amount: '1000.00', filename: 'PAGO_MERIDA_202609_42.TXT' } },
           })
         }
         if (url === 'api/admin/scholarship-payments/batches/42/export') {

@@ -110,9 +110,10 @@ export interface PaymentBatchSummary {
 
 // The batch identity posted to both GET (query params) and POST /process
 // (body) — the server always re-derives membership from this key, never
-// trusts a client-supplied ids[] (design D2).
+// trusts a client-supplied ids[] (design D2). Batch key is campus + period
+// only (sdd/pagos-batch-sede-totals) — generation_id removed: a batch now
+// spans becarios across all generaciones at a campus/period.
 export interface BatchKey {
-  generation_id: number
   campus: string
   period_year: number
   period_month: number

@@ -1,11 +1,9 @@
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { ProcessBatchResult } from '@/stores/api/paymentsStore'
-import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import type { BatchKey, ExportSummary, InvalidBankRow, PaymentBatchRow } from '@/interfaces/payment'
-import type { Generation } from '@/interfaces/generation'
 
 // Distinct from ProcessBatchResult's states — 'blocked' is the export-time
 // all-or-nothing bank-data-validation gate (design D4), 'error' is
@@ -15,24 +13,20 @@ export type ExportErrorState = 'blocked' | 'error' | null
 
 // D7: unlike usePersonsPage's client-side-filter pattern (UsersTable.vue owns
 // its own generación/sede filters over an already client-fetched list),
-// Pagos CANNOT pre-fetch — generation_id/campus/period_year/period_month
-// are all REQUIRED server params (design D1) and nothing is fetched until
-// every one of the four is chosen. So filter state + the refetch trigger
-// live HERE, not in a presentational table component; PaymentBatchTable.vue
-// stays purely presentational (rows as props, no internal fetching).
+// Pagos CANNOT pre-fetch — campus/period_year/period_month are all REQUIRED
+// server params (design D1) and nothing is fetched until every one of the
+// three is chosen (sdd/pagos-batch-sede-totals: batch key is campus+period
+// only, generation_id removed). So filter state + the refetch trigger live
+// HERE, not in a presentational table component; PaymentBatchTable.vue stays
+// purely presentational (rows as props, no internal fetching).
 export function usePaymentsPage() {
   const paymentsStore = usePaymentsStore()
   const { rows, summary, batchId, isPaid } = storeToRefs(paymentsStore)
   const { fetchBatch, processBatch, fetchExportSummary, downloadExportFile } = paymentsStore
 
-  const generationStore = useGenerationStore()
-  const { resGenerations } = storeToRefs(generationStore)
-  const { fetchGenerations } = generationStore
-
   const { filteredCampus, readPayments, processPayments, exportPayments } = storeToRefs(useAuthStore())
 
   const campus = ref<string | null>(null)
-  const generationId = ref<number | null>(null)
   const periodYear = ref<number | null>(null)
   const periodMonth = ref<number | null>(null)
 
@@ -64,16 +58,13 @@ export function usePaymentsPage() {
     showOnlyPending.value ? rows.value.filter(isPendingReview) : rows.value,
   )
 
-  const generations = computed<Generation[]>(() => [...resGenerations.value.values()])
-
   const filtersComplete = computed<boolean>(
-    () => campus.value !== null && generationId.value !== null && periodYear.value !== null && periodMonth.value !== null,
+    () => campus.value !== null && periodYear.value !== null && periodMonth.value !== null,
   )
 
   const currentKey = computed<BatchKey | null>(() =>
     filtersComplete.value
       ? {
-          generation_id: generationId.value as number,
           campus: campus.value as string,
           period_year: periodYear.value as number,
           period_month: periodMonth.value as number,
@@ -90,12 +81,8 @@ export function usePaymentsPage() {
     loadingBatch.value = false
   }
 
-  watch([campus, generationId, periodYear, periodMonth], () => {
+  watch([campus, periodYear, periodMonth], () => {
     if (filtersComplete.value) void loadBatch()
-  })
-
-  onBeforeMount(async () => {
-    await fetchGenerations()
   })
 
   // "All rows loaded" is checked as rows.length === summary.total rather
@@ -170,10 +157,8 @@ export function usePaymentsPage() {
 
   return {
     campus,
-    generationId,
     periodYear,
     periodMonth,
-    generations,
     filteredCampus,
     rows,
     visibleRows,
