@@ -25,7 +25,6 @@ vi.mock('@/axiosConfig', () => ({
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 
 const buildKey = (overrides: Partial<BatchKey> = {}): BatchKey => ({
-  generation_id: 1,
   campus: 'MERIDA',
   period_year: 2026,
   period_month: 9,
@@ -58,6 +57,9 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   excluded_from_bank_file: false,
   snapshot_temporary_increase_amount: null,
   snapshot_temporary_increase_reason: null,
+  snapshot_scholarship_type: 'IU',
+  base_amount: '1000.00',
+  snapshot_monto_apoyo: null,
   ...overrides,
 })
 
@@ -65,7 +67,11 @@ const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatc
   total: 1,
   ready: 1,
   blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
   total_amount: '1000.00',
+  difference_amount: '0.00',
   ...overrides,
 })
 

@@ -6,10 +6,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { DownloadExportResult } from '@/stores/api/paymentsStore'
-import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import type { ExportSummary, InvalidBankRow, PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
-import type { Generation } from '@/interfaces/generation'
 
 // `onBeforeMount`/`watch` inside a plain composable only register against a
 // real active component instance — same rationale as usePersonsPage.test.ts's
@@ -26,14 +24,6 @@ function withSetup<T>(composable: () => T): T {
   )
   return result
 }
-
-const buildGeneration = (overrides: Partial<Generation> = {}): Generation => ({
-  id: 1,
-  campus: 'MERIDA',
-  generation_active: true,
-  generation_name: 'Generación 1',
-  ...overrides,
-})
 
 const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => ({
   refrend_id: 1,
@@ -61,6 +51,9 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   excluded_from_bank_file: false,
   snapshot_temporary_increase_amount: null,
   snapshot_temporary_increase_reason: null,
+  snapshot_scholarship_type: 'IU',
+  base_amount: '1000.00',
+  snapshot_monto_apoyo: null,
   ...overrides,
 })
 
@@ -68,7 +61,11 @@ const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatc
   total: 1,
   ready: 1,
   blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
   total_amount: '1000.00',
+  difference_amount: '0.00',
   ...overrides,
 })
 
@@ -77,11 +74,9 @@ describe('usePaymentsPage', () => {
     setActivePinia(createPinia())
   })
 
-  it('does not fetch the batch until all 4 filters are set', async () => {
+  it('does not fetch the batch until all 3 filters are set', async () => {
     const paymentsStore = usePaymentsStore()
     const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const result = withSetup(() => usePaymentsPage())
     await flushPromises()
@@ -89,7 +84,6 @@ describe('usePaymentsPage', () => {
     expect(fetchBatchSpy).not.toHaveBeenCalled()
 
     result.campus.value = 'MERIDA'
-    result.generationId.value = 1
     await flushPromises()
     expect(fetchBatchSpy).not.toHaveBeenCalled()
 
@@ -102,7 +96,6 @@ describe('usePaymentsPage', () => {
 
     expect(fetchBatchSpy).toHaveBeenCalledTimes(1)
     expect(fetchBatchSpy).toHaveBeenCalledWith({
-      generation_id: 1,
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 9,
@@ -112,12 +105,9 @@ describe('usePaymentsPage', () => {
   it('refetches when an already-complete filter set changes', async () => {
     const paymentsStore = usePaymentsStore()
     const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const result = withSetup(() => usePaymentsPage())
     result.campus.value = 'MERIDA'
-    result.generationId.value = 1
     result.periodYear.value = 2026
     result.periodMonth.value = 9
     await flushPromises()
@@ -128,7 +118,6 @@ describe('usePaymentsPage', () => {
 
     expect(fetchBatchSpy).toHaveBeenCalledTimes(2)
     expect(fetchBatchSpy).toHaveBeenLastCalledWith({
-      generation_id: 1,
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 10,
@@ -142,12 +131,9 @@ describe('usePaymentsPage', () => {
       paymentsStore.summary = buildSummary({ total: 2, ready: 1, blocking: 1 })
       return true
     })
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const result = withSetup(() => usePaymentsPage())
     result.campus.value = 'MERIDA'
-    result.generationId.value = 1
     result.periodYear.value = 2026
     result.periodMonth.value = 9
     await flushPromises()
@@ -162,12 +148,9 @@ describe('usePaymentsPage', () => {
       paymentsStore.summary = buildSummary({ total: 1, ready: 1, blocking: 0 })
       return true
     })
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const result = withSetup(() => usePaymentsPage())
     result.campus.value = 'MERIDA'
-    result.generationId.value = 1
     result.periodYear.value = 2026
     result.periodMonth.value = 9
     await flushPromises()
@@ -185,12 +168,9 @@ describe('usePaymentsPage', () => {
     const processBatchSpy = vi
       .spyOn(paymentsStore, 'processBatch')
       .mockResolvedValue({ status: 'success', batchId: 7, rows: [buildRow({ outcome: 'PAID' })] })
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const result = withSetup(() => usePaymentsPage())
     result.campus.value = 'MERIDA'
-    result.generationId.value = 1
     result.periodYear.value = 2026
     result.periodMonth.value = 9
     await flushPromises()
@@ -199,7 +179,7 @@ describe('usePaymentsPage', () => {
     await flushPromises()
 
     expect(processBatchSpy).toHaveBeenCalledWith(
-      { generation_id: 1, campus: 'MERIDA', period_year: 2026, period_month: 9 },
+      { campus: 'MERIDA', period_year: 2026, period_month: 9 },
       1,
       '1000.00',
     )
@@ -210,8 +190,6 @@ describe('usePaymentsPage', () => {
   it('exposes hasProcessPermission mirrored from authStore.processPayments', async () => {
     const paymentsStore = usePaymentsStore()
     vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)
-    const generationStore = useGenerationStore()
-    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
     const authStore = useAuthStore()
     authStore.permissions = ['ADM_READ_PAYMENTS', 'ADM_PROCESS_PAYMENTS']
@@ -248,12 +226,9 @@ describe('usePaymentsPage', () => {
       })
       vi.spyOn(paymentsStore, 'fetchExportSummary').mockResolvedValue(buildExportSummary())
       const downloadSpy = vi.spyOn(paymentsStore, 'downloadExportFile').mockResolvedValue(downloadResult)
-      const generationStore = useGenerationStore()
-      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
       const result = withSetup(() => usePaymentsPage())
       result.campus.value = 'MERIDA'
-      result.generationId.value = 1
       result.periodYear.value = 2026
       result.periodMonth.value = 9
       await flushPromises()
@@ -283,12 +258,9 @@ describe('usePaymentsPage', () => {
         return true
       })
       const fetchExportSummarySpy = vi.spyOn(paymentsStore, 'fetchExportSummary')
-      const generationStore = useGenerationStore()
-      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
       const result = withSetup(() => usePaymentsPage())
       result.campus.value = 'MERIDA'
-      result.generationId.value = 1
       result.periodYear.value = 2026
       result.periodMonth.value = 9
       await flushPromises()
@@ -352,12 +324,9 @@ describe('usePaymentsPage', () => {
         paymentsStore.summary = buildSummary({ total: rows.length })
         return true
       })
-      const generationStore = useGenerationStore()
-      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
       const result = withSetup(() => usePaymentsPage())
       result.campus.value = 'MERIDA'
-      result.generationId.value = 1
       result.periodYear.value = 2026
       result.periodMonth.value = 9
       await flushPromises()
@@ -419,12 +388,9 @@ describe('usePaymentsPage', () => {
         paymentsStore.summary = buildSummary({ total: 2, ready: 2, blocking: 0 })
         return true
       })
-      const generationStore = useGenerationStore()
-      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
       const result = withSetup(() => usePaymentsPage())
       result.campus.value = 'MERIDA'
-      result.generationId.value = 1
       result.periodYear.value = 2026
       result.periodMonth.value = 9
       await flushPromises()

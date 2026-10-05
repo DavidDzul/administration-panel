@@ -47,6 +47,9 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   excluded_from_bank_file: false,
   snapshot_temporary_increase_amount: null,
   snapshot_temporary_increase_reason: null,
+  snapshot_scholarship_type: 'IU',
+  base_amount: '1000.00',
+  snapshot_monto_apoyo: null,
   ...overrides,
 })
 

@@ -3,13 +3,10 @@
 
   <PaymentBatchFilters
     :campus="campus"
-    :generation-id="generationId"
     :period-year="periodYear"
     :period-month="periodMonth"
-    :generations="generations"
     :campus-options="filteredCampus"
     @update:campus="campus = $event"
-    @update:generation-id="generationId = $event"
     @update:period-year="periodYear = $event"
     @update:period-month="periodMonth = $event"
   />
@@ -97,10 +94,8 @@ import type { LinkInterface } from '@/interfaces/link'
 
 const {
   campus,
-  generationId,
   periodYear,
   periodMonth,
-  generations,
   filteredCampus,
   visibleRows,
   showOnlyPending,
