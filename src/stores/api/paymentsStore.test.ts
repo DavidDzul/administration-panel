@@ -25,7 +25,6 @@ vi.mock('@/axiosConfig', () => ({
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 
 const buildKey = (overrides: Partial<BatchKey> = {}): BatchKey => ({
-  generation_id: 1,
   campus: 'MERIDA',
   period_year: 2026,
   period_month: 9,

@@ -84,7 +84,7 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
   const isPaid = ref<boolean>(false)
   const document = ref<PaymentDocument | null>(null)
 
-  // Never called unless all 4 BatchKey fields are known — that gate lives in
+  // Never called unless all 3 BatchKey fields are known — that gate lives in
   // usePaymentsPage (D7), not here. This store is a thin HTTP layer over the
   // server's single source of truth for readiness (PaymentBatchService).
   const fetchBatch = async (key: BatchKey): Promise<boolean> => {
