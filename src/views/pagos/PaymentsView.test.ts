@@ -63,6 +63,9 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   excluded_from_bank_file: false,
   snapshot_temporary_increase_amount: null,
   snapshot_temporary_increase_reason: null,
+  snapshot_scholarship_type: 'IU',
+  base_amount: '1000.00',
+  snapshot_monto_apoyo: null,
   ...overrides,
 })
 
@@ -109,7 +112,16 @@ describe('PaymentsView', () => {
     mockAxiosGet.mockReset()
     mockAxiosPost.mockReset()
     grantPermissions(true)
-    mockBatch([buildRow()], { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
+    mockBatch([buildRow()], {
+  total: 1,
+  ready: 1,
+  blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '1000.00',
+  difference_amount: '0.00',
+})
   })
 
   afterEach(() => {
@@ -151,7 +163,16 @@ describe('PaymentsView', () => {
           blocking_reasons: [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }],
         }),
       ],
-      { total: 2, ready: 1, blocking: 1, total_amount: '1000.00' },
+      {
+  total: 2,
+  ready: 1,
+  blocking: 1,
+  beca_amount: '2000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '2000.00',
+  difference_amount: '0.00',
+},
     )
     const wrapper = mountView()
     await flushPromises()
@@ -172,7 +193,16 @@ describe('PaymentsView', () => {
   it('disables "Pagar todos" when the batch has a blocking row', async () => {
     mockBatch(
       [buildRow({ refrend_id: 1, is_payable: true }), buildRow({ refrend_id: 2, is_payable: false })],
-      { total: 2, ready: 1, blocking: 1, total_amount: '1000.00' },
+      {
+  total: 2,
+  ready: 1,
+  blocking: 1,
+  beca_amount: '2000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '2000.00',
+  difference_amount: '0.00',
+},
     )
     const wrapper = mountView()
     await flushPromises()
@@ -228,7 +258,16 @@ describe('PaymentsView', () => {
         return Promise.resolve({
           data: {
             res: true,
-            data: { rows: [buildRow({ refrend_id: 3, snapshot_name: 'Ada Lovelace' })], summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' } },
+            data: { rows: [buildRow({ refrend_id: 3, snapshot_name: 'Ada Lovelace' })], summary: {
+  total: 1,
+  ready: 1,
+  blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '1000.00',
+  difference_amount: '0.00',
+} },
           },
         })
       }
@@ -287,7 +326,16 @@ describe('PaymentsView', () => {
   it('hides the summary cards once the batch is already paid, but keeps the table and "Pagar todos"', async () => {
     mockBatch(
       [buildRow()],
-      { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' },
+      {
+  total: 1,
+  ready: 1,
+  blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '1000.00',
+  difference_amount: '0.00',
+},
       { batch_id: 42, is_paid: true },
     )
     const wrapper = mountView()
@@ -314,7 +362,16 @@ describe('PaymentsView', () => {
         buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true }),
         buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false }),
       ],
-      { total: 2, ready: 1, blocking: 1, total_amount: '1000.00' },
+      {
+  total: 2,
+  ready: 1,
+  blocking: 1,
+  beca_amount: '2000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '2000.00',
+  difference_amount: '0.00',
+},
     )
     const wrapper = mountView()
     await flushPromises()
@@ -346,7 +403,16 @@ describe('PaymentsView', () => {
           return Promise.resolve({
             data: {
               res: true,
-              data: { rows: [buildRow()], summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' }, batch },
+              data: { rows: [buildRow()], summary: {
+  total: 1,
+  ready: 1,
+  blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '1000.00',
+  difference_amount: '0.00',
+}, batch },
             },
           })
         }
@@ -415,7 +481,16 @@ describe('PaymentsView', () => {
               res: true,
               data: {
                 rows: [buildRow()],
-                summary: { total: 1, ready: 1, blocking: 0, total_amount: '1000.00' },
+                summary: {
+  total: 1,
+  ready: 1,
+  blocking: 0,
+  beca_amount: '1000.00',
+  apoyo_amount: '0.00',
+  pago_iu_amount: '0.00',
+  total_amount: '1000.00',
+  difference_amount: '0.00',
+},
                 batch: { batch_id: 42, is_paid: true },
               },
             },
