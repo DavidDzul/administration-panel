@@ -96,16 +96,39 @@ export interface PaymentBatchRow {
   // `has_incident` or any incident-related field (see temporaryIncreaseMeta.ts).
   snapshot_temporary_increase_amount: string | null
   snapshot_temporary_increase_reason: string | null
+  // Type-partition pass-throughs (sdd/pagos-batch-sede-totals, design D9).
+  // Raw fields exposed by PaymentBatchService::rows() (impulsou-api PR3) —
+  // DB::table() bypasses the decimal:2 cast and the ScholarshipType enum
+  // cast, so these arrive as raw string|null exactly as stored. Purely
+  // informational, same invariant as every other flag above — NEVER
+  // participates in `is_payable`/`blocking_reasons`, and deliberately NOT
+  // present in `paidRows()`'s row shape (same scope boundary as
+  // resolution_type/advance_paid). `snapshot_monto_apoyo` is nullable
+  // because it was added 2026-06-28 — refrends generated before that date
+  // never populated it.
+  snapshot_scholarship_type: string
+  base_amount: string
+  snapshot_monto_apoyo: string | null
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against
 // ScholarshipPaymentControllerTest's assertions
-// (`summary.total/ready/blocking/total_amount`).
+// (`summary.total/ready/blocking/total_amount`). The 5 money totals
+// (sdd/pagos-batch-sede-totals, design D9-D12) are always emitted by the
+// server, never optional: beca_amount/apoyo_amount/pago_iu_amount are the
+// type-partitioned nominal components, total_amount is unchanged, and
+// difference_amount is the net card-5 figure, which MAY be negative
+// (formatted sign-aware by PaymentBatchSummary.vue's formatAmount, design
+// D13 — never by prefixing a literal '-' to an already-formatted string).
 export interface PaymentBatchSummary {
   total: number
   ready: number
   blocking: number
+  beca_amount: string
+  apoyo_amount: string
+  pago_iu_amount: string
   total_amount: string
+  difference_amount: string
 }
 
 // The batch identity posted to both GET (query params) and POST /process
