@@ -83,6 +83,7 @@ export function usePaymentsByGenerationPage() {
     periodYear,
     periodMonth,
     generationOptions,
+    filtersComplete,
     loading,
     loadError,
     summary,
