@@ -37,10 +37,15 @@ function getErrorData(error: unknown): Record<string, unknown> | undefined {
 // Discriminated result for processBatch — design's explicit requirement:
 // 422 (blocking rows) and 409 (stale expected_count/expected_total) must be
 // surfaced DISTINCTLY, never collapsed into one generic error state.
+// 'already_processed' is the OTHER 409 case (bug fix): the backend also
+// returns 409 when a batch already exists for this campus+year+month
+// (`data.batch_id`, no `count`/`total_amount`) — collapsing it into 'stale'
+// showed a misleading count 0 / $0.00 result instead of the real reason.
 export type ProcessBatchResult =
   | { status: 'success'; batchId: number; rows: PaymentBatchRow[] }
   | { status: 'blocking'; blockingRows: PaymentBatchRow[] }
   | { status: 'stale'; count: number; totalAmount: string }
+  | { status: 'already_processed'; batchId: number }
   | { status: 'error' }
 
 // Discriminated result for downloadExportFile — same "never collapse into
@@ -194,6 +199,12 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       }
 
       if (status === 409) {
+        const existingBatchId = data?.batch_id
+
+        if (typeof existingBatchId === 'number') {
+          return { status: 'already_processed', batchId: existingBatchId }
+        }
+
         return {
           status: 'stale',
           count: (data?.count as number | undefined) ?? 0,

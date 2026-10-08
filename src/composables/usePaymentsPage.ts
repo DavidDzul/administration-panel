@@ -82,6 +82,9 @@ export function usePaymentsPage() {
   }
 
   watch([campus, periodYear, periodMonth], () => {
+    // processResult belongs to the previous batch key; the view renders it,
+    // so it must not carry over to another sede/año/mes.
+    processResult.value = null
     if (filtersComplete.value) void loadBatch()
   })
 
@@ -104,8 +107,10 @@ export function usePaymentsPage() {
     processResult.value = result
     processing.value = false
     // On success the rows/summary now reflect the outcome; on stale (409)
-    // the batch changed server-side — reload it so the UI reflects reality.
-    if (result.status === 'success' || result.status === 'stale') {
+    // the batch changed server-side; on already_processed (409, bug fix) a
+    // batch already exists for this key — in both 409 cases reload so the
+    // UI reflects reality instead of the pre-process snapshot.
+    if (result.status === 'success' || result.status === 'stale' || result.status === 'already_processed') {
       await loadBatch()
     }
     return result
