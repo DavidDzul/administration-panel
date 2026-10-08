@@ -2,10 +2,13 @@
   <BreadCrumbs :items="links" />
 
   <GenerationSummaryFilters
+    :campus="campus"
     :generation-id="generationId"
     :period-year="periodYear"
     :period-month="periodMonth"
+    :campus-options="filteredCampus"
     :generation-options="generationOptions"
+    @update:campus="campus = $event"
     @update:generation-id="generationId = $event"
     @update:period-year="periodYear = $event"
     @update:period-month="periodMonth = $event"
@@ -39,12 +42,6 @@
   </v-row>
 
   <template v-else>
-    <v-row v-if="generation">
-      <v-col cols="12">
-        <div class="text-subtitle-2 text-medium-emphasis mb-2">{{ generation.generation_name }} — {{ generation.campus }}</div>
-      </v-col>
-    </v-row>
-
     <v-row v-if="summary.total === 0">
       <v-col cols="12">
         <v-alert
@@ -71,13 +68,25 @@
 // is emptied after a successful load: no refetch fires, so the previous
 // generación's cards would otherwise stay on screen.
 // `PaymentBatchSummary.vue` is reused completely unmodified.
+//
+// Sede → Generación cascade (user decision 2026-10-08, supersedes design
+// D8's single picker): clearing `campus` clears `generationId` too (inside
+// the composable), which already falls through `filtersComplete`'s existing
+// guard above — no separate sede check needed here.
 import { usePaymentsByGenerationPage } from '@/composables/usePaymentsByGenerationPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import GenerationSummaryFilters from '@/components/pagos/GenerationSummaryFilters.vue'
 import PaymentBatchSummary from '@/components/pagos/PaymentBatchSummary.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
+// `generation` (the server-echoed sede/generación block) is intentionally
+// NOT destructured here — the standalone label row that used to render it
+// was removed (user decision 2026-10-08 follow-up) as redundant with the
+// filters above. The composable/store still expose it unchanged; this view
+// just stops consuming it.
 const {
+  campus,
+  filteredCampus,
   generationId,
   periodYear,
   periodMonth,
@@ -86,7 +95,6 @@ const {
   loading,
   loadError,
   summary,
-  generation,
 } = usePaymentsByGenerationPage()
 
 const links: LinkInterface[] = [

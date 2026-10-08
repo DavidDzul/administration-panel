@@ -56,6 +56,8 @@ const selectByLabel = (wrapper: ReturnType<typeof mountView>, label: string) =>
   wrapper.findAllComponents(VSelect).find((s) => s.props('label') === label)
 
 const setAllFilters = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
+  await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
+  await flushPromises()
   await selectByLabel(wrapper, 'Generación')?.vm.$emit('update:modelValue', 1)
   await selectByLabel(wrapper, 'Año')?.vm.$emit('update:modelValue', 2026)
   await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 9)
@@ -120,13 +122,18 @@ describe('PaymentsByGenerationView', () => {
     expect(wrapper.text()).toContain('Total becarios')
   })
 
-  it('shows which generación/sede the cards belong to', async () => {
+  // User decision 2026-10-08 (follow-up): the standalone generación/sede
+  // label row above the cards is removed — the filters already show the
+  // chosen sede and generación, so it was redundant. The store/composable
+  // `generation` ref and the API contract are unchanged; this view just
+  // stops rendering it.
+  it('does not render a standalone generación/sede label above the cards', async () => {
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)
 
-    expect(wrapper.text()).toContain('Generación B')
-    expect(wrapper.text()).toContain('MERIDA')
+    expect(wrapper.text()).toContain('Total becarios')
+    expect(wrapper.text()).not.toContain('Generación B — MERIDA')
   })
 
   it('shows the empty-state message alongside the zeroed 8 cards when the summary is all zeros', async () => {
@@ -171,5 +178,52 @@ describe('PaymentsByGenerationView', () => {
     expect(wrapper.text()).not.toContain('Total becarios')
     expect(wrapper.text()).not.toContain('Generación B — MERIDA')
     expect(wrapper.text()).toContain('Selecciona')
+  })
+
+  // Sede → Generación cascade (user decision 2026-10-08): clearing the sede
+  // clears the selected generación too, which hides the cards via the
+  // existing filtersComplete guard (no separate sede check needed).
+  it('hides the previous cards and shows the neutral prompt again when the sede is cleared', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+    expect(wrapper.text()).toContain('Total becarios')
+
+    await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', null)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Total becarios')
+    expect(wrapper.text()).not.toContain('Generación B — MERIDA')
+    expect(wrapper.text()).toContain('Selecciona')
+  })
+
+  it('narrows the generación options to the selected sede, dropping the "— sede" suffix', async () => {
+    mockAxiosGet.mockImplementation((url: string) => {
+      if (url === 'api/admin/generations') {
+        return Promise.resolve({
+          data: {
+            res: true,
+            generations: [
+              buildGeneration({ id: 1, generation_name: 'Generación B', campus: 'MERIDA' }),
+              buildGeneration({ id: 2, generation_name: 'Generación C', campus: 'VALLADOLID' }),
+            ],
+          },
+        })
+      }
+      if (url === 'api/admin/scholarship-payments/by-generation') {
+        return Promise.resolve({ data: { res: true, data: { summary: buildSummary(), generation: buildGeneration() } } })
+      }
+      return Promise.reject(new Error(`unexpected GET ${url}`))
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(selectByLabel(wrapper, 'Generación')?.props('disabled')).toBe(true)
+
+    await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
+    await flushPromises()
+
+    expect(selectByLabel(wrapper, 'Generación')?.props('items')).toEqual([{ title: 'Generación B', value: 1 }])
   })
 })

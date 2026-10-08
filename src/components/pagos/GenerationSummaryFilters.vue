@@ -1,6 +1,17 @@
 <template>
   <v-row>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="6" md="3">
+      <v-select
+        :items="campusOptions"
+        :model-value="campus"
+        item-title="text"
+        item-value="value"
+        label="Sede"
+        clearable
+        @update:model-value="(value) => emit('update:campus', value)"
+      ></v-select>
+    </v-col>
+    <v-col cols="12" sm="6" md="3">
       <v-select
         :items="generationOptions"
         :model-value="generationId"
@@ -8,10 +19,11 @@
         item-value="value"
         label="Generación"
         clearable
+        :disabled="!campus"
         @update:model-value="(value) => emit('update:generationId', value)"
       ></v-select>
     </v-col>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="6" md="3">
       <v-select
         :items="yearOptions"
         :model-value="periodYear"
@@ -20,7 +32,7 @@
         @update:model-value="(value) => emit('update:periodYear', value)"
       ></v-select>
     </v-col>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="6" md="3">
       <v-select
         :items="monthsArray"
         :model-value="periodMonth"
@@ -35,27 +47,40 @@
 </template>
 
 <script setup lang="ts">
-// Pagos-por-generación filters (sdd/pagos-consulta-por-generacion, design
-// File Changes, task 4.2). Pure controlled input, same shape as
-// PaymentBatchFilters.vue — this component owns NO fetch/refetch logic
-// (that lives in usePaymentsByGenerationPage), each field bound via its own
-// `v-model:*` pair from PaymentsByGenerationView.vue. Year window +
-// monthsArray copied verbatim from PaymentBatchFilters.vue:70-71.
+// Pagos-por-generación filters (sdd/pagos-consulta-por-generacion). Pure
+// controlled input, same shape as PaymentBatchFilters.vue — this component
+// owns NO fetch/refetch logic (that lives in usePaymentsByGenerationPage),
+// each field bound via its own `v-model:*` pair from
+// PaymentsByGenerationView.vue. Year window + monthsArray copied verbatim
+// from PaymentBatchFilters.vue:70-71.
+//
+// Sede → Generación cascade (user decision 2026-10-08, supersedes the
+// original single-picker design D8): the Sede select reuses
+// PaymentBatchFilters' Sede select pattern/labels (campusOptions sourced
+// from authStore.filteredCampus, same shape). The Generación select is
+// disabled until a sede is chosen — usePaymentsByGenerationPage already
+// returns an empty generationOptions in that state, `disabled` just makes
+// the gate visible instead of merely showing an empty list.
+import type { SelectOption } from '@/constants'
 import { monthsArray } from '@/constants'
 import type { GenerationOption } from '@/composables/usePaymentsByGenerationPage'
 
 interface Props {
+  campus: string | null
   generationId: number | null
   periodYear: number | null
   periodMonth: number | null
+  campusOptions?: SelectOption[]
   generationOptions?: GenerationOption[]
 }
 
 withDefaults(defineProps<Props>(), {
+  campusOptions: () => [],
   generationOptions: () => [],
 })
 
 interface Emits {
+  (e: 'update:campus', value: string | null): void
   (e: 'update:generationId', value: number | null): void
   (e: 'update:periodYear', value: number | null): void
   (e: 'update:periodMonth', value: number | null): void
