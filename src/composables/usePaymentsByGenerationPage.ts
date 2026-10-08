@@ -27,6 +27,12 @@ export function usePaymentsByGenerationPage() {
 
   const { filteredCampus, readPayments } = storeToRefs(useAuthStore())
 
+  // Sede → Generación cascade (user decision 2026-10-08, supersedes design
+  // D8's single "nombre — sede" picker). `campus` is a new client-side-only
+  // filter: it narrows `generationOptions` but is never sent to the server
+  // (the fetch key below stays generation_id/period_year/period_month only,
+  // unchanged from D1/D3 — campus is still always server-resolved).
+  const campus = ref<string | null>(null)
   const generationId = ref<number | null>(null)
   const periodYear = ref<number | null>(null)
   const periodMonth = ref<number | null>(null)
@@ -34,17 +40,28 @@ export function usePaymentsByGenerationPage() {
   const loading = ref<boolean>(false)
   const loadError = ref<boolean>(false)
 
-  // D8: client-side-only sede scoping — the same list a non-ROOT admin
-  // already sees in the Lotes picker (authStore.filteredCampus), not a
-  // server-enforced restriction (byGeneration() has none either, same as
-  // index()). Both active and inactive generations are included — unlike
-  // Lotes, there's no "active only" requirement for this read-only summary.
+  // Generación options are now scoped to the selected sede only (empty
+  // until a sede is chosen), labeled by generation_name alone — the
+  // "— sede" suffix is redundant once the sede is already picked via its
+  // own select above. Both active and inactive generations are included —
+  // unlike Lotes, there's no "active only" requirement for this read-only
+  // summary. `filteredCampus` (below) is what restricts the Sede picker
+  // itself to the admin's allowed sedes, so a disallowed campus can never
+  // reach this filter.
   const generationOptions = computed<GenerationOption[]>(() => {
-    const allowedCampus = new Set(filteredCampus.value.map((c) => c.value))
+    if (campus.value === null) return []
     return [...resGenerations.value.values()]
-      .filter((g) => allowedCampus.has(g.campus))
+      .filter((g) => g.campus === campus.value)
       .sort((a, b) => a.generation_name.localeCompare(b.generation_name))
-      .map((g) => ({ title: `${g.generation_name} — ${g.campus}`, value: g.id }))
+      .map((g) => ({ title: g.generation_name, value: g.id }))
+  })
+
+  // Changing (or clearing) the sede clears the selected generación — it may
+  // no longer belong to generationOptions' new scope. This naturally hides
+  // the cards too: filtersComplete below requires generationId, so clearing
+  // it already falls through to the existing "Selecciona…" guard.
+  watch(campus, () => {
+    generationId.value = null
   })
 
   const filtersComplete = computed<boolean>(
@@ -79,10 +96,13 @@ export function usePaymentsByGenerationPage() {
   })
 
   return {
+    campus,
+    filteredCampus,
     generationId,
     periodYear,
     periodMonth,
     generationOptions,
+    filtersComplete,
     loading,
     loadError,
     summary,

@@ -174,19 +174,14 @@ describe('usePaymentsByGenerationPage', () => {
     expect(result.generation.value).toEqual(generation)
   })
 
-  // D8: labels are "nombre — sede", and the picker is restricted client-side
-  // to the admin's allowed sedes (authStore.filteredCampus) — both active
-  // and inactive generations are included, unlike Lotes.
-  describe('generationOptions', () => {
-    it('labels options as "nombre — sede" and restricts them to filteredCampus, for a non-ROOT admin', async () => {
+  // Sede → Generación cascade (user decision 2026-10-08, supersedes design
+  // D8's single "nombre — sede" picker). `campus` is a new client-side-only
+  // filter ref; `generationOptions` is now scoped to the selected campus
+  // only (both active/inactive included), labeled by generation_name alone.
+  describe('campus → generationOptions cascade', () => {
+    it('exposes filteredCampus (authStore) as the sede picker options, restricted for a non-ROOT admin', async () => {
       const generationStore = useGenerationStore()
-      vi.spyOn(generationStore, 'fetchGenerations').mockImplementation(async () => {
-        generationStore.resGenerations = new Map([
-          [1, buildGeneration({ id: 1, generation_name: 'Generación A', campus: 'MERIDA', generation_active: false })],
-          [2, buildGeneration({ id: 2, generation_name: 'Generación B', campus: 'VALLADOLID' })],
-        ])
-        return undefined
-      })
+      vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
 
       const byGenerationStore = usePaymentsByGenerationStore()
       vi.spyOn(byGenerationStore, 'fetchSummary').mockResolvedValue(true)
@@ -205,15 +200,36 @@ describe('usePaymentsByGenerationPage', () => {
       const result = withSetup(() => usePaymentsByGenerationPage())
       await flushPromises()
 
-      expect(result.generationOptions.value).toEqual([{ title: 'Generación A — MERIDA', value: 1 }])
+      expect(result.filteredCampus.value).toEqual([{ value: 'MERIDA', text: 'Mérida' }])
     })
 
-    it('includes all sedes for a ROOT_ADMINISTRATION admin, including inactive generations', async () => {
+    it('returns no generation options until a sede is chosen', async () => {
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockImplementation(async () => {
+        generationStore.resGenerations = new Map([[1, buildGeneration({ id: 1, campus: 'MERIDA' })]])
+        return undefined
+      })
+
+      const byGenerationStore = usePaymentsByGenerationStore()
+      vi.spyOn(byGenerationStore, 'fetchSummary').mockResolvedValue(true)
+
+      const authStore = useAuthStore()
+      setRootProfile(authStore)
+
+      const result = withSetup(() => usePaymentsByGenerationPage())
+      await flushPromises()
+
+      expect(result.campus.value).toBeNull()
+      expect(result.generationOptions.value).toEqual([])
+    })
+
+    it('labels options by generation_name only, scoped to the selected sede, sorted, including inactive', async () => {
       const generationStore = useGenerationStore()
       vi.spyOn(generationStore, 'fetchGenerations').mockImplementation(async () => {
         generationStore.resGenerations = new Map([
-          [1, buildGeneration({ id: 1, generation_name: 'Generación A', campus: 'MERIDA', generation_active: false })],
-          [2, buildGeneration({ id: 2, generation_name: 'Generación B', campus: 'VALLADOLID' })],
+          [1, buildGeneration({ id: 1, generation_name: 'Generación B', campus: 'MERIDA', generation_active: false })],
+          [2, buildGeneration({ id: 2, generation_name: 'Generación A', campus: 'MERIDA' })],
+          [3, buildGeneration({ id: 3, generation_name: 'Generación C', campus: 'VALLADOLID' })],
         ])
         return undefined
       })
@@ -227,10 +243,75 @@ describe('usePaymentsByGenerationPage', () => {
       const result = withSetup(() => usePaymentsByGenerationPage())
       await flushPromises()
 
+      result.campus.value = 'MERIDA'
+      await flushPromises()
+
       expect(result.generationOptions.value).toEqual([
-        { title: 'Generación A — MERIDA', value: 1 },
-        { title: 'Generación B — VALLADOLID', value: 2 },
+        { title: 'Generación A', value: 2 },
+        { title: 'Generación B', value: 1 },
       ])
+    })
+
+    it('clears the selected generation when the sede changes', async () => {
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockImplementation(async () => {
+        generationStore.resGenerations = new Map([
+          [1, buildGeneration({ id: 1, generation_name: 'Generación A', campus: 'MERIDA' })],
+          [2, buildGeneration({ id: 2, generation_name: 'Generación B', campus: 'VALLADOLID' })],
+        ])
+        return undefined
+      })
+
+      const byGenerationStore = usePaymentsByGenerationStore()
+      const fetchSummarySpy = vi.spyOn(byGenerationStore, 'fetchSummary').mockResolvedValue(true)
+
+      const authStore = useAuthStore()
+      setRootProfile(authStore)
+
+      const result = withSetup(() => usePaymentsByGenerationPage())
+      await flushPromises()
+
+      result.campus.value = 'MERIDA'
+      await flushPromises()
+      result.generationId.value = 1
+      await flushPromises()
+
+      expect(result.generationId.value).toBe(1)
+
+      result.campus.value = 'VALLADOLID'
+      await flushPromises()
+
+      expect(result.generationId.value).toBeNull()
+      expect(result.generationOptions.value).toEqual([{ title: 'Generación B', value: 2 }])
+      expect(fetchSummarySpy).not.toHaveBeenCalled()
+    })
+
+    it('clearing the sede also clears the selected generation', async () => {
+      const generationStore = useGenerationStore()
+      vi.spyOn(generationStore, 'fetchGenerations').mockImplementation(async () => {
+        generationStore.resGenerations = new Map([[1, buildGeneration({ id: 1, campus: 'MERIDA' })]])
+        return undefined
+      })
+
+      const byGenerationStore = usePaymentsByGenerationStore()
+      vi.spyOn(byGenerationStore, 'fetchSummary').mockResolvedValue(true)
+
+      const authStore = useAuthStore()
+      setRootProfile(authStore)
+
+      const result = withSetup(() => usePaymentsByGenerationPage())
+      await flushPromises()
+
+      result.campus.value = 'MERIDA'
+      await flushPromises()
+      result.generationId.value = 1
+      await flushPromises()
+
+      result.campus.value = null
+      await flushPromises()
+
+      expect(result.generationId.value).toBeNull()
+      expect(result.generationOptions.value).toEqual([])
     })
   })
 })

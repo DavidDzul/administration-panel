@@ -28,7 +28,17 @@
         <v-list-item v-bind="props" title="Pagos" prepend-icon="mdi-cash-multiple" class="nav-item" />
       </template>
 
-      <v-list-item to="/pagos" title="Lotes de pago" density="compact" class="nav-subitem" />
+      <!--
+        D10 (sdd/pagos-consulta-por-generacion/design): `exact` added so
+        "Lotes de pago" no longer prefix-matches `/pagos/por-generacion`.
+      -->
+      <v-list-item to="/pagos" title="Lotes de pago" density="compact" class="nav-subitem" exact />
+      <v-list-item
+        to="/pagos/por-generacion"
+        title="Resumen por generación"
+        density="compact"
+        class="nav-subitem"
+      />
     </v-list-group>
 
     <v-list-group
