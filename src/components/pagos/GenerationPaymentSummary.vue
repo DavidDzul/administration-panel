@@ -50,7 +50,7 @@ const formatAmount = (amount: string): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 
 const DIFFERENCE_HELP =
-  'Lo que se dejó de pagar por descuentos y retenciones respecto a la beca nominal. Puede ser negativa si hubo aumentos temporales.'
+  'Diferencia entre lo que corresponde por beca y apoyo, y lo que se paga. Positiva: descuentos y retenciones aplicadas. Negativa: se pagó de más este mes por aumentos temporales, meses retenidos liberados, reembolsos o adelantos.'
 
 interface SummaryCard {
   label: string
