@@ -30,11 +30,14 @@ const vuetify = createVuetify()
 
 const buildSummary = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   total: 1,
-  ready: 1,
-  blocking: 0,
+  paid: 1,
+  pending: 0,
+  blocked: 0,
   beca_amount: '1000.00',
   apoyo_amount: '0.00',
   pago_iu_amount: '0.00',
+  paid_amount: '1000.00',
+  pending_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
   ...overrides,
@@ -108,7 +111,7 @@ describe('PaymentsByGenerationView', () => {
     expect(wrapper.findComponent({ name: 'VProgressCircular' }).exists()).toBe(false)
   })
 
-  it('fetches the summary with the exact key once all 3 filters are chosen, and renders the 8 cards', async () => {
+  it('fetches the summary with the exact key once all 3 filters are chosen, and renders GenerationPaymentSummary (not PaymentBatchSummary)', async () => {
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)
@@ -120,6 +123,8 @@ describe('PaymentsByGenerationView', () => {
       }),
     )
     expect(wrapper.text()).toContain('Total becarios')
+    expect(wrapper.findComponent({ name: 'GenerationPaymentSummary' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'PaymentBatchSummary' }).exists()).toBe(false)
   })
 
   // User decision 2026-10-08 (follow-up): the standalone generación/sede
@@ -136,8 +141,8 @@ describe('PaymentsByGenerationView', () => {
     expect(wrapper.text()).not.toContain('Generación B — MERIDA')
   })
 
-  it('shows the empty-state message alongside the zeroed 8 cards when the summary is all zeros', async () => {
-    mockGenerationsAndSummary(buildSummary({ total: 0, ready: 0, blocking: 0 }))
+  it('shows the empty-state message alongside the zeroed cards when the summary is all zeros', async () => {
+    mockGenerationsAndSummary(buildSummary({ total: 0, paid: 0, pending: 0, blocked: 0 }))
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)

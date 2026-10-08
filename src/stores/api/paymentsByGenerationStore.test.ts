@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { GenerationSummaryGeneration, GenerationSummaryKey, PaymentBatchSummary } from '@/interfaces/payment'
+import type { GenerationPaymentSummary, GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
 
 const { mockAxiosGet } = vi.hoisted(() => ({
   mockAxiosGet: vi.fn(),
@@ -22,13 +22,16 @@ const buildKey = (overrides: Partial<GenerationSummaryKey> = {}): GenerationSumm
   ...overrides,
 })
 
-const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatchSummary => ({
+const buildSummary = (overrides: Partial<GenerationPaymentSummary> = {}): GenerationPaymentSummary => ({
   total: 1,
-  ready: 1,
-  blocking: 0,
+  paid: 1,
+  pending: 0,
+  blocked: 0,
   beca_amount: '1000.00',
   apoyo_amount: '0.00',
   pago_iu_amount: '0.00',
+  paid_amount: '1000.00',
+  pending_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
   ...overrides,
