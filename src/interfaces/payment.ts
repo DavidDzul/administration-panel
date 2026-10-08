@@ -131,6 +131,31 @@ export interface PaymentBatchSummary {
   difference_amount: string
 }
 
+// Matches PaymentBatchService::generationSummary()'s real keys
+// (sdd/pagos-por-generacion-estado-pago, spec: "Response is summary-only"
+// requirement, design D1/D4). Dedicated type for the by-generation view
+// ONLY — Lotes de pago keeps PaymentBatchSummary/summary() unchanged.
+// Partition is paid/pending/blocked (mutually exclusive, paid+pending+
+// blocked === total), NOT ready/blocking like PaymentBatchSummary. Money is
+// computed over paid+pending rows only: paid_amount/pending_amount split
+// what PaymentBatchSummary folds into a single total_amount, and
+// total_amount here = paid_amount + pending_amount. difference_amount MAY
+// be negative (rendered sign-aware, never a '-' prefix on an
+// already-formatted string — same convention as PaymentBatchSummary).
+export interface GenerationPaymentSummary {
+  total: number
+  paid: number
+  pending: number
+  blocked: number
+  beca_amount: string
+  apoyo_amount: string
+  pago_iu_amount: string
+  paid_amount: string
+  pending_amount: string
+  total_amount: string
+  difference_amount: string
+}
+
 // The batch identity posted to both GET (query params) and POST /process
 // (body) — the server always re-derives membership from this key, never
 // trusts a client-supplied ids[] (design D2). Batch key is campus + period

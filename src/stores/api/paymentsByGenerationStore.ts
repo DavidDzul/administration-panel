@@ -1,7 +1,7 @@
 import axios from '@/axiosConfig'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { GenerationSummaryGeneration, GenerationSummaryKey, PaymentBatchSummary } from '@/interfaces/payment'
+import type { GenerationPaymentSummary, GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
 import type { PaymentsByGenerationResponse } from '@/interfaces/api'
 
 // Read-only summary slice (sdd/pagos-consulta-por-generacion, design D6) —
@@ -11,7 +11,7 @@ import type { PaymentsByGenerationResponse } from '@/interfaces/api'
 // boolean-return convention exactly: never throws, the composable/view
 // decide how to surface a failed load.
 export const usePaymentsByGenerationStore = defineStore('paymentsByGenerationStore', () => {
-  const summary = ref<PaymentBatchSummary | null>(null)
+  const summary = ref<GenerationPaymentSummary | null>(null)
   const generation = ref<GenerationSummaryGeneration | null>(null)
 
   const fetchSummary = async (key: GenerationSummaryKey): Promise<boolean> => {

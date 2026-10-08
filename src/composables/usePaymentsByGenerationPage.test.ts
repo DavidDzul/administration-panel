@@ -9,7 +9,7 @@ import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import type { Generation } from '@/interfaces/generation'
 import type { GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
-import type { PaymentBatchSummary } from '@/interfaces/payment'
+import type { GenerationPaymentSummary } from '@/interfaces/payment'
 
 // Same rationale as usePersonsPage.test.ts's withSetup: onBeforeMount only
 // registers against a real active component instance.
@@ -41,13 +41,16 @@ const buildSummaryGeneration = (overrides: Partial<GenerationSummaryGeneration> 
   ...overrides,
 })
 
-const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatchSummary => ({
+const buildSummary = (overrides: Partial<GenerationPaymentSummary> = {}): GenerationPaymentSummary => ({
   total: 1,
-  ready: 1,
-  blocking: 0,
+  paid: 1,
+  pending: 0,
+  blocked: 0,
   beca_amount: '1000.00',
   apoyo_amount: '0.00',
   pago_iu_amount: '0.00',
+  paid_amount: '1000.00',
+  pending_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
   ...overrides,
