@@ -5,7 +5,14 @@ import type { ScholarshipProfileConfig } from './scholarshipProfile'
 import type { ScholarshipSetting } from './scholarshipSetting'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
-import type { ExportSummary, PaymentBatchBlock, PaymentBatchRow, PaymentBatchSummary, PaymentDocument } from './payment'
+import type {
+  ExportSummary,
+  GenerationSummaryGeneration,
+  PaymentBatchBlock,
+  PaymentBatchRow,
+  PaymentBatchSummary,
+  PaymentDocument,
+} from './payment'
 
 export interface LoginResponse {
   token: string
@@ -158,4 +165,17 @@ export interface PaymentBatchProcessResponse {
 export interface PaymentDocumentResponse {
   res: boolean
   data: PaymentDocument
+}
+
+// Matches ScholarshipPaymentController::byGeneration()'s real envelope
+// (sdd/pagos-consulta-por-generacion, design D4) — deliberately NO `rows`
+// key (read-only summary slice), `summary` equals
+// `summary(rows(campus, year, month, generationId))` on the server, and
+// `generation` echoes the server-resolved campus.
+export interface PaymentsByGenerationResponse {
+  res: boolean
+  data: {
+    summary: PaymentBatchSummary
+    generation: GenerationSummaryGeneration
+  }
 }
