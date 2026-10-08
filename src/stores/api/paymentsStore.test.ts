@@ -254,6 +254,42 @@ describe('paymentsStore', () => {
       expect(result).toEqual({ status: 'stale', count: 2, totalAmount: '2000.00' })
     })
 
+    // Regression guard (bug fix): the backend returns 409 for TWO distinct
+    // cases — stale expected_count/expected_total (data.count/data.total_amount)
+    // AND "a batch already exists for this campus+year+month" (data.batch_id).
+    // Collapsing both into "stale" shows a misleading count 0 / $0.00 result,
+    // so "already_processed" MUST be surfaced distinctly whenever the 409
+    // body carries a numeric batch_id.
+    it('returns a distinct "already_processed" result on 409 when the body carries batch_id', async () => {
+      mockAxiosPost.mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { res: false, msg: 'Este lote ya fue procesado anteriormente.', data: { batch_id: 42 } },
+        },
+      })
+
+      const store = usePaymentsStore()
+      const result = await store.processBatch(buildKey(), 1, '1000.00')
+
+      expect(result).toEqual({ status: 'already_processed', batchId: 42 })
+    })
+
+    // Regression guard: a 409 WITHOUT batch_id must still map to "stale",
+    // exactly as before — this is the case this fix must not break.
+    it('still returns "stale" on 409 when the body has no batch_id', async () => {
+      mockAxiosPost.mockRejectedValueOnce({
+        response: {
+          status: 409,
+          data: { res: false, msg: 'stale', data: { count: 2, total_amount: '2000.00' } },
+        },
+      })
+
+      const store = usePaymentsStore()
+      const result = await store.processBatch(buildKey(), 1, '1000.00')
+
+      expect(result).toEqual({ status: 'stale', count: 2, totalAmount: '2000.00' })
+    })
+
     it('returns a generic "error" result on an unrelated failure (network/500)', async () => {
       mockAxiosPost.mockRejectedValueOnce(new Error('network error'))
 

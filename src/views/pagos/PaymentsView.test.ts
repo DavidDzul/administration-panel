@@ -243,6 +243,60 @@ describe('PaymentsView', () => {
     })
   })
 
+  // Regression guard (bug fix): the backend returns 409 for TWO distinct
+  // cases. "already_processed" (batch_id present) MUST render its own
+  // message, never the generic/stale text, and must not be silently
+  // swallowed (console-only).
+  it('shows a distinct message when "Pagar todos" fails because the batch was already processed (409 + batch_id)', async () => {
+    mockAxiosPost.mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: { res: false, msg: 'Este lote ya fue procesado anteriormente.', data: { batch_id: 42 } },
+      },
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const payButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Pagar todos')
+    await payButton?.trigger('click')
+    await flushPromises()
+
+    for (const btn of body().findAll('button')) {
+      if (btn.text() === 'Confirmar pago') await btn.trigger('click')
+    }
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Este lote ya fue procesado anteriormente.')
+    expect(wrapper.text()).not.toContain('El lote cambió')
+  })
+
+  // Regression guard: the stale case (409 without batch_id) must keep
+  // surfacing its own message, distinct from "already_processed".
+  it('shows a distinct message when "Pagar todos" fails because the batch is stale (409 without batch_id)', async () => {
+    mockAxiosPost.mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: { res: false, msg: 'stale', data: { count: 2, total_amount: '2000.00' } },
+      },
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const payButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Pagar todos')
+    await payButton?.trigger('click')
+    await flushPromises()
+
+    for (const btn of body().findAll('button')) {
+      if (btn.text() === 'Confirmar pago') await btn.trigger('click')
+    }
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('El lote cambió desde que se cargó la pantalla')
+    expect(wrapper.text()).not.toContain('ya fue procesado anteriormente')
+  })
+
   it('renders no Generación selector, chip, or column anywhere in Pagos', async () => {
     const wrapper = mountView()
     await flushPromises()

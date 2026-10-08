@@ -187,6 +187,59 @@ describe('usePaymentsPage', () => {
     expect(result.processResult.value).toEqual({ status: 'success', batchId: 7, rows: [buildRow({ outcome: 'PAID' })] })
   })
 
+  // Regression guard (bug fix): "already_processed" (409 with batch_id) must
+  // reload the batch too, same as success/stale, so the UI reflects reality
+  // instead of silently leaving the stale pre-process rows/summary on screen.
+  it('confirmProcess reloads the batch when processBatch returns "already_processed"', async () => {
+    const paymentsStore = usePaymentsStore()
+    const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+      paymentsStore.rows = [buildRow()]
+      paymentsStore.summary = buildSummary({ total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
+      return true
+    })
+    vi.spyOn(paymentsStore, 'processBatch').mockResolvedValue({ status: 'already_processed', batchId: 42 })
+
+    const result = withSetup(() => usePaymentsPage())
+    result.campus.value = 'MERIDA'
+    result.periodYear.value = 2026
+    result.periodMonth.value = 9
+    await flushPromises()
+
+    const callsBeforeConfirm = fetchBatchSpy.mock.calls.length
+    const outcome = await result.confirmProcess()
+    await flushPromises()
+
+    expect(outcome).toEqual({ status: 'already_processed', batchId: 42 })
+    expect(result.processResult.value).toEqual({ status: 'already_processed', batchId: 42 })
+    expect(fetchBatchSpy.mock.calls.length).toBe(callsBeforeConfirm + 1)
+  })
+
+  // The view renders processResult, so a result from one batch key must not
+  // stay on screen after the admin switches to another sede/año/mes.
+  it('clears processResult when a filter changes', async () => {
+    const paymentsStore = usePaymentsStore()
+    vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+      paymentsStore.rows = [buildRow()]
+      paymentsStore.summary = buildSummary({ total: 1, ready: 1, blocking: 0, total_amount: '1000.00' })
+      return true
+    })
+    vi.spyOn(paymentsStore, 'processBatch').mockResolvedValue({ status: 'already_processed', batchId: 42 })
+
+    const result = withSetup(() => usePaymentsPage())
+    result.campus.value = 'MERIDA'
+    result.periodYear.value = 2026
+    result.periodMonth.value = 9
+    await flushPromises()
+    await result.confirmProcess()
+    await flushPromises()
+    expect(result.processResult.value).not.toBeNull()
+
+    result.periodMonth.value = 10
+    await flushPromises()
+
+    expect(result.processResult.value).toBeNull()
+  })
+
   it('exposes hasProcessPermission mirrored from authStore.processPayments', async () => {
     const paymentsStore = usePaymentsStore()
     vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)

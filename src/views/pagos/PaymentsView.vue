@@ -37,6 +37,34 @@
       </v-col>
     </v-row>
 
+    <v-row v-if="processResult?.status === 'already_processed'">
+      <v-col cols="12">
+        <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
+          Este lote ya fue procesado anteriormente.
+        </v-alert>
+      </v-col>
+    </v-row>
+
+    <v-row v-else-if="processResult?.status === 'stale'">
+      <v-col cols="12">
+        <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
+          El lote cambió desde que se cargó la pantalla. Vuelve a cargarla.
+        </v-alert>
+      </v-col>
+    </v-row>
+
+    <v-row v-else-if="processResult?.status === 'error'">
+      <v-col cols="12">
+        <v-alert
+          type="error"
+          variant="tonal"
+          density="compact"
+          title="Error al procesar el pago"
+          text="No se pudo procesar el lote de pagos. Intenta de nuevo más tarde."
+        ></v-alert>
+      </v-col>
+    </v-row>
+
     <BankFileExportCard
       v-if="isPaid && hasExportPermission"
       :export-summary="exportSummary"
@@ -104,6 +132,7 @@ const {
   loadError,
   canProcess,
   processing,
+  processResult,
   hasProcessPermission,
   confirmProcess,
   isPaid,
