@@ -7,6 +7,7 @@ import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
 import type {
   ExportSummary,
+  GenerationPaymentSummary,
   GenerationSummaryGeneration,
   PaymentBatchBlock,
   PaymentBatchRow,
@@ -168,14 +169,16 @@ export interface PaymentDocumentResponse {
 }
 
 // Matches ScholarshipPaymentController::byGeneration()'s real envelope
-// (sdd/pagos-consulta-por-generacion, design D4) — deliberately NO `rows`
-// key (read-only summary slice), `summary` equals
-// `summary(rows(campus, year, month, generationId))` on the server, and
+// (sdd/pagos-por-generacion-estado-pago, spec: "Response is summary-only"
+// requirement) — deliberately NO `rows` key (read-only summary slice).
+// `summary` now equals `generationSummary(rows(campus, year, month,
+// generationId))` (paid/pending/blocked partition), NOT `summary()`'s
+// ready/blocking partition (that type is Lotes de pago's only, unchanged).
 // `generation` echoes the server-resolved campus.
 export interface PaymentsByGenerationResponse {
   res: boolean
   data: {
-    summary: PaymentBatchSummary
+    summary: GenerationPaymentSummary
     generation: GenerationSummaryGeneration
   }
 }

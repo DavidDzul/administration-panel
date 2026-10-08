@@ -52,7 +52,7 @@
       </v-col>
     </v-row>
 
-    <PaymentBatchSummary :summary="summary" />
+    <GenerationPaymentSummary :summary="summary" />
   </template>
 </template>
 
@@ -67,7 +67,12 @@
 // `filtersComplete` guards the same stale `summary` when a clearable filter
 // is emptied after a successful load: no refetch fires, so the previous
 // generación's cards would otherwise stay on screen.
-// `PaymentBatchSummary.vue` is reused completely unmodified.
+// `GenerationPaymentSummary.vue` (sdd/pagos-por-generacion-estado-pago,
+// design D6) replaces `PaymentBatchSummary.vue` in this view ONLY — Lotes
+// de pago keeps rendering the unmodified `PaymentBatchSummary.vue`. The
+// `summary.total === 0` empty-state check below stays valid: `total` is
+// still present and still the row count on the new paid/pending/blocked
+// shape.
 //
 // Sede → Generación cascade (user decision 2026-10-08, supersedes design
 // D8's single picker): clearing `campus` clears `generationId` too (inside
@@ -76,7 +81,7 @@
 import { usePaymentsByGenerationPage } from '@/composables/usePaymentsByGenerationPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import GenerationSummaryFilters from '@/components/pagos/GenerationSummaryFilters.vue'
-import PaymentBatchSummary from '@/components/pagos/PaymentBatchSummary.vue'
+import GenerationPaymentSummary from '@/components/pagos/GenerationPaymentSummary.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
 // `generation` (the server-echoed sede/generación block) is intentionally
