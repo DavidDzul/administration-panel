@@ -330,3 +330,23 @@ export interface PaymentDocument {
   retentions: RetentionBreakdown
   advance_payment: AdvancePaymentDocumentInfo
 }
+
+// The batch identity posted to `GET scholarship-payments/by-generation`
+// (sdd/pagos-consulta-por-generacion, design D1/D3) — mirrors BatchKey's
+// convention of a plain key object re-derived server-side, but scoped by
+// generación instead of campus: campus is never client-supplied here, it is
+// always resolved server-side from `Generation::findOrFail(generation_id)`.
+export interface GenerationSummaryKey {
+  generation_id: number
+  period_year: number
+  period_month: number
+}
+
+// Matches `byGeneration()`'s response `data.generation` block (design D4) —
+// echoes the server-resolved campus (never the client's) so the UI can
+// display it alongside the 8 summary cards.
+export interface GenerationSummaryGeneration {
+  id: number
+  generation_name: string
+  campus: string
+}

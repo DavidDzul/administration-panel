@@ -24,6 +24,7 @@ const router = createRouter({
     { path: '/control/accesos', component: { template: '<div />' } },
     { path: '/control/becas', component: { template: '<div />' } },
     { path: '/pagos', component: { template: '<div />' } },
+    { path: '/pagos/por-generacion', component: { template: '<div />' } },
   ],
 })
 
@@ -140,6 +141,38 @@ describe('NavMenu — "Control" > "Configuración de becas" gating on ADM_MANAGE
 
     expect(wrapper.text()).not.toContain('Control')
     expect(wrapper.text()).not.toContain('Configuración de becas')
+  })
+})
+
+// Spec scenario: '"Lotes de pago" not highlighted on the new route'
+// (sdd/pagos-consulta-por-generacion, design D10).
+describe('NavMenu — "Pagos" group: "Resumen por generación" sub-item and exact-matching', () => {
+  beforeEach(() => {
+    mockPermissions.value = []
+  })
+
+  it('shows "Pagos" > "Resumen por generación" when the user holds ADM_READ_PAYMENTS', async () => {
+    mockPermissions.value = ['ADM_READ_PAYMENTS']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Pagos')
+    expect(wrapper.text()).toContain('Lotes de pago')
+    expect(wrapper.text()).toContain('Resumen por generación')
+  })
+
+  it('does not highlight "Lotes de pago" while on /pagos/por-generacion', async () => {
+    mockPermissions.value = ['ADM_READ_PAYMENTS']
+    await router.push('/pagos/por-generacion')
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    const items = wrapper.findAll('.nav-subitem')
+    const lotesItem = items.find((item) => item.text() === 'Lotes de pago')
+    const resumenItem = items.find((item) => item.text() === 'Resumen por generación')
+
+    expect(lotesItem?.classes()).not.toContain('v-list-item--active')
+    expect(resumenItem?.classes()).toContain('v-list-item--active')
   })
 })
 

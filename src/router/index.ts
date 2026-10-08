@@ -102,6 +102,11 @@ const routes = [
         component: () => catchReload(import('@/views/pagos/PaymentsView.vue')),
       },
       {
+        path: '/pagos/por-generacion',
+        name: 'PaymentsByGenerationView',
+        component: () => catchReload(import('@/views/pagos/PaymentsByGenerationView.vue')),
+      },
+      {
         path: '/control/becas',
         name: 'ScholarshipSettingsView',
         component: () => catchReload(import('@/views/configuracion/ScholarshipSettingsView.vue')),

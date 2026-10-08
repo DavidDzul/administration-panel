@@ -187,4 +187,27 @@ describe('router auth guard', () => {
     expect(router.currentRoute.value.name).toBe('AccesoDetailView')
     expect(router.currentRoute.value.params.id).toBe('7')
   })
+
+  // Task 4.5 (sdd/pagos-consulta-por-generacion) — /pagos/por-generacion is a
+  // sibling child of /pagos under the same requiresAuth-gated `/` route
+  // (AdminLayout), same inherited-meta reasoning as /control/roles above.
+  it('redirects unauthenticated access to /pagos/por-generacion to /auth/login', async () => {
+    await router.push('/pagos/por-generacion')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /pagos/por-generacion when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/pagos/por-generacion')
+
+    expect(mockGetProfile).toHaveBeenCalledWith('stored-token')
+    expect(router.currentRoute.value.path).toBe('/pagos/por-generacion')
+    expect(router.currentRoute.value.name).toBe('PaymentsByGenerationView')
+  })
 })
