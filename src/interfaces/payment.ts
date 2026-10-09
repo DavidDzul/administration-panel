@@ -109,6 +109,29 @@ export interface PaymentBatchRow {
   snapshot_scholarship_type: string
   base_amount: string
   snapshot_monto_apoyo: string | null
+  // Lotes de pago breakdown + batch-identity pass-throughs
+  // (sdd/lotes-pago-generacion-desglose). `payment_batch_id`/`status` were
+  // already returned by rows() (PaymentBatchService.php :269,:278) but never
+  // typed here — `status` is the raw refrend status string (any
+  // RefrendStatus value), not narrowed to 'PENDING'|'PAID', because the
+  // service only ever compares it against RefrendStatus::PAID (see
+  // partitionGroup's paid predicate: payment_batch_id !== null ||
+  // status === 'PAID'). The 8 breakdown fields below are additive raw
+  // pass-through columns (impulsou-api PR1 of this change) — deliberately
+  // NOT present in paidRows()'s row shape, same scope boundary as every
+  // other snapshot/pass-through field above. All money/percentage fields
+  // are raw strings exactly as stored (DB::table() bypasses casts), same
+  // convention as every other field in this interface.
+  payment_batch_id: number | null
+  status: string
+  snapshot_generation: string | null
+  snapshot_generation_id: number | null
+  snapshot_gross_amount: string | null
+  discount_percentage: string
+  snapshot_discount_percentage: string | null
+  final_amount: string
+  amount_pending_from_previous: string
+  refund_amount_from_previous: string
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against

@@ -66,6 +66,16 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   snapshot_scholarship_type: 'IU',
   base_amount: '1000.00',
   snapshot_monto_apoyo: null,
+  payment_batch_id: null,
+  status: 'DRAFT',
+  snapshot_generation: 'Generación 9',
+  snapshot_generation_id: 9,
+  snapshot_gross_amount: '1000.00',
+  discount_percentage: '0',
+  snapshot_discount_percentage: null,
+  final_amount: '1000.00',
+  amount_pending_from_previous: '0.00',
+  refund_amount_from_previous: '0.00',
   ...overrides,
 })
 
@@ -297,13 +307,21 @@ describe('PaymentsView', () => {
     expect(wrapper.text()).not.toContain('ya fue procesado anteriormente')
   })
 
-  it('renders no Generación selector, chip, or column anywhere in Pagos', async () => {
+  // Note: this guard originally asserted NO "Generación" text anywhere —
+  // that predates sdd/lotes-pago-generacion-desglose, which deliberately
+  // introduces visible generación GROUP HEADERS (spec: "Rows grouped by
+  // generación with paid/unpaid header"). The guard is narrowed to its real
+  // intent: no generación FILTER selector, and no dedicated generación
+  // COLUMN — grouping is shown via the table's group-header rows, not a
+  // filter or a per-row column.
+  it('renders no Generación filter selector or dedicated column in Pagos', async () => {
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)
 
     expect(selectByLabel(wrapper, 'Generación')).toBeUndefined()
-    expect(wrapper.text()).not.toContain('Generación')
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    expect(headers).not.toContain('Generación')
   })
 
   it('opens the payment document dialog for the clicked row instead of navigating away (sdd/becario-payment-batch-indicators)', async () => {
@@ -367,14 +385,77 @@ describe('PaymentsView', () => {
     await flushPromises()
     await setAllFilters(wrapper)
 
-    const verButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Ver')
-    await verButton?.trigger('click')
+    // The standalone "Ver" button/column is gone (sdd/lotes-pago-generacion-
+    // desglose) — the becario name itself is now the trigger.
+    const nameButton = wrapper.find('button.payment-name-link')
+    await nameButton.trigger('click')
     await flushPromises()
 
     expect(mockAxiosGet).toHaveBeenCalledWith('api/admin/scholarship-payments/3/document')
     expect(body().text()).toContain('Documento de pago')
     // The list view (filters/table) stays mounted underneath — no navigation happened.
     expect(wrapper.text()).toContain('Ada Lovelace')
+  })
+
+  // ── Breakdown + grouped-by-generación table (sdd/lotes-pago-generacion-
+  // desglose) ───────────────────────────────────────────────────────────
+
+  it('passes the full batch rows and isPaid through to the table for group headers, not the filtered visibleRows', async () => {
+    mockBatch(
+      [
+        buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true, total_to_pay: '1000.00' }),
+        buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false, total_to_pay: '500.00' }),
+      ],
+      {
+        total: 2,
+        ready: 1,
+        blocking: 1,
+        beca_amount: '1500.00',
+        apoyo_amount: '0.00',
+        pago_iu_amount: '0.00',
+        total_amount: '1500.00',
+        difference_amount: '0.00',
+      },
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const groupHeader = wrapper.find('[data-testid="payment-group-header"]')
+    expect(groupHeader.exists()).toBe(true)
+    expect(groupHeader.text()).toContain('Generación 9 — 2 becarios (1 listo) — $1,000.00 a pagar')
+  })
+
+  it('"Solo pendientes de revisar" narrows the rendered rows without changing the group header counts', async () => {
+    mockBatch(
+      [
+        buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: true, total_to_pay: '1000.00' }),
+        buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false, total_to_pay: '500.00' }),
+      ],
+      {
+        total: 2,
+        ready: 1,
+        blocking: 1,
+        beca_amount: '1500.00',
+        apoyo_amount: '0.00',
+        pago_iu_amount: '0.00',
+        total_amount: '1500.00',
+        difference_amount: '0.00',
+      },
+    )
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const headerTextBefore = wrapper.find('[data-testid="payment-group-header"]').text()
+
+    const toggle = wrapper.findComponent(VSwitch)
+    await toggle.vm.$emit('update:modelValue', true)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Ada Lovelace')
+    expect(wrapper.text()).toContain('Grace Hopper')
+    expect(wrapper.find('[data-testid="payment-group-header"]').text()).toBe(headerTextBefore)
   })
 
   it('hides the summary cards once the batch is already paid, but keeps the table and "Pagar todos"', async () => {
