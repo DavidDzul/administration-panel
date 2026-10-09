@@ -60,6 +60,16 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   snapshot_scholarship_type: 'IU',
   base_amount: '1000.00',
   snapshot_monto_apoyo: null,
+  payment_batch_id: null,
+  status: 'DRAFT',
+  snapshot_generation: 'Generación 9',
+  snapshot_generation_id: 9,
+  snapshot_gross_amount: '1000.00',
+  discount_percentage: '0',
+  snapshot_discount_percentage: null,
+  final_amount: '1000.00',
+  amount_pending_from_previous: '0.00',
+  refund_amount_from_previous: '0.00',
   ...overrides,
 })
 
