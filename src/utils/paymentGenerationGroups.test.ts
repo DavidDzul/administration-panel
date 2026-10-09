@@ -91,7 +91,7 @@ describe('buildGroupHeaders — unpaid batch', () => {
 
     const headers = buildGroupHeaders(rows, false)
 
-    expect(headers.get('Generación 9')).toBe('Generación 9 — 2 becarios (1 listos) — $1,000.00 a pagar')
+    expect(headers.get('Generación 9')).toBe('Generación 9 — 2 becarios (1 listo) — $1,000.00 a pagar')
   })
 
   it('excludes non-payable rows from the payable total', () => {
@@ -111,7 +111,7 @@ describe('buildGroupHeaders — unpaid batch', () => {
 
     const headers = buildGroupHeaders(rows, false)
 
-    expect(headers.get(NO_GENERATION_KEY)).toBe('Sin generación — 1 becario (1 listos) — $400.00 a pagar')
+    expect(headers.get(NO_GENERATION_KEY)).toBe('Sin generación — 1 becario (1 listo) — $400.00 a pagar')
   })
 })
 
@@ -126,7 +126,7 @@ describe('buildGroupHeaders — paid batch', () => {
 
     const header = headers.get('Generación 9')
     expect(header).toBe('Generación 9 — 2 becarios — $1,500.00 pagado')
-    expect(header).not.toContain('listos')
+    expect(header).not.toContain('listo')
     expect(header).not.toContain('$0.00 a pagar')
   })
 

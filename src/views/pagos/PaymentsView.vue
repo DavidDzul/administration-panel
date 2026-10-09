@@ -88,7 +88,12 @@
 
     <v-row>
       <v-col cols="12">
-        <PaymentBatchTable :rows="visibleRows" @view="onViewDocument" />
+        <PaymentBatchTable
+          :rows="visibleRows"
+          :group-source-rows="rows"
+          :is-paid="isPaid"
+          @view="onViewDocument"
+        />
       </v-col>
     </v-row>
   </template>
@@ -125,6 +130,7 @@ const {
   periodYear,
   periodMonth,
   filteredCampus,
+  rows,
   visibleRows,
   showOnlyPending,
   summary,
@@ -173,7 +179,10 @@ const onViewDocument = (refrendId: number): void => {
 // The table receives `visibleRows`, never raw `rows`, but `summary`/
 // `canProcess` above stay wired to the composable's full-batch values, so
 // this toggle can never hide a still-blocking row from the "Pagar todos"
-// gate.
+// gate. Same reasoning extends to the generación group headers
+// (sdd/lotes-pago-generacion-desglose): `group-source-rows` below is always
+// the FULL `rows`, never `visibleRows`, so toggling this filter can never
+// change a group header's count/sum — only which rows render under it.
 
 // Once the batch is paid, the ready/blocking/total-amount cards no longer
 // mean anything actionable — user-requested cleanup. The table, "Pagar

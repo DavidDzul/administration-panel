@@ -63,11 +63,31 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   ...overrides,
 })
 
-const mountTable = (rows: PaymentBatchRow[]) =>
+interface MountTableOptions {
+  groupSourceRows?: PaymentBatchRow[]
+  isPaid?: boolean
+}
+
+const mountTable = (rows: PaymentBatchRow[], options: MountTableOptions = {}) =>
   mount(PaymentBatchTable, {
-    props: { rows },
+    props: {
+      rows,
+      groupSourceRows: options.groupSourceRows ?? rows,
+      isPaid: options.isPaid ?? false,
+    },
     global: { plugins: [vuetify] },
   })
+
+// Vuetify's native groupBy inserts a "group-header" row (rendered via our own
+// #group-header slot, tagged data-testid="payment-group-header") ahead of
+// each generación's rows. Every pre-existing positional `tbody tr`/`td`
+// lookup in this file predates grouping and must skip those header rows —
+// this helper is the single place that excludes them, so the ~22 existing
+// `cells[cells.length - N]` assertions below keep working unchanged (they
+// already index from the END of a row's own cells, which grouping doesn't
+// affect).
+const dataRows = (wrapper: ReturnType<typeof mountTable>) =>
+  wrapper.findAll('tbody tr').filter((tr) => tr.attributes('data-testid') !== 'payment-group-header')
 
 describe('PaymentBatchTable', () => {
   afterEach(() => {
@@ -103,7 +123,7 @@ describe('PaymentBatchTable', () => {
 
     expect(wrapper.text()).toContain('Incidencia registrada')
 
-    const rows = wrapper.findAll('tbody tr')
+    const rows = dataRows(wrapper)
     expect(rows[0].text()).toContain('Incidencia registrada')
     expect(rows[1].text()).not.toContain('Incidencia registrada')
   })
@@ -114,7 +134,7 @@ describe('PaymentBatchTable', () => {
       buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', has_pending_from_previous: false }),
     ])
 
-    const rows = wrapper.findAll('tbody tr')
+    const rows = dataRows(wrapper)
     expect(rows[0].text()).toContain('Incluye mes retenido')
     expect(rows[1].text()).not.toContain('Incluye mes retenido')
   })
@@ -128,13 +148,48 @@ describe('PaymentBatchTable', () => {
     expect(wrapper.text()).not.toContain('Incluye mes retenido')
   })
 
-  it('emits "view" with the refrend_id instead of navigating when "Ver" is clicked', async () => {
+  // ── Becario name opens the payment document (spec: "Becario name opens
+  // the payment document") — the standalone "Ver" column/button is removed;
+  // the name itself is now the trigger.
+
+  it('removes the standalone "Ver" column entirely', () => {
     const wrapper = mountTable([buildRow({ refrend_id: 7 })])
 
-    const viewButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Ver')
-    await viewButton?.trigger('click')
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    expect(headers).not.toContain('Ver')
+    expect(wrapper.findAllComponents(VBtn).some((b) => b.text() === 'Ver')).toBe(false)
+  })
+
+  it('renders the becario name as a native button styled as a link, with an explicit aria-label', () => {
+    const wrapper = mountTable([buildRow({ refrend_id: 7, snapshot_name: 'Ada Lovelace' })])
+
+    const nameButton = wrapper.find('button.payment-name-link')
+    expect(nameButton.exists()).toBe(true)
+    expect(nameButton.attributes('type')).toBe('button')
+    expect(nameButton.attributes('aria-label')).toBe('Ver documento de pago de Ada Lovelace')
+    expect(nameButton.text()).toBe('Ada Lovelace')
+  })
+
+  it('emits "view" with the refrend_id when the becario name is clicked', async () => {
+    const wrapper = mountTable([buildRow({ refrend_id: 7 })])
+
+    const nameButton = wrapper.find('button.payment-name-link')
+    await nameButton.trigger('click')
 
     expect(wrapper.emitted('view')).toEqual([[7]])
+  })
+
+  // jsdom does not synthesize a click from Enter/Space the way a real browser
+  // does for a native <button> (design's testing-strategy note) — so Enter/
+  // Space keyboard activation is covered structurally: asserting the element
+  // is a real `<button type="button">` (above) is what guarantees the
+  // browser's built-in Enter/Space-triggers-click behavior applies here,
+  // rather than attempting to fake that native behavior inside jsdom.
+  it('is a real button element (not a div/span with a click handler), guaranteeing native Enter/Space activation', () => {
+    const wrapper = mountTable([buildRow({ refrend_id: 8 })])
+
+    const nameButton = wrapper.find('button.payment-name-link')
+    expect(nameButton.element.tagName).toBe('BUTTON')
   })
 
   it('shows the blocking reasons in the "Motivo" column, not under the Estado chip', () => {
@@ -146,9 +201,9 @@ describe('PaymentBatchTable', () => {
       }),
     ])
 
-    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-    const estadoCell = cells[cells.length - 3]
-    const motivoCell = cells[cells.length - 2]
+    const cells = dataRows(wrapper)[0].findAll('td')
+    const estadoCell = cells[cells.length - 2]
+    const motivoCell = cells[cells.length - 1]
 
     expect(estadoCell.text()).not.toContain('Sin matrícula registrada')
     expect(motivoCell.text()).toContain('Sin matrícula registrada')
@@ -157,8 +212,8 @@ describe('PaymentBatchTable', () => {
   it('shows a dash in "Motivo" for a payable row with nothing to report', () => {
     const wrapper = mountTable([buildRow({ refrend_id: 3, is_payable: true, blocking_reasons: [] })])
 
-    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-    const motivoCell = cells[cells.length - 2]
+    const cells = dataRows(wrapper)[0].findAll('td')
+    const motivoCell = cells[cells.length - 1]
 
     expect(motivoCell.text()).toBe('—')
   })
@@ -172,8 +227,8 @@ describe('PaymentBatchTable', () => {
       }),
     ])
 
-    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-    const motivoCell = cells[cells.length - 2]
+    const cells = dataRows(wrapper)[0].findAll('td')
+    const motivoCell = cells[cells.length - 1]
 
     expect(motivoCell.text()).toContain('Pago ya realizado')
     expect(motivoCell.find('.text-error').exists()).toBe(false)
@@ -191,8 +246,8 @@ describe('PaymentBatchTable', () => {
       }),
     ])
 
-    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-    const motivoCell = cells[cells.length - 2]
+    const cells = dataRows(wrapper)[0].findAll('td')
+    const motivoCell = cells[cells.length - 1]
 
     expect(motivoCell.find('.text-error').exists()).toBe(true)
   })
@@ -344,9 +399,9 @@ describe('PaymentBatchTable', () => {
         }),
       ])
 
-      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-      const estadoCell = cells[cells.length - 3]
-      const motivoCell = cells[cells.length - 2]
+      const cells = dataRows(wrapper)[0].findAll('td')
+      const estadoCell = cells[cells.length - 2]
+      const motivoCell = cells[cells.length - 1]
 
       expect(estadoCell.text()).toContain('Bloqueado')
       expect(motivoCell.text()).toContain('Sin matrícula registrada')
@@ -429,9 +484,9 @@ describe('PaymentBatchTable', () => {
         }),
       ])
 
-      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-      const estadoCell = cells[cells.length - 3]
-      const motivoCell = cells[cells.length - 2]
+      const cells = dataRows(wrapper)[0].findAll('td')
+      const estadoCell = cells[cells.length - 2]
+      const motivoCell = cells[cells.length - 1]
 
       expect(estadoCell.text()).toContain('Bloqueado')
       expect(motivoCell.text()).toContain('Sin matrícula registrada')
@@ -559,8 +614,8 @@ describe('PaymentBatchTable', () => {
         }),
       ])
 
-      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-      const estadoCell = cells[cells.length - 3]
+      const cells = dataRows(wrapper)[0].findAll('td')
+      const estadoCell = cells[cells.length - 2]
 
       expect(estadoCell.text()).toContain('Listo')
       expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
@@ -665,13 +720,190 @@ describe('PaymentBatchTable', () => {
         }),
       ])
 
-      const cells = wrapper.findAll('tbody tr')[0].findAll('td')
-      const estadoCell = cells[cells.length - 3]
-      const motivoCell = cells[cells.length - 2]
+      const cells = dataRows(wrapper)[0].findAll('td')
+      const estadoCell = cells[cells.length - 2]
+      const motivoCell = cells[cells.length - 1]
 
       expect(estadoCell.text()).toContain('Bloqueado')
       expect(motivoCell.text()).toContain('Sin matrícula registrada')
       expect(wrapper.find('[data-testid="temporary-increase-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // ── Breakdown columns per scholarship type (sdd/lotes-pago-generacion-
+  // desglose, spec "Breakdown columns rendered per scholarship type") ──────
+
+  describe('breakdown columns per scholarship type', () => {
+    it('IU row: Monto mensual = gross − apoyo − aumento temporal, Pago IU is a dash', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_scholarship_type: 'IU',
+          snapshot_gross_amount: '1000.00',
+          snapshot_monto_apoyo: '100.00',
+          snapshot_temporary_increase_amount: '50.00',
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('$850.00')
+      expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('—')
+    })
+
+    it('TELMEX_IU row: Pago IU = gross − aumento temporal, Monto mensual is a dash', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_scholarship_type: 'TELMEX_IU',
+          snapshot_gross_amount: '1000.00',
+          snapshot_temporary_increase_amount: '50.00',
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('$950.00')
+      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('—')
+    })
+
+    it('TELMEX row with a frozen temporary increase: both Monto mensual and Pago IU are dashes', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_scholarship_type: 'TELMEX',
+          snapshot_temporary_increase_amount: '500.00',
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('—')
+      expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('—')
+    })
+
+    it('Apoyo shows the formatted amount, or a dash when 0 or null', () => {
+      const withApoyo = mountTable([buildRow({ snapshot_monto_apoyo: '100.00' })])
+      expect(withApoyo.find('[data-testid="cell-support-amount"]').text()).toBe('$100.00')
+
+      const withoutApoyo = mountTable([buildRow({ snapshot_monto_apoyo: null })])
+      expect(withoutApoyo.find('[data-testid="cell-support-amount"]').text()).toBe('—')
+    })
+
+    it('Base shows snapshot_gross_amount with a "−X%" second line when discounted', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_gross_amount: '1000.00', snapshot_discount_percentage: '10' }),
+      ])
+
+      const baseCell = wrapper.find('[data-testid="cell-base-amount"]')
+      expect(baseCell.text()).toContain('$1,000.00')
+      expect(baseCell.text()).toContain('−10%')
+    })
+
+    it('Base falls back to base_amount and shows no second line when there is no discount', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_gross_amount: null, base_amount: '750.00', snapshot_discount_percentage: null }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-base-amount"]').text()).toBe('$750.00')
+    })
+
+    it('Desc.% renders in red only when the discount is positive, "—" at 0', () => {
+      const withDiscount = mountTable([buildRow({ discount_percentage: '15' })])
+      const discountCell = withDiscount.find('[data-testid="cell-discount-percent"]')
+      expect(discountCell.text()).toBe('15%')
+      expect(discountCell.classes()).toContain('text-error')
+
+      const withoutDiscount = mountTable([buildRow({ discount_percentage: '0' })])
+      const noDiscountCell = withoutDiscount.find('[data-testid="cell-discount-percent"]')
+      expect(noDiscountCell.text()).toBe('—')
+      expect(noDiscountCell.classes()).not.toContain('text-error')
+    })
+
+    it('Final shows only final_amount when there are no adjustments', () => {
+      const wrapper = mountTable([
+        buildRow({
+          final_amount: '900.00',
+          amount_pending_from_previous: '0.00',
+          refund_amount_from_previous: '0.00',
+          advance_payment_amount: '0.00',
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-final-amount"]').text()).toBe('$900.00')
+    })
+
+    it('Final shows final_amount plus one line per non-zero adjustment, all together, in a fixed order', () => {
+      const wrapper = mountTable([
+        buildRow({
+          final_amount: '900.00',
+          amount_pending_from_previous: '100.00',
+          refund_amount_from_previous: '50.00',
+          advance_payment_amount: '25.00',
+        }),
+      ])
+
+      const text = wrapper.find('[data-testid="cell-final-amount"]').text()
+      expect(text).toContain('$900.00')
+      const retIndex = text.indexOf('ret.')
+      const reembIndex = text.indexOf('reemb.')
+      const adelantoIndex = text.indexOf('adelanto')
+      expect(retIndex).toBeGreaterThan(-1)
+      expect(reembIndex).toBeGreaterThan(retIndex)
+      expect(adelantoIndex).toBeGreaterThan(reembIndex)
+    })
+
+    it('Total a pagar uses the same es-MX money format as the breakdown columns', () => {
+      const wrapper = mountTable([buildRow({ total_to_pay: '12345.60' })])
+
+      expect(wrapper.find('[data-testid="cell-total-to-pay"]').text()).toBe('$12,345.60')
+    })
+  })
+
+  // ── Rows grouped by generación (sdd/lotes-pago-generacion-desglose, spec
+  // "Rows grouped by generación with paid/unpaid header") ─────────────────
+
+  describe('rows grouped by generación', () => {
+    it('renders a group header with the generación label, count, and payable amount for an unpaid batch', () => {
+      const rows = [
+        buildRow({ refrend_id: 1, snapshot_generation: 'Generación 9', is_payable: true, total_to_pay: '1000.00' }),
+        buildRow({ refrend_id: 2, snapshot_generation: 'Generación 9', is_payable: false, total_to_pay: '500.00' }),
+      ]
+      const wrapper = mountTable(rows, { groupSourceRows: rows, isPaid: false })
+
+      const header = wrapper.find('[data-testid="payment-group-header"]')
+      expect(header.exists()).toBe(true)
+      expect(header.text()).toContain('Generación 9 — 2 becarios (1 listo) — $1,000.00 a pagar')
+    })
+
+    it('renders "Sin generación" for rows with a null snapshot_generation', () => {
+      const rows = [buildRow({ snapshot_generation: null })]
+      const wrapper = mountTable(rows, { groupSourceRows: rows })
+
+      expect(wrapper.find('[data-testid="payment-group-header"]').text()).toContain('Sin generación')
+    })
+
+    it('renders the paid-batch header text, never "(M listos)" nor "$0.00 a pagar"', () => {
+      const rows = [
+        buildRow({ refrend_id: 1, payment_batch_id: 42, status: 'PAID', total_to_pay: '1000.00' }),
+        buildRow({ refrend_id: 2, payment_batch_id: null, status: 'PAID', total_to_pay: '500.00' }),
+      ]
+      const wrapper = mountTable(rows, { groupSourceRows: rows, isPaid: true })
+
+      const headerText = wrapper.find('[data-testid="payment-group-header"]').text()
+      expect(headerText).toContain('Generación 9 — 2 becarios — $1,500.00 pagado')
+      expect(headerText).not.toContain('listo')
+      expect(headerText).not.toContain('$0.00 a pagar')
+    })
+
+    it('computes group header counts/sums from groupSourceRows, not from the (possibly filtered) rows prop', () => {
+      const fullBatch = [
+        buildRow({ refrend_id: 1, is_payable: true, total_to_pay: '1000.00' }),
+        buildRow({ refrend_id: 2, is_payable: false, total_to_pay: '500.00' }),
+      ]
+      // Simulates "Solo pendientes de revisar" narrowing `rows` down to only
+      // the blocked row, while `groupSourceRows` still carries the full batch.
+      const wrapper = mountTable([fullBatch[1]], { groupSourceRows: fullBatch, isPaid: false })
+
+      const headerText = wrapper.find('[data-testid="payment-group-header"]').text()
+      expect(headerText).toContain('Generación 9 — 2 becarios (1 listo) — $1,000.00 a pagar')
+    })
+
+    it('falls back to the generación label alone when the group is absent from groupSourceRows', () => {
+      const wrapper = mountTable([buildRow({ snapshot_generation: 'Generación 9' })], { groupSourceRows: [] })
+
+      expect(wrapper.find('[data-testid="payment-group-header"]').text()).toBe('Generación 9')
     })
   })
 })

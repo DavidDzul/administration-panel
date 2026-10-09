@@ -1,6 +1,88 @@
 <template>
-  <v-data-table :headers="headers" :items="rows" :loading="loading" item-value="refrend_id" class="elevation-1">
-    <template #[`item.total_to_pay`]="{ item }"> ${{ item.total_to_pay }} </template>
+  <v-data-table
+    :headers="headers"
+    :items="groupedItems"
+    :group-by="groupBy"
+    open-all
+    disable-sort
+    density="compact"
+    fixed-header
+    height="70vh"
+    :items-per-page="-1"
+    :loading="loading"
+    item-value="refrend_id"
+    class="elevation-1"
+  >
+    <template #group-header="{ item, columns, toggleGroup, isGroupOpen }">
+      <tr data-testid="payment-group-header" class="payment-group-header-row">
+        <td :colspan="columns.length">
+          <v-btn
+            size="small"
+            variant="text"
+            density="comfortable"
+            :icon="isGroupOpen(item) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+            :aria-label="isGroupOpen(item) ? 'Contraer' : 'Expandir'"
+            @click="toggleGroup(item)"
+          />
+          <span class="font-weight-medium">{{ groupHeaderText(item.value as string) }}</span>
+        </td>
+      </tr>
+    </template>
+
+    <template #[`item.snapshot_name`]="{ item }">
+      <button
+        type="button"
+        class="payment-name-link"
+        :aria-label="`Ver documento de pago de ${item.snapshot_name}`"
+        @click="onView(item.refrend_id)"
+      >
+        {{ item.snapshot_name }}
+      </button>
+    </template>
+
+    <template #[`item.monthly_amount`]="{ item }">
+      <span data-testid="cell-monthly-amount">{{ monthlyAmount(item) }}</span>
+    </template>
+
+    <template #[`item.support_amount`]="{ item }">
+      <span data-testid="cell-support-amount">{{ amountOrDash(item.snapshot_monto_apoyo) }}</span>
+    </template>
+
+    <template #[`item.iu_payment_amount`]="{ item }">
+      <span data-testid="cell-iu-payment-amount">{{ iuPaymentAmount(item) }}</span>
+    </template>
+
+    <template #[`item.breakdown_base_amount`]="{ item }">
+      <div data-testid="cell-base-amount">
+        <div>{{ baseAmount(item) }}</div>
+        <div v-if="baseDiscountNote(item)" class="text-caption text-medium-emphasis">
+          {{ baseDiscountNote(item) }}
+        </div>
+      </div>
+    </template>
+
+    <template #[`item.discount_percent`]="{ item }">
+      <span data-testid="cell-discount-percent" :class="discountPercent(item).isPositive ? 'text-error' : undefined">
+        {{ discountPercent(item).text }}
+      </span>
+    </template>
+
+    <template #[`item.final_breakdown_amount`]="{ item }">
+      <div data-testid="cell-final-amount">
+        <div>{{ formatAmount(item.final_amount) }}</div>
+        <div
+          v-for="adjustment in finalAdjustments(item)"
+          :key="adjustment.label"
+          class="text-caption text-medium-emphasis"
+        >
+          + {{ adjustment.label }} {{ adjustment.amount }}
+        </div>
+      </div>
+    </template>
+
+    <template #[`item.total_to_pay`]="{ item }">
+      <span data-testid="cell-total-to-pay">{{ formatAmount(item.total_to_pay) }}</span>
+    </template>
 
     <template #[`item.account_number`]="{ item }">
       {{ maskAccountNumber(item.account_number) }}
@@ -146,13 +228,9 @@
       <span v-else>—</span>
     </template>
 
-    <template #[`item.actions`]="{ item }">
-      <v-btn variant="text" color="warning" density="comfortable" size="small" @click="onView(item.refrend_id)">
-        Ver
-      </v-btn>
-    </template>
-
     <template #no-data>No hay becarios en este lote</template>
+
+    <template #bottom></template>
   </v-data-table>
 </template>
 
@@ -187,6 +265,7 @@
 // ONLY from `snapshot_temporary_increase_amount`/`_reason` (never
 // `has_incident` or any incident-related field), and it too must never
 // displace or be displaced by any other chip in this column.
+import { computed } from 'vue'
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
 import {
@@ -196,15 +275,34 @@ import {
 } from '@/utils/advancePaymentMeta'
 import { telmexExportExclusionChip } from '@/utils/telmexExportMeta'
 import { temporaryIncreaseChip } from '@/utils/temporaryIncreaseMeta'
+import {
+  amountOrDash,
+  baseAmount,
+  baseDiscountNote,
+  discountPercent,
+  finalAdjustments,
+  formatAmount,
+  iuPaymentAmount,
+  monthlyAmount,
+} from '@/utils/paymentBreakdownMeta'
+import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
 import type { PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
   rows?: PaymentBatchRow[]
+  // Full, unfiltered batch rows — used ONLY to compute group-header counts/
+  // sums (design D4). Deliberately a SEPARATE prop from `rows` (which may be
+  // the "Solo pendientes de revisar"-filtered subset): header text must
+  // never change when that filter is toggled (spec invariant).
+  groupSourceRows?: PaymentBatchRow[]
+  isPaid?: boolean
   loading?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   rows: () => [],
+  groupSourceRows: () => [],
+  isPaid: false,
   loading: false,
 })
 
@@ -214,15 +312,44 @@ interface Emits {
 
 const emit = defineEmits<Emits>()
 
+// "Total a pagar" stays the last money column, key/behavior unchanged
+// (spec) — only its title changed from the old bare "Monto" now that it
+// sits alongside five other money columns (Monto mensual/Apoyo/Pago IU/
+// Base/Final) instead of being the only one.
 const headers = [
+  // Declared explicitly (title '') so Vuetify doesn't auto-prepend its own
+  // "Group" column header once group-by is active.
+  { title: '', key: 'data-table-group' },
   { title: 'Nombre', key: 'snapshot_name' },
   { title: 'Cuenta', key: 'account_number' },
-  { title: 'Monto', key: 'total_to_pay' },
+  { title: 'Monto mensual', key: 'monthly_amount', width: 110, align: 'end' as const },
+  { title: 'Apoyo', key: 'support_amount', width: 90, align: 'end' as const },
+  { title: 'Pago IU', key: 'iu_payment_amount', width: 100, align: 'end' as const },
+  { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },
+  { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
+  { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },
+  { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },
-  { title: '', key: 'actions' },
 ]
+
+// Rows grouped by generación (spec "Rows grouped by generación with paid/
+// unpaid header", design D1/D3) — `toGroupedItems` maps each row to a
+// non-null `generation_group` sentinel key and pre-sorts the whole list
+// (numeric collator, sentinel last); `disable-sort` on the table relies on
+// this order being final.
+const groupedItems = computed(() => toGroupedItems(props.rows))
+const groupBy = [{ key: 'generation_group' }]
+
+// ALWAYS computed from `groupSourceRows` (the full batch), never from
+// `rows`/`groupedItems` — spec invariant: group counts/sums must not change
+// when "Solo pendientes de revisar" narrows what's rendered.
+const groupHeaders = computed(() => buildGroupHeaders(props.groupSourceRows, props.isPaid))
+
+// A group absent from `groupSourceRows` (e.g. a test that only sets `rows`)
+// falls back to the label alone (design's documented fallback).
+const groupHeaderText = (key: string): string => groupHeaders.value.get(key) ?? generationLabel(key)
 
 const onView = (refrendId: number): void => {
   emit('view', refrendId)
@@ -246,3 +373,32 @@ const resolutionAriaLabel = (row: PaymentBatchRow): string => {
 const isOnlyAlreadyPaid = (row: PaymentBatchRow): boolean =>
   row.blocking_reasons.length === 1 && row.blocking_reasons[0].code === 'ALREADY_PAID'
 </script>
+
+<style scoped>
+/* Becario name cell (spec "Becario name opens the payment document", design
+   D7) — a native <button> styled to read as a link, never navigates. */
+.payment-name-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: rgb(var(--v-theme-primary));
+  cursor: pointer;
+  text-align: left;
+}
+
+.payment-name-link:hover {
+  text-decoration: underline;
+}
+
+.payment-name-link:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.payment-group-header-row {
+  background-color: rgba(var(--v-theme-on-surface), 0.04);
+}
+</style>

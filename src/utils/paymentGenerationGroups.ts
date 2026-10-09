@@ -78,6 +78,8 @@ const formatAmount = (amount: number): string =>
 
 const becarioCount = (total: number): string => `${total} becario${total === 1 ? '' : 's'}`
 
+const readyCount = (ready: number): string => `${ready} listo${ready === 1 ? '' : 's'}`
+
 /**
  * Builds the group-header text for every generación present in
  * `sourceRows` — ALWAYS computed from the FULL batch rows, never a
@@ -120,7 +122,7 @@ export function buildGroupHeaders(sourceRows: GroupHeaderRowFields[], isPaid: bo
     const payableTotal = payableRows.reduce((sum, row) => sum + Number(row.total_to_pay), 0)
     headers.set(
       key,
-      `${label} — ${becarioCount(total)} (${payableRows.length} listos) — ${formatAmount(payableTotal)} a pagar`,
+      `${label} — ${becarioCount(total)} (${readyCount(payableRows.length)}) — ${formatAmount(payableTotal)} a pagar`,
     )
   }
 
