@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 // The real router imports the real authStore, which itself imports axios
@@ -21,6 +21,16 @@ vi.mock('@/stores/api/authStore', () => ({
 import router from '@/router'
 
 describe('router auth guard', () => {
+  // Navigation lazy-loads the real layout and view SFCs in parallel, and both
+  // import Vuetify. Vuetify is inlined for tests (vite.config.ts
+  // `test.server.deps.inline`), so its circularly-dependent modules are
+  // evaluated one by one; two concurrent first loads can see a
+  // half-evaluated module (`propsFactory is not a function`), which shows up
+  // under full-suite load. Evaluating Vuetify once, up front, removes the race.
+  beforeAll(async () => {
+    await import('vuetify/components')
+  })
+
   beforeEach(async () => {
     localStorage.clear()
     mockGetProfile.mockReset()
