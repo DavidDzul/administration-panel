@@ -75,7 +75,7 @@ const cardGroups = computed(() => {
   const s = props.summary
   if (!s) return []
 
-  return [
+  const groups = [
     {
       cols: 6,
       sm: 3,
@@ -111,6 +111,20 @@ const cardGroups = computed(() => {
       ],
     },
   ]
+
+  // "Adelanto Telmex" card (sdd/telmex-cobertura-iu PR5, task 5.6) — same
+  // conditional 4th row as PaymentBatchSummary.vue's copy: shown ONLY when
+  // telmex_coverage_amount is present and > 0, so the 3-row/10-card layout
+  // stays byte-identical for every generación without a covered row.
+  if (Number(s.telmex_coverage_amount ?? 0) > 0) {
+    groups.push({
+      cols: 12,
+      sm: 12,
+      cards: [card('Adelanto Telmex', formatAmount(s.telmex_coverage_amount as string), 'mdi-hand-coin-outline', 'teal')],
+    })
+  }
+
+  return groups
 })
 </script>
 

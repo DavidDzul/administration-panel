@@ -35,9 +35,9 @@ const buildCoverage = (overrides: Partial<TelmexCoverage> = {}): TelmexCoverage 
   end_period: '2026-03-01',
   notes: null,
   cancel_reason: null,
-  advanced: 1000,
-  repaid: 400,
-  balance: 600,
+  advanced: '1000.00',
+  repaid: '400.00',
+  balance: '600.00',
   has_paid_covered_month: true,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -110,7 +110,7 @@ describe('CancelCoverageDialog', () => {
   })
 
   it('shows a warning that the remaining balance will display as cancelled when balance > 0', async () => {
-    mountDialog({ modelValue: true, coverage: buildCoverage({ balance: 600 }) })
+    mountDialog({ modelValue: true, coverage: buildCoverage({ balance: '600.00' }) })
     await flushPromises()
 
     expect(body().text()).toContain('saldo')

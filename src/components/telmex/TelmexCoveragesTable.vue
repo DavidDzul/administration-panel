@@ -1,5 +1,17 @@
 <template>
   <v-data-table :headers="tableHeaders" :items="coverages" class="elevation-1" :loading="loading" item-value="id">
+    <template #[`item.becario_name`]="{ item }">
+      <button
+        type="button"
+        class="telmex-coverage-name-link"
+        data-testid="telmex-coverage-name-link"
+        :aria-label="`Ver detalle de cobertura Telmex de ${item.becario_name}`"
+        @click="router.push(`/becas-telmex/${item.id}`)"
+      >
+        {{ item.becario_name }}
+      </button>
+    </template>
+
     <template #[`item.campus`]="{ item }">
       {{ campusLabel(item.campus) }}
     </template>
@@ -91,9 +103,19 @@
 </template>
 
 <script setup lang="ts">
+// Becario name is a clickable link to the detail route (sdd/telmex-
+// cobertura-iu PR5, task 5.1, UX notes: "becario name as link, like
+// Lotes"). Styled as a link (mirrors PaymentBatchTable.vue's
+// `.payment-name-link` button), but NAVIGATES via router.push — unlike
+// Lotes' name link (which opens a dialog) — because PR5 introduces a real
+// routed detail view, mirroring AccesosTable.vue's eye-icon
+// `router.push` precedent instead.
+import { useRouter } from 'vue-router'
 import { campusMap } from '@/constants'
 import { telmexCoverageStatusMeta } from '@/utils/telmexCoverageStatusMeta'
 import type { TelmexCoverage, TelmexCoverageScholarshipType } from '@/interfaces/telmexCoverage'
+
+const router = useRouter()
 
 interface Props {
   coverages?: TelmexCoverage[]
@@ -137,6 +159,31 @@ const typeLabel = (type: TelmexCoverageScholarshipType): string => (type === 'TE
 // timezone-shift surprises on a date-only value.
 const formatPeriod = (period: string): string => `${period.slice(5, 7)}/${period.slice(0, 4)}`
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 </script>
+
+<style scoped>
+/* Becario name cell (PR5, task 5.1) — mirrors PaymentBatchTable.vue's
+   `.payment-name-link` button styling exactly, but this one navigates. */
+.telmex-coverage-name-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: rgb(var(--v-theme-primary));
+  cursor: pointer;
+  text-align: left;
+}
+
+.telmex-coverage-name-link:hover {
+  text-decoration: underline;
+}
+
+.telmex-coverage-name-link:focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+</style>

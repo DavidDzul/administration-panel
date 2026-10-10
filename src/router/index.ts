@@ -116,6 +116,11 @@ const routes = [
         name: 'TelmexCoveragesView',
         component: () => catchReload(import('@/views/telmex/TelmexCoveragesView.vue')),
       },
+      {
+        path: '/becas-telmex/:id',
+        name: 'TelmexCoverageDetailView',
+        component: () => catchReload(import('@/views/telmex/TelmexCoverageDetailView.vue')),
+      },
     ],
   },
   {

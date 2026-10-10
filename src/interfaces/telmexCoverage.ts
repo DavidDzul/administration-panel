@@ -24,9 +24,12 @@ export interface TelmexCoverage {
   end_period: string | null
   notes: string | null
   cancel_reason: string | null
-  advanced: number
-  repaid: number
-  balance: number
+  // Money comes from the API as 2-decimal strings (number_format), same
+  // convention as every money field in payment.ts — convert with Number()
+  // before comparing or doing arithmetic.
+  advanced: string
+  repaid: string
+  balance: string
   // Drives the REACTIVATE action's visibility client-side (decisions-2 #1921
   // dec3: reactivation allowed only if no covered month was ever paid). The
   // backend is the source of truth for the 422 guard; this flag only toggles
@@ -53,7 +56,7 @@ export interface EligibleTelmexBecario {
 export interface TelmexCoveragePayment {
   id: number
   coverage_id: number
-  amount: number
+  amount: string
   paid_at: string
   reference: string | null
   notes: string | null
@@ -68,6 +71,9 @@ export interface TelmexCoverageMonth {
   covered_amount: number
   is_paid: boolean
   payment_batch_id: number | null
+  // True when the covered month also paid a temporary increase (IU money,
+  // not part of the debt). Sent by GET telmex-coverages/{coverage}.
+  has_temporary_increase?: boolean
 }
 
 export interface TelmexCoverageStatement {
@@ -90,9 +96,12 @@ export interface CancelTelmexCoveragePayload {
   reason: string
 }
 
+// `paid_at` is OPTIONAL (confirmed against PR3b's final, implemented
+// contract: `POST {coverage}/payments {amount, paid_at?, reference?,
+// notes?}` — the server defaults it when omitted).
 export interface RegisterTelmexCoveragePaymentPayload {
   amount: number
-  paid_at: string
+  paid_at?: string
   reference?: string
   notes?: string
 }

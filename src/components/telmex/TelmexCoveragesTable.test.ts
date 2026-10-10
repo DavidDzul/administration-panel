@@ -1,10 +1,18 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { VBtn } from 'vuetify/components'
 import TelmexCoveragesTable from '@/components/telmex/TelmexCoveragesTable.vue'
 import type { TelmexCoverage } from '@/interfaces/telmexCoverage'
+
+// Mirrors AccesosTable.test.ts's `vi.mock('vue-router', ...)` pattern — the
+// becario-name link (sdd/telmex-cobertura-iu PR5, task 5.1) only needs
+// `push` to be observable, not real navigation.
+const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }))
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mockPush }),
+}))
 
 // v-data-table's pagination footer relies on ResizeObserver — same jsdom
 // shim as AccesosTable.test.ts / RolesTable.test.ts.
@@ -33,9 +41,9 @@ const buildCoverage = (overrides: Partial<TelmexCoverage> = {}): TelmexCoverage 
   end_period: null,
   notes: null,
   cancel_reason: null,
-  advanced: 1000,
-  repaid: 400,
-  balance: 600,
+  advanced: '1000.00',
+  repaid: '400.00',
+  balance: '600.00',
   has_paid_covered_month: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -142,5 +150,22 @@ describe('TelmexCoveragesTable — row actions gated on canManage and status', (
     })
 
     expect(wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-restore')).toHaveLength(0)
+  })
+})
+
+describe('TelmexCoveragesTable — becario name navigates to the detail route', () => {
+  beforeEach(() => {
+    mockPush.mockReset()
+  })
+
+  it('navigates to /becas-telmex/:id when the becario name is clicked', async () => {
+    const wrapper = mountTable({ coverages: [buildCoverage({ id: 42 })] })
+
+    const nameLink = wrapper.find('[data-testid="telmex-coverage-name-link"]')
+    expect(nameLink.exists()).toBe(true)
+
+    await nameLink.trigger('click')
+
+    expect(mockPush).toHaveBeenCalledWith('/becas-telmex/42')
   })
 })
