@@ -86,4 +86,11 @@ export const PERMISSIONS = {
   // the existing permission is scoped "de un becario"; this is a single
   // org-wide value with a different blast radius.
   MANAGE_SCHOLARSHIP_SETTINGS: 'ADM_MANAGE_SCHOLARSHIP_SETTINGS',
+  // Becas Telmex section (design #1920 API table, sdd/telmex-cobertura-iu) —
+  // read/manage-coverage/manage-repayments split, independently enforced per
+  // spec's "Permissions" requirement. Names must match the seeder PR3b will
+  // add (`Permission::updateOrCreate` under module "Becas Telmex").
+  READ_TELMEX_COVERAGE: 'ADM_READ_TELMEX_COVERAGE',
+  MANAGE_TELMEX_COVERAGE: 'ADM_MANAGE_TELMEX_COVERAGE',
+  MANAGE_TELMEX_REPAYMENTS: 'ADM_MANAGE_TELMEX_REPAYMENTS',
 } as const

@@ -111,6 +111,11 @@ const routes = [
         name: 'ScholarshipSettingsView',
         component: () => catchReload(import('@/views/configuracion/ScholarshipSettingsView.vue')),
       },
+      {
+        path: '/becas-telmex',
+        name: 'TelmexCoveragesView',
+        component: () => catchReload(import('@/views/telmex/TelmexCoveragesView.vue')),
+      },
     ],
   },
   {

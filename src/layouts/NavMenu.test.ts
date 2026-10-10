@@ -25,6 +25,7 @@ const router = createRouter({
     { path: '/control/becas', component: { template: '<div />' } },
     { path: '/pagos', component: { template: '<div />' } },
     { path: '/pagos/por-generacion', component: { template: '<div />' } },
+    { path: '/becas-telmex', component: { template: '<div />' } },
   ],
 })
 
@@ -196,5 +197,48 @@ describe('NavMenu — top-level order', () => {
     expect(inicioIdx).toBeLessThan(usuariosIdx)
     expect(usuariosIdx).toBeLessThan(pagosIdx)
     expect(pagosIdx).toBeLessThan(controlIdx)
+  })
+})
+
+// sdd/telmex-cobertura-iu, PR4: "Becas Telmex" top-level group, gated on
+// ADM_READ_TELMEX_COVERAGE — peer to "Pagos" (operational work on becarios),
+// not nested under "Control" (administration-of-the-administration).
+describe('NavMenu — "Becas Telmex" group gating on ADM_READ_TELMEX_COVERAGE', () => {
+  beforeEach(() => {
+    mockPermissions.value = []
+  })
+
+  it('shows "Becas Telmex" when the user holds ADM_READ_TELMEX_COVERAGE', async () => {
+    mockPermissions.value = ['ADM_READ_TELMEX_COVERAGE']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Becas Telmex')
+  })
+
+  it('hides "Becas Telmex" when the user lacks ADM_READ_TELMEX_COVERAGE', async () => {
+    mockPermissions.value = []
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).not.toContain('Becas Telmex')
+  })
+
+  it('orders "Becas Telmex" after "Pagos" and before "Control"', async () => {
+    mockPermissions.value = [
+      'ADM_READ_PAYMENTS',
+      'ADM_READ_TELMEX_COVERAGE',
+      'ADM_READ_ROLES',
+    ]
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    const text = wrapper.text()
+    const pagosIdx = text.indexOf('Pagos')
+    const becasTelmexIdx = text.indexOf('Becas Telmex')
+    const controlIdx = text.indexOf('Control')
+
+    expect(pagosIdx).toBeLessThan(becasTelmexIdx)
+    expect(becasTelmexIdx).toBeLessThan(controlIdx)
   })
 })
