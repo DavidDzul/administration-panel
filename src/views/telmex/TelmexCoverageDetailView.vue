@@ -86,7 +86,7 @@
   <RegisterRepaymentDialog
     v-model="registerDialogOpen"
     :coverage-id="coverage?.id ?? null"
-    :balance="coverage?.balance ?? 0"
+    :balance="coverage?.balance ?? '0'"
     @registered="onRegistered"
   />
   <VoidRepaymentDialog
@@ -137,7 +137,7 @@ const periodLabel = computed(() => {
   return `${formatPeriod(c.start_period)} — ${c.end_period ? formatPeriod(c.end_period) : 'Presente'}`
 })
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 
 const registerDialogOpen = ref(false)

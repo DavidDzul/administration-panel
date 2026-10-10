@@ -159,7 +159,7 @@ const typeLabel = (type: TelmexCoverageScholarshipType): string => (type === 'TE
 // timezone-shift surprises on a date-only value.
 const formatPeriod = (period: string): string => `${period.slice(5, 7)}/${period.slice(0, 4)}`
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 </script>
 

@@ -27,7 +27,7 @@ const body = () => new DOMWrapper(document.body)
 const buildPayment = (overrides: Partial<TelmexCoveragePayment> = {}): TelmexCoveragePayment => ({
   id: 9,
   coverage_id: 5,
-  amount: 300,
+  amount: '300.00',
   paid_at: '2026-02-01',
   reference: 'DEP-002',
   notes: null,
@@ -75,7 +75,7 @@ describe('VoidRepaymentDialog', () => {
   })
 
   it('shows the payment amount being voided', async () => {
-    mountDialog({ payment: buildPayment({ amount: 300 }) })
+    mountDialog({ payment: buildPayment({ amount: '300.00' }) })
     await flushPromises()
 
     expect(body().text()).toContain('$300.00')

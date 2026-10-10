@@ -73,7 +73,7 @@ import type { TelmexCoveragePayment, RegisterTelmexCoveragePaymentPayload } from
 interface Props {
   modelValue: boolean
   coverageId: number | null
-  balance: number
+  balance: string
 }
 
 const props = defineProps<Props>()
@@ -98,9 +98,9 @@ const notes = ref('')
 const amountRequiredRule = (v: unknown): true | string => (Number(v) > 0 ? true : 'El monto debe ser mayor a 0.')
 
 const amountMaxRule = (v: unknown): true | string =>
-  Number(v) <= props.balance || `El monto no puede exceder el saldo pendiente (${formatCurrency(props.balance)}).`
+  Number(v) <= Number(props.balance) || `El monto no puede exceder el saldo pendiente (${formatCurrency(props.balance)}).`
 
-const formatCurrency = (value: number): string =>
+const formatCurrency = (value: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value))
 
 const resetForm = (): void => {

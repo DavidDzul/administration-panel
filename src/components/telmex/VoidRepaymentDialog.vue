@@ -79,7 +79,7 @@ const minLengthRule = (v: unknown): true | string =>
 const maxLengthRule = (v: unknown): true | string =>
   String(v ?? '').length <= 500 || 'El motivo no puede exceder 500 caracteres.'
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 
 const formatPeriod = (date: string): string => `${date.slice(5, 7)}/${date.slice(0, 4)}`

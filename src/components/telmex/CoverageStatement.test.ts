@@ -32,7 +32,7 @@ const buildMonth = (overrides: Partial<TelmexCoverageMonth> = {}): TelmexCoverag
 const buildPayment = (overrides: Partial<TelmexCoveragePayment> = {}): TelmexCoveragePayment => ({
   id: 1,
   coverage_id: 5,
-  amount: 400,
+  amount: '400.00',
   paid_at: '2026-02-01',
   reference: 'DEP-001',
   notes: 'Primer abono',
@@ -105,7 +105,7 @@ describe('CoverageStatement — months table', () => {
 describe('CoverageStatement — payments table', () => {
   it('renders fecha, monto, referencia and notas', () => {
     const wrapper = mountStatement({
-      payments: [buildPayment({ paid_at: '2026-02-15', amount: 400, reference: 'DEP-001', notes: 'Primer abono' })],
+      payments: [buildPayment({ paid_at: '2026-02-15', amount: '400.00', reference: 'DEP-001', notes: 'Primer abono' })],
     })
 
     expect(wrapper.text()).toContain('$400.00')

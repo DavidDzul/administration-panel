@@ -20,7 +20,7 @@
               <p class="text-body-2">
                 Becario: <strong>{{ coverage.becario_name }}</strong>
               </p>
-              <v-alert v-if="coverage.balance > 0" type="warning" variant="tonal" density="compact">
+              <v-alert v-if="Number(coverage.balance) > 0" type="warning" variant="tonal" density="compact">
                 Esta cobertura tiene un saldo pendiente de {{ formatCurrency(coverage.balance) }}. Al cancelar, el
                 saldo se mostrará como cancelado, no como deuda activa.
               </v-alert>
@@ -85,7 +85,7 @@ const minLengthRule = (v: unknown): true | string =>
 const maxLengthRule = (v: unknown): true | string =>
   String(v ?? '').length <= 500 || 'El motivo no puede exceder 500 caracteres.'
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 
 const resetForm = (): void => {

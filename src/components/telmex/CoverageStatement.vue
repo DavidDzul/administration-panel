@@ -162,6 +162,6 @@ const canVoidPayment = (payment: TelmexCoveragePayment): boolean =>
 // surprises on a date-only value.
 const formatPeriod = (date: string): string => `${date.slice(5, 7)}/${date.slice(0, 4)}`
 
-const formatCurrency = (amount: number): string =>
+const formatCurrency = (amount: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 </script>

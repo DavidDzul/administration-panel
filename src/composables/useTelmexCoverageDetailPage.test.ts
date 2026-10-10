@@ -40,9 +40,9 @@ const buildStatement = (overrides: Partial<TelmexCoverageStatement> = {}): Telme
     end_period: '2026-03-01',
     notes: null,
     cancel_reason: null,
-    advanced: 1000,
-    repaid: 400,
-    balance: 600,
+    advanced: '1000.00',
+    repaid: '400.00',
+    balance: '600.00',
     has_paid_covered_month: true,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
@@ -52,7 +52,7 @@ const buildStatement = (overrides: Partial<TelmexCoverageStatement> = {}): Telme
     {
       id: 1,
       coverage_id: 5,
-      amount: 400,
+      amount: '400.00',
       paid_at: '2026-02-01',
       reference: 'DEP-001',
       notes: null,
@@ -155,7 +155,7 @@ describe('useTelmexCoverageDetailPage', () => {
   it('refresh() re-fetches the statement for the current route id', async () => {
     const firstStatement = buildStatement()
     const secondStatement = buildStatement({
-      coverage: { ...firstStatement.coverage, repaid: 600, balance: 400 },
+      coverage: { ...firstStatement.coverage, repaid: '600.00', balance: '400.00' },
     })
     const store = useTelmexCoverageStore()
     const fetchSpy = vi
@@ -167,11 +167,11 @@ describe('useTelmexCoverageDetailPage', () => {
     const result = withSetup(() => useTelmexCoverageDetailPage(), router)
     await flushPromises()
 
-    expect(result.coverage.value?.balance).toBe(600)
+    expect(result.coverage.value?.balance).toBe('600.00')
 
     await result.refresh()
 
     expect(fetchSpy).toHaveBeenCalledTimes(2)
-    expect(result.coverage.value?.balance).toBe(400)
+    expect(result.coverage.value?.balance).toBe('400.00')
   })
 })

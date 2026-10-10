@@ -27,9 +27,9 @@ const vuetify = createVuetify()
 
 const body = () => new DOMWrapper(document.body)
 
-const mountDialog = (props: { modelValue?: boolean; coverageId?: number | null; balance?: number } = {}) =>
+const mountDialog = (props: { modelValue?: boolean; coverageId?: number | null; balance?: string } = {}) =>
   mount(RegisterRepaymentDialog, {
-    props: { modelValue: true, coverageId: 5, balance: 600, ...props },
+    props: { modelValue: true, coverageId: 5, balance: '600.00', ...props },
     global: { plugins: [vuetify] },
   })
 
@@ -62,7 +62,7 @@ describe('RegisterRepaymentDialog', () => {
     const store = useTelmexCoverageStore()
     const registerSpy = vi.spyOn(store, 'registerPayment')
 
-    const wrapper = mountDialog({ balance: 600 })
+    const wrapper = mountDialog({ balance: '600.00' })
     await flushPromises()
 
     await amountField(wrapper).setValue(0)
@@ -78,7 +78,7 @@ describe('RegisterRepaymentDialog', () => {
     const store = useTelmexCoverageStore()
     const registerSpy = vi.spyOn(store, 'registerPayment')
 
-    const wrapper = mountDialog({ balance: 500 })
+    const wrapper = mountDialog({ balance: '500.00' })
     await flushPromises()
 
     await amountField(wrapper).setValue(600)
@@ -90,6 +90,42 @@ describe('RegisterRepaymentDialog', () => {
     expect(body().text()).toContain('no puede exceder el saldo')
   })
 
+  // Money fields come from the API as 2-decimal strings (e.g. "1000.00") —
+  // the max rule must compare Number(v) <= Number(props.balance), not a
+  // direct string/number comparison.
+  it('enforces the max rule against a string balance (Number(v) <= Number(balance))', async () => {
+    const store = useTelmexCoverageStore()
+    const registerSpy = vi.spyOn(store, 'registerPayment').mockResolvedValue({
+      id: 3,
+      coverage_id: 5,
+      amount: '1000.00',
+      paid_at: '2026-02-01',
+      reference: null,
+      notes: null,
+      is_voided: false,
+      voided_at: null,
+      void_reason: null,
+      created_at: '2026-02-01T00:00:00Z',
+    })
+
+    const wrapper = mountDialog({ balance: '1000.00' })
+    await flushPromises()
+
+    await amountField(wrapper).setValue(1000.01)
+    await paidAtField(wrapper).setValue('2026-02-01')
+    await submitForm()
+    await flushPromises()
+
+    expect(registerSpy).not.toHaveBeenCalled()
+    expect(body().text()).toContain('no puede exceder el saldo')
+
+    await amountField(wrapper).setValue(1000)
+    await submitForm()
+    await flushPromises()
+
+    expect(registerSpy).toHaveBeenCalled()
+  })
+
   // PR3b's final, implemented contract: `paid_at` is OPTIONAL — the server
   // defaults it when omitted. Confirmed via the coordinator's backend
   // report after PR3b landed.
@@ -98,7 +134,7 @@ describe('RegisterRepaymentDialog', () => {
     const payment = {
       id: 2,
       coverage_id: 5,
-      amount: 250,
+      amount: '250.00',
       paid_at: '2026-02-05',
       reference: null,
       notes: null,
@@ -109,7 +145,7 @@ describe('RegisterRepaymentDialog', () => {
     }
     const registerSpy = vi.spyOn(store, 'registerPayment').mockResolvedValue(payment)
 
-    const wrapper = mountDialog({ coverageId: 5, balance: 600 })
+    const wrapper = mountDialog({ coverageId: 5, balance: '600.00' })
     await flushPromises()
 
     await amountField(wrapper).setValue(250)
@@ -125,7 +161,7 @@ describe('RegisterRepaymentDialog', () => {
     const payment = {
       id: 1,
       coverage_id: 5,
-      amount: 300,
+      amount: '300.00',
       paid_at: '2026-02-01',
       reference: 'DEP-002',
       notes: null,
@@ -136,7 +172,7 @@ describe('RegisterRepaymentDialog', () => {
     }
     const registerSpy = vi.spyOn(store, 'registerPayment').mockResolvedValue(payment)
 
-    const wrapper = mountDialog({ coverageId: 5, balance: 600 })
+    const wrapper = mountDialog({ coverageId: 5, balance: '600.00' })
     await flushPromises()
 
     await amountField(wrapper).setValue(300)
@@ -155,7 +191,7 @@ describe('RegisterRepaymentDialog', () => {
       response: { data: { msg: 'El monto excede el saldo pendiente.' } },
     })
 
-    const wrapper = mountDialog({ coverageId: 5, balance: 600 })
+    const wrapper = mountDialog({ coverageId: 5, balance: '600.00' })
     await flushPromises()
 
     await amountField(wrapper).setValue(300)

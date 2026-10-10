@@ -24,9 +24,12 @@ export interface TelmexCoverage {
   end_period: string | null
   notes: string | null
   cancel_reason: string | null
-  advanced: number
-  repaid: number
-  balance: number
+  // Money comes from the API as 2-decimal strings (number_format), same
+  // convention as every money field in payment.ts — convert with Number()
+  // before comparing or doing arithmetic.
+  advanced: string
+  repaid: string
+  balance: string
   // Drives the REACTIVATE action's visibility client-side (decisions-2 #1921
   // dec3: reactivation allowed only if no covered month was ever paid). The
   // backend is the source of truth for the 422 guard; this flag only toggles
@@ -53,7 +56,7 @@ export interface EligibleTelmexBecario {
 export interface TelmexCoveragePayment {
   id: number
   coverage_id: number
-  amount: number
+  amount: string
   paid_at: string
   reference: string | null
   notes: string | null
