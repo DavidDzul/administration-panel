@@ -431,4 +431,49 @@ describe('authStore', () => {
 
     expect(authStore.manageScholarshipSettings).toBe(false)
   })
+
+  // Task 4.3 (PR4, sdd/telmex-cobertura-iu) — readTelmexCoverage /
+  // manageTelmexCoverage / manageTelmexRepayments additions, mirroring
+  // readRoles/manageRoles exactly.
+  it('readTelmexCoverage is true when permissions include ADM_READ_TELMEX_COVERAGE', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.READ_TELMEX_COVERAGE]
+
+    expect(authStore.readTelmexCoverage).toBe(true)
+  })
+
+  it('readTelmexCoverage is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.readTelmexCoverage).toBe(false)
+  })
+
+  it('manageTelmexCoverage is true when permissions include ADM_MANAGE_TELMEX_COVERAGE', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.MANAGE_TELMEX_COVERAGE]
+
+    expect(authStore.manageTelmexCoverage).toBe(true)
+  })
+
+  it('manageTelmexCoverage is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.manageTelmexCoverage).toBe(false)
+  })
+
+  it('manageTelmexRepayments is true when permissions include ADM_MANAGE_TELMEX_REPAYMENTS', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.MANAGE_TELMEX_REPAYMENTS]
+
+    expect(authStore.manageTelmexRepayments).toBe(true)
+  })
+
+  it('manageTelmexRepayments is false when the permission is absent', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = []
+
+    expect(authStore.manageTelmexRepayments).toBe(false)
+  })
 })

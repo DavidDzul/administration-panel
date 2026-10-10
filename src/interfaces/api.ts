@@ -6,6 +6,12 @@ import type { ScholarshipSetting } from './scholarshipSetting'
 import type { AdministrationRole, AdministrationPermission } from './role'
 import type { Administrator } from './administrator'
 import type {
+  TelmexCoverage,
+  EligibleTelmexBecario,
+  TelmexCoverageStatement,
+  TelmexCoveragePayment,
+} from './telmexCoverage'
+import type {
   ExportSummary,
   GenerationPaymentSummary,
   GenerationSummaryGeneration,
@@ -181,4 +187,35 @@ export interface PaymentsByGenerationResponse {
     summary: GenerationPaymentSummary
     generation: GenerationSummaryGeneration
   }
+}
+
+// Becas Telmex (sdd/telmex-cobertura-iu, PR4) — envelope shapes follow the
+// `{res, msg, data}` contract from design #1920's API table. NOT yet
+// verified against a live backend (PR3b lands in a parallel batch) — this is
+// a contract ASSUMPTION; see the apply report for what PR3b must match.
+export interface TelmexCoveragesResponse {
+  res: boolean
+  data: TelmexCoverage[]
+}
+
+export interface TelmexCoverageResponse {
+  res: boolean
+  msg?: string
+  data: TelmexCoverage
+}
+
+export interface EligibleTelmexBecariosResponse {
+  res: boolean
+  data: EligibleTelmexBecario[]
+}
+
+export interface TelmexCoverageStatementResponse {
+  res: boolean
+  data: TelmexCoverageStatement
+}
+
+export interface TelmexCoveragePaymentResponse {
+  res: boolean
+  msg?: string
+  data: TelmexCoveragePayment
 }
