@@ -132,6 +132,18 @@ export interface PaymentBatchRow {
   final_amount: string
   amount_pending_from_previous: string
   refund_amount_from_previous: string
+  // Telmex coverage pass-throughs (sdd/telmex-cobertura-iu PR5, mirrors
+  // impulsou-api PR2's PaymentBatchService::rows() additions). Both
+  // OPTIONAL — deliberately not required, mirroring PR6's explicit choice
+  // in this same change (apply-progress #1923's PR6 section) to avoid
+  // forcing every unrelated PaymentBatchRow fixture repo-wide to supply
+  // them. Coverage is derived SOLELY from `snapshot_telmex_coverage_id !==
+  // null`, NEVER from a separate boolean field — `snapshot_telmex_covered_
+  // amount` is populated for every TELMEX/TELMEX_IU row regardless of
+  // whether a coverage is active, so a boolean would be redundant with/
+  // less reliable than the FK (same verified reasoning as PR6's chip).
+  snapshot_telmex_coverage_id?: number | null
+  snapshot_telmex_covered_amount?: string | null
 }
 
 // Matches PaymentBatchService::summary()'s real keys, verified against
@@ -152,6 +164,14 @@ export interface PaymentBatchSummary {
   pago_iu_amount: string
   total_amount: string
   difference_amount: string
+  // Telmex coverage total (sdd/telmex-cobertura-iu PR5, mirrors
+  // impulsou-api PR2's PaymentBatchService::summary() addition — already
+  // folded into `difference_amount` server-side). OPTIONAL, same rationale
+  // as PaymentBatchRow's telmex fields above: avoids forcing every
+  // unrelated PaymentBatchSummary fixture to supply it. The "Adelanto
+  // Telmex" summary card (PaymentBatchSummary.vue) renders only when this
+  // is present AND > 0.
+  telmex_coverage_amount?: string
 }
 
 // Matches PaymentBatchService::generationSummary()'s real keys
@@ -177,6 +197,11 @@ export interface GenerationPaymentSummary {
   pending_amount: string
   total_amount: string
   difference_amount: string
+  // Telmex coverage total (sdd/telmex-cobertura-iu PR5, mirrors
+  // impulsou-api PR2's PaymentBatchService::generationSummary() addition).
+  // Same OPTIONAL rationale as PaymentBatchSummary.telmex_coverage_amount
+  // above.
+  telmex_coverage_amount?: string
 }
 
 // The batch identity posted to both GET (query params) and POST /process

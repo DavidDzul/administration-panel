@@ -68,6 +68,9 @@ export interface TelmexCoverageMonth {
   covered_amount: number
   is_paid: boolean
   payment_batch_id: number | null
+  // True when the covered month also paid a temporary increase (IU money,
+  // not part of the debt). Sent by GET telmex-coverages/{coverage}.
+  has_temporary_increase?: boolean
 }
 
 export interface TelmexCoverageStatement {
@@ -90,9 +93,12 @@ export interface CancelTelmexCoveragePayload {
   reason: string
 }
 
+// `paid_at` is OPTIONAL (confirmed against PR3b's final, implemented
+// contract: `POST {coverage}/payments {amount, paid_at?, reference?,
+// notes?}` — the server defaults it when omitted).
 export interface RegisterTelmexCoveragePaymentPayload {
   amount: number
-  paid_at: string
+  paid_at?: string
   reference?: string
   notes?: string
 }

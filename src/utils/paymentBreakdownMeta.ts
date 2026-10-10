@@ -50,6 +50,17 @@ export interface PaymentBreakdownRowFields {
   amount_pending_from_previous: string
   refund_amount_from_previous: string
   advance_payment_amount: string
+  // Cob. Telmex column (sdd/telmex-cobertura-iu PR5, task 5.5). Both fields
+  // optional — additive PaymentBatchRow fields that may be absent on
+  // fixtures/rows predating this change. Coverage is derived SOLELY from
+  // `snapshot_telmex_coverage_id !== null`, NEVER from a separate boolean
+  // field — same verified decision as telmexCoverageMeta.ts's chip and
+  // PR6's AprobacionRefrendTable chip in this same change:
+  // `snapshot_telmex_covered_amount` is populated for every TELMEX/
+  // TELMEX_IU row regardless of whether a coverage is active, so the FK is
+  // the only reliable "is this row actually covered" signal.
+  snapshot_telmex_coverage_id?: number | null
+  snapshot_telmex_covered_amount?: string | null
 }
 
 /**
@@ -126,6 +137,18 @@ export interface FinalAdjustment {
  * adelanto. The main `final_amount` line itself is formatted directly by
  * the caller via `formatAmount`.
  */
+/**
+ * Cob. Telmex column — the covered (Telmex) part of a payable row, shown
+ * only for rows actually linked to an active coverage. "—" when
+ * `snapshot_telmex_coverage_id` is null/undefined, OR when the amount
+ * itself is null/zero despite being linked (defensive, shouldn't normally
+ * happen).
+ */
+export function telmexCoverageAmount(row: PaymentBreakdownRowFields): string {
+  if (row.snapshot_telmex_coverage_id == null) return DASH
+  return amountOrDash(row.snapshot_telmex_covered_amount)
+}
+
 export function finalAdjustments(row: PaymentBreakdownRowFields): FinalAdjustment[] {
   const adjustments: FinalAdjustment[] = []
 

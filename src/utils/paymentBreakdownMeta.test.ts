@@ -8,6 +8,7 @@ import {
   formatAmount,
   iuPaymentAmount,
   monthlyAmount,
+  telmexCoverageAmount,
   type PaymentBreakdownRowFields,
 } from '@/utils/paymentBreakdownMeta'
 
@@ -179,6 +180,41 @@ describe('discountPercent (Desc.% column)', () => {
     const result = discountPercent(buildRow({ discount_percentage: '10' }))
 
     expect(result).toEqual({ text: '10%', isPositive: true })
+  })
+})
+
+// sdd/telmex-cobertura-iu PR5, task 5.5: the "Cob. Telmex" column. Coverage
+// is derived SOLELY from `snapshot_telmex_coverage_id !== null` (NOT a
+// separate boolean) — same verified decision as telmexCoverageMeta.ts's
+// chip, because `snapshot_telmex_covered_amount` is populated for every
+// TELMEX/TELMEX_IU row regardless of whether a coverage is active.
+describe('telmexCoverageAmount (Cob. Telmex column)', () => {
+  it('returns a dash when snapshot_telmex_coverage_id is null', () => {
+    const row = buildRow({ snapshot_telmex_coverage_id: null, snapshot_telmex_covered_amount: '500.00' })
+
+    expect(telmexCoverageAmount(row)).toBe('—')
+  })
+
+  it('returns a dash when snapshot_telmex_coverage_id is absent (field undefined)', () => {
+    expect(telmexCoverageAmount(buildRow())).toBe('—')
+  })
+
+  it('returns the formatted covered amount when snapshot_telmex_coverage_id is set', () => {
+    const row = buildRow({ snapshot_telmex_coverage_id: 3, snapshot_telmex_covered_amount: '850.00' })
+
+    expect(telmexCoverageAmount(row)).toBe('$850.00')
+  })
+
+  it('returns a dash when covered but the amount itself is null', () => {
+    const row = buildRow({ snapshot_telmex_coverage_id: 3, snapshot_telmex_covered_amount: null })
+
+    expect(telmexCoverageAmount(row)).toBe('—')
+  })
+
+  it('returns a dash when covered but the amount is "0.00"', () => {
+    const row = buildRow({ snapshot_telmex_coverage_id: 3, snapshot_telmex_covered_amount: '0.00' })
+
+    expect(telmexCoverageAmount(row)).toBe('—')
   })
 })
 
