@@ -84,6 +84,10 @@
       <span data-testid="cell-total-to-pay">{{ formatAmount(item.total_to_pay) }}</span>
     </template>
 
+    <template #[`item.telmex_coverage_column`]="{ item }">
+      <span data-testid="cell-telmex-coverage-amount">{{ telmexCoverageAmount(item) }}</span>
+    </template>
+
     <template #[`item.account_number`]="{ item }">
       {{ maskAccountNumber(item.account_number) }}
     </template>
@@ -196,6 +200,22 @@
             </v-chip>
           </template>
         </v-tooltip>
+        <v-tooltip v-if="telmexCoverageChip(item)" :text="telmexCoverageChip(item)?.ariaLabel">
+          <template #activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              data-testid="telmex-coverage-chip"
+              :aria-label="telmexCoverageChip(item)?.ariaLabel"
+              size="small"
+              :color="telmexCoverageChip(item)?.color"
+              variant="tonal"
+              :prepend-icon="telmexCoverageChip(item)?.icon"
+              class="mb-1"
+            >
+              {{ telmexCoverageChip(item)?.label }}
+            </v-chip>
+          </template>
+        </v-tooltip>
         <v-tooltip v-if="temporaryIncreaseChip(item)" :text="temporaryIncreaseChip(item)?.ariaLabel">
           <template #activator="{ props: tooltipProps }">
             <v-chip
@@ -264,7 +284,17 @@
 // is the newest addition — same non-interactive tonal-chip pattern, sourced
 // ONLY from `snapshot_temporary_increase_amount`/`_reason` (never
 // `has_incident` or any incident-related field), and it too must never
-// displace or be displaced by any other chip in this column.
+// displace or be displaced by any other chip in this column. The telmex-
+// coverage chip (sdd/telmex-cobertura-iu PR5, design's Lotes section) is
+// the newest addition — same non-interactive tonal-chip pattern, derived
+// SOLELY from `snapshot_telmex_coverage_id !== null` (never a separate
+// boolean), coexists with the telmex-exclusion chip (a covered row cannot
+// be excluded from the bank file, but the two indicators are intentionally
+// independent lookups, not mutually exclusive by construction). The "Cob.
+// Telmex" column (`telmexCoverageAmount`) shows the covered amount for a
+// covered row and "—" otherwise; placed after "Total a pagar" so the
+// Estado/Motivo end-of-row indexing used throughout this file's tests
+// stays unaffected.
 import { computed } from 'vue'
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
@@ -274,6 +304,7 @@ import {
   advancePaymentRegisteredChip,
 } from '@/utils/advancePaymentMeta'
 import { telmexExportExclusionChip } from '@/utils/telmexExportMeta'
+import { telmexCoverageChip } from '@/utils/telmexCoverageMeta'
 import { temporaryIncreaseChip } from '@/utils/temporaryIncreaseMeta'
 import {
   amountOrDash,
@@ -284,6 +315,7 @@ import {
   formatAmount,
   iuPaymentAmount,
   monthlyAmount,
+  telmexCoverageAmount,
 } from '@/utils/paymentBreakdownMeta'
 import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
 import type { PaymentBatchRow } from '@/interfaces/payment'
@@ -329,6 +361,7 @@ const headers = [
   { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
   { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },
   { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
+  { title: 'Cob. Telmex', key: 'telmex_coverage_column', width: 110, align: 'end' as const },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },

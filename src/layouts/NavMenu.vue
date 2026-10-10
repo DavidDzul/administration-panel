@@ -41,6 +41,23 @@
       />
     </v-list-group>
 
+    <!--
+      sdd/telmex-cobertura-iu (PR4): single-destination top-level item (no
+      sub-items, so a plain v-list-item mirrors "Inicio"'s pattern instead of
+      a one-child v-list-group) — peer to "Pagos" — same rationale as Pagos's
+      own D8 comment above: this is operational domain work on becarios, not
+      administration-of-the-administration. Ordered after "Pagos" and before
+      "Control".
+    -->
+    <v-list-item
+      v-if="can(PERMISSIONS.READ_TELMEX_COVERAGE)"
+      to="/becas-telmex"
+      title="Becas Telmex"
+      prepend-icon="mdi-hand-coin-outline"
+      class="nav-item"
+      exact
+    />
+
     <v-list-group
       v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS) || can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS)"
       value="Control"

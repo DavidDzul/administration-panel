@@ -906,4 +906,95 @@ describe('PaymentBatchTable', () => {
       expect(wrapper.find('[data-testid="payment-group-header"]').text()).toBe('Generación 9')
     })
   })
+
+  // ── Telmex coverage indicator chip (sdd/telmex-cobertura-iu PR5, design's
+  // Lotes section, task 5.4) ──────────────────────────────────────────────
+  //
+  // Coverage is derived SOLELY from `snapshot_telmex_coverage_id !== null`
+  // (NOT `excluded_from_bank_file`/`snapshot_scholarship_type`) — same
+  // non-interactive tonal-chip pattern as every other flags-column chip,
+  // must never displace or be displaced by any of them.
+  describe('telmex coverage indicator chip', () => {
+    it('renders no chip when snapshot_telmex_coverage_id is null', () => {
+      const wrapper = mountTable([buildRow({ snapshot_telmex_coverage_id: null })])
+
+      expect(wrapper.find('[data-testid="telmex-coverage-chip"]').exists()).toBe(false)
+    })
+
+    it('renders the chip with "Adelanto Telmex" when covered', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_telmex_coverage_id: 7, snapshot_telmex_covered_amount: '1200.00' }),
+      ])
+
+      const chip = wrapper.find('[data-testid="telmex-coverage-chip"]')
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain('Adelanto Telmex')
+    })
+
+    it('the aria-label/tooltip includes the covered amount', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_telmex_coverage_id: 7, snapshot_telmex_covered_amount: '1200.00' }),
+      ])
+
+      const chip = wrapper.find('[data-testid="telmex-coverage-chip"]')
+      expect(chip.attributes('aria-label')).toContain('$1,200.00')
+    })
+
+    it('coexists with the telmex bank-file exclusion chip without displacing it', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_telmex_coverage_id: 7,
+          snapshot_telmex_covered_amount: '1200.00',
+          excluded_from_bank_file: true,
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="telmex-coverage-chip"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="telmex-exclusion-chip"]').exists()).toBe(true)
+    })
+
+    it('never affects is_payable or the Estado/Motivo columns for a payable, covered row', () => {
+      const wrapper = mountTable([
+        buildRow({
+          refrend_id: 13,
+          is_payable: true,
+          blocking_reasons: [],
+          snapshot_telmex_coverage_id: 7,
+          snapshot_telmex_covered_amount: '1200.00',
+        }),
+      ])
+
+      const cells = dataRows(wrapper)[0].findAll('td')
+      const estadoCell = cells[cells.length - 2]
+
+      expect(estadoCell.text()).toContain('Listo')
+      expect(wrapper.find('[data-testid="telmex-coverage-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // ── "Cob. Telmex" column (sdd/telmex-cobertura-iu PR5, task 5.5) ────────
+  describe('Cob. Telmex column', () => {
+    it('renders the column header', () => {
+      const wrapper = mountTable([buildRow()])
+
+      const headers = wrapper.findAll('th').map((th) => th.text())
+      expect(headers).toContain('Cob. Telmex')
+    })
+
+    it('shows a dash for an uncovered row', () => {
+      const wrapper = mountTable([buildRow({ snapshot_telmex_coverage_id: null })])
+
+      const cell = wrapper.find('[data-testid="cell-telmex-coverage-amount"]')
+      expect(cell.text()).toBe('—')
+    })
+
+    it('shows the formatted covered amount for a covered row', () => {
+      const wrapper = mountTable([
+        buildRow({ snapshot_telmex_coverage_id: 7, snapshot_telmex_covered_amount: '1200.00' }),
+      ])
+
+      const cell = wrapper.find('[data-testid="cell-telmex-coverage-amount"]')
+      expect(cell.text()).toBe('$1,200.00')
+    })
+  })
 })

@@ -180,6 +180,18 @@ export const useAuthStore = defineStore('authStore', () => {
   // (spec's requirement, sdd/becario-payment-bank-file-export).
   const exportPayments = computed<boolean>(() => permissions.value.includes(PERMISSIONS.EXPORT_PAYMENTS))
 
+  // Becas Telmex — read/manage-coverage/manage-repayments split, mirrors
+  // readRoles/manageRoles exactly (design #1920, sdd/telmex-cobertura-iu).
+  const readTelmexCoverage = computed<boolean>(() =>
+    permissions.value.includes(PERMISSIONS.READ_TELMEX_COVERAGE),
+  )
+  const manageTelmexCoverage = computed<boolean>(() =>
+    permissions.value.includes(PERMISSIONS.MANAGE_TELMEX_COVERAGE),
+  )
+  const manageTelmexRepayments = computed<boolean>(() =>
+    permissions.value.includes(PERMISSIONS.MANAGE_TELMEX_REPAYMENTS),
+  )
+
   return {
     login,
     logout,
@@ -205,5 +217,8 @@ export const useAuthStore = defineStore('authStore', () => {
     readPayments,
     processPayments,
     exportPayments,
+    readTelmexCoverage,
+    manageTelmexCoverage,
+    manageTelmexRepayments,
   }
 })

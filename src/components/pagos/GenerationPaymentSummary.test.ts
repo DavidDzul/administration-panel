@@ -120,4 +120,33 @@ describe('GenerationPaymentSummary', () => {
 
     expect(wrapper.text()).toContain('$12,345.67')
   })
+
+  // sdd/telmex-cobertura-iu PR5, task 5.6: "Adelanto Telmex" card, shown
+  // only when telmex_coverage_amount is present AND > 0 — optional field, so
+  // the pre-existing "10 cards / 3 rows" assertion above must keep passing
+  // unchanged when it's absent.
+  describe('Adelanto Telmex card', () => {
+    it('renders no extra card when telmex_coverage_amount is absent', () => {
+      const wrapper = mountSummary(buildSummary())
+
+      expect(wrapper.text()).not.toContain('Adelanto Telmex')
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
+    })
+
+    it('renders no extra card when telmex_coverage_amount is "0.00"', () => {
+      const wrapper = mountSummary(buildSummary({ telmex_coverage_amount: '0.00' }))
+
+      expect(wrapper.text()).not.toContain('Adelanto Telmex')
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
+    })
+
+    it('renders an 11th card with the formatted amount when telmex_coverage_amount > 0', () => {
+      const wrapper = mountSummary(buildSummary({ telmex_coverage_amount: '900.00' }))
+
+      expect(wrapper.text()).toContain('Adelanto Telmex')
+      expect(wrapper.text()).toContain('$900.00')
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(11)
+      expect(wrapper.findAll('.v-row')).toHaveLength(4)
+    })
+  })
 })
