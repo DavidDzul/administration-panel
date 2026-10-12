@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { TelmexCoverage, EligibleTelmexBecario, TelmexCoverageStatement } from '@/interfaces/telmexCoverage'
+import type {
+  TelmexCoverage,
+  EligibleTelmexBecario,
+  TelmexCoverageStatement,
+  BulkEndTelmexCoveragesResult,
+} from '@/interfaces/telmexCoverage'
 
 const { mockAxiosGet, mockAxiosPost, mockAxiosPatch } = vi.hoisted(() => ({
   mockAxiosGet: vi.fn(),
@@ -285,6 +290,50 @@ describe('telmexCoverageStore', () => {
       const store = useTelmexCoverageStore()
 
       await expect(store.registerPayment(1, { amount: 9999, paid_at: '2026-03-01' })).rejects.toEqual(error)
+    })
+  })
+
+  describe('endCoveragesBulk', () => {
+    it('POSTs the payload and returns the result without mutating allCoverages', async () => {
+      const result: BulkEndTelmexCoveragesResult = {
+        ended: [{ coverage_id: 1, user_id: 10, becario_name: 'Juan Pérez' }],
+        failed: [
+          { coverage_id: 2, user_id: 20, becario_name: 'Ana López', reason: 'Ya no está activa (estado: EN_COBRO)' },
+        ],
+      }
+      mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data: result } })
+
+      const store = useTelmexCoverageStore()
+      const response = await store.endCoveragesBulk({ coverage_ids: [1, 2], telmex_start_period: '2026-04-01' })
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/telmex-coverages/end-bulk', {
+        coverage_ids: [1, 2],
+        telmex_start_period: '2026-04-01',
+      })
+      expect(response).toEqual(result)
+      expect(store.allCoverages.size).toBe(0)
+    })
+
+    it('propagates a 422 (request-shape) error to the caller', async () => {
+      const error = { response: { status: 422, data: { res: false, msg: 'coverage_ids inválido.' } } }
+      mockAxiosPost.mockRejectedValueOnce(error)
+
+      const store = useTelmexCoverageStore()
+
+      await expect(
+        store.endCoveragesBulk({ coverage_ids: [], telmex_start_period: '2026-04-01' }),
+      ).rejects.toEqual(error)
+    })
+
+    it('propagates a 403 (unauthorized) error to the caller', async () => {
+      const error = { response: { status: 403, data: { res: false, msg: 'No autorizado.' } } }
+      mockAxiosPost.mockRejectedValueOnce(error)
+
+      const store = useTelmexCoverageStore()
+
+      await expect(
+        store.endCoveragesBulk({ coverage_ids: [1], telmex_start_period: '2026-04-01' }),
+      ).rejects.toEqual(error)
     })
   })
 

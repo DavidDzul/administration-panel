@@ -12,6 +12,8 @@ import type {
   CancelTelmexCoveragePayload,
   RegisterTelmexCoveragePaymentPayload,
   VoidTelmexCoveragePaymentPayload,
+  BulkEndTelmexCoveragesPayload,
+  BulkEndTelmexCoveragesResult,
 } from '@/interfaces/telmexCoverage'
 import type {
   TelmexCoveragesResponse,
@@ -19,6 +21,7 @@ import type {
   EligibleTelmexBecariosResponse,
   TelmexCoverageStatementResponse,
   TelmexCoveragePaymentResponse,
+  BulkEndTelmexCoveragesResponse,
 } from '@/interfaces/api'
 
 // Becas Telmex (sdd/telmex-cobertura-iu, PR4) — calls the
@@ -107,6 +110,21 @@ export const useTelmexCoverageStore = defineStore('telmexCoverageStore', () => {
     return res.data.data
   }
 
+  // Bulk "Marcar inicio de pago Telmex" (sdd/telmex-cobertura-lote, PR2) —
+  // does NOT mutate `allCoverages` (design #1931 D8): the response carries no
+  // full coverage rows (only coverage_id/user_id/becario_name per outcome),
+  // and a coverage's status/balance can change beyond just `end_period`
+  // (recomputeStatus). The composable/view re-fetches the full list via
+  // `fetchCoverages()` after this resolves, same "one GET gives one source of
+  // truth" rationale as the design decision. No catch, mirrors every other
+  // write method here — the caller decides how to surface a 403/422.
+  const endCoveragesBulk = async (
+    payload: BulkEndTelmexCoveragesPayload,
+  ): Promise<BulkEndTelmexCoveragesResult> => {
+    const res = await axios.post<BulkEndTelmexCoveragesResponse>('api/admin/telmex-coverages/end-bulk', payload)
+    return res.data.data
+  }
+
   const voidPayment = async (
     id: number,
     paymentId: number,
@@ -131,5 +149,6 @@ export const useTelmexCoverageStore = defineStore('telmexCoverageStore', () => {
     reactivateCoverage,
     registerPayment,
     voidPayment,
+    endCoveragesBulk,
   }
 })

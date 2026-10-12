@@ -50,7 +50,9 @@ const buildCoverage = (overrides: Partial<TelmexCoverage> = {}): TelmexCoverage 
   ...overrides,
 })
 
-const mountTable = (props: { coverages?: TelmexCoverage[]; loading?: boolean; canManage?: boolean } = {}) =>
+const mountTable = (
+  props: { coverages?: TelmexCoverage[]; loading?: boolean; canManage?: boolean; selected?: number[] } = {},
+) =>
   mount(TelmexCoveragesTable, {
     props: { coverages: [buildCoverage()], loading: false, canManage: true, ...props },
     global: { plugins: [vuetify] },
@@ -150,6 +152,53 @@ describe('TelmexCoveragesTable — row actions gated on canManage and status', (
     })
 
     expect(wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-restore')).toHaveLength(0)
+  })
+})
+
+describe('TelmexCoveragesTable — bulk selection (sdd/telmex-cobertura-lote, PR2)', () => {
+  it('shows the select-all checkbox only when canManage is true', () => {
+    const managed = mountTable({ coverages: [buildCoverage({ status: 'ACTIVA' })], canManage: true })
+    expect(managed.find('input[type="checkbox"]').exists()).toBe(true)
+
+    const unmanaged = mountTable({ coverages: [buildCoverage({ status: 'ACTIVA' })], canManage: false })
+    expect(unmanaged.find('input[type="checkbox"]').exists()).toBe(false)
+  })
+
+  it('disables the row checkbox for a non-ACTIVA row', () => {
+    const wrapper = mountTable({ coverages: [buildCoverage({ status: 'EN_COBRO' })], canManage: true })
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    // First checkbox is "select all"; the row checkbox is the second one.
+    const rowCheckbox = checkboxes[1]
+    expect(rowCheckbox.attributes('disabled')).toBeDefined()
+  })
+
+  it('leaves the row checkbox enabled for an ACTIVA row', () => {
+    const wrapper = mountTable({ coverages: [buildCoverage({ status: 'ACTIVA' })], canManage: true })
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const rowCheckbox = checkboxes[1]
+    expect(rowCheckbox.attributes('disabled')).toBeUndefined()
+  })
+
+  it('emits update:selected with the new selection when a row is checked', async () => {
+    const wrapper = mountTable({ coverages: [buildCoverage({ id: 7, status: 'ACTIVA' })], canManage: true })
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    await checkboxes[1].trigger('click')
+
+    expect(wrapper.emitted('update:selected')?.[0]).toEqual([[7]])
+  })
+
+  it('reflects the selected prop by checking the matching row checkbox', () => {
+    const wrapper = mountTable({
+      coverages: [buildCoverage({ id: 7, status: 'ACTIVA' })],
+      canManage: true,
+      selected: [7],
+    })
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    expect((checkboxes[1].element as HTMLInputElement).checked).toBe(true)
   })
 })
 

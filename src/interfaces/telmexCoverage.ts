@@ -109,3 +109,31 @@ export interface RegisterTelmexCoveragePaymentPayload {
 export interface VoidTelmexCoveragePaymentPayload {
   void_reason: string
 }
+
+// Bulk "Marcar inicio de pago Telmex" (sdd/telmex-cobertura-lote, PR2) —
+// mirrors the single-coverage EndTelmexCoveragePayload's `telmex_start_period`
+// field, plus the set of coverage ids to process. Per design #1931 D5/D6: the
+// request is request-shape-validated only (1-200 distinct ids, valid date) —
+// per-id domain failures never reject the whole request.
+export interface BulkEndTelmexCoveragesPayload {
+  coverage_ids: number[]
+  telmex_start_period: string
+}
+
+// One outcome row (either ended or failed) from the bulk endpoint. `user_id`/
+// `becario_name` are nullable ONLY for an unresolvable unknown coverage_id
+// (design #1931 D3) — present otherwise.
+export interface BulkEndTelmexCoverageItem {
+  coverage_id: number
+  user_id: number | null
+  becario_name: string | null
+}
+
+export interface BulkEndTelmexCoverageFailure extends BulkEndTelmexCoverageItem {
+  reason: string
+}
+
+export interface BulkEndTelmexCoveragesResult {
+  ended: BulkEndTelmexCoverageItem[]
+  failed: BulkEndTelmexCoverageFailure[]
+}
