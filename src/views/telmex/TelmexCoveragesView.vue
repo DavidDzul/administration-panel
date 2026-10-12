@@ -55,7 +55,7 @@
   <v-row v-if="canManage && !loading && !loadError" justify="end">
     <v-col cols="auto">
       <v-btn color="primary" prepend-icon="mdi-cash-multiple" :disabled="!canBulkEnd" @click="bulkDialogOpen = true">
-        Marcar inicio de pago Telmex ({{ selectedCoverages.length }})
+        Telmex empezó a pagar ({{ selectedCoverages.length }})
       </v-btn>
     </v-col>
   </v-row>
@@ -177,7 +177,7 @@ const links: LinkInterface[] = [
 
 const statusOptions = [
   { value: 'ACTIVA', text: 'Activa' },
-  { value: 'EN_COBRO', text: 'En cobro' },
+  { value: 'EN_COBRO', text: 'Por devolver' },
   { value: 'LIQUIDADA', text: 'Liquidada' },
   { value: 'CANCELADA', text: 'Cancelada' },
 ]

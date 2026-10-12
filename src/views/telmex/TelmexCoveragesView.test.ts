@@ -241,12 +241,12 @@ describe('TelmexCoveragesView — end / cancel / reactivate row actions', () => 
 
     expect(body().text()).toContain('Rosalind Franklin')
 
-    await fieldByLabelPrefix(wrapper, 'Telmex empezó')?.setValue('2026-03')
+    await fieldByLabelPrefix(wrapper, '¿Cuál es el primer mes que pagó Telmex?')?.setValue('2026-03')
     await submitOpenForm()
     await flushPromises()
 
     expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/telmex-coverages/3/end', { telmex_start_period: '2026-03-01' })
-    expect(wrapper.text()).toContain('En cobro')
+    expect(wrapper.text()).toContain('Por devolver')
   })
 
   it('opens CancelCoverageDialog from the table action and updates the row on success', async () => {
@@ -360,7 +360,7 @@ describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Marcar inicio de pago Telmex (')
+    expect(wrapper.text()).not.toContain('Telmex empezó a pagar (')
   })
 
   it('shows the bulk button disabled with count 0 when nothing is selected', async () => {
@@ -369,9 +369,9 @@ describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)
     const wrapper = mountView()
     await flushPromises()
 
-    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
+    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Telmex empezó a pagar ('))
     expect(bulkButton).toBeDefined()
-    expect(bulkButton?.text()).toContain('Marcar inicio de pago Telmex (0)')
+    expect(bulkButton?.text()).toContain('Telmex empezó a pagar (0)')
     expect(bulkButton?.attributes('disabled')).toBeDefined()
   })
 
@@ -394,14 +394,14 @@ describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)
     await checkboxes[1].trigger('click')
     await flushPromises()
 
-    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
-    expect(bulkButton?.text()).toContain('Marcar inicio de pago Telmex (1)')
+    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Telmex empezó a pagar ('))
+    expect(bulkButton?.text()).toContain('Telmex empezó a pagar (1)')
     expect(bulkButton?.attributes('disabled')).toBeUndefined()
 
     await bulkButton?.trigger('click')
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Telmex empieza')?.setValue('2026-03')
+    await fieldByLabelPrefix(wrapper, '¿Cuál es el primer mes que pagó Telmex?')?.setValue('2026-03')
     await submitOpenForm()
     await flushPromises()
 
@@ -419,7 +419,7 @@ describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)
 
     expect(mockAxiosGet).toHaveBeenCalledTimes(3) // reloadCoverages() after completion
 
-    const bulkButtonAfter = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
-    expect(bulkButtonAfter?.text()).toContain('Marcar inicio de pago Telmex (0)')
+    const bulkButtonAfter = wrapper.findAll('button').find((b) => b.text().includes('Telmex empezó a pagar ('))
+    expect(bulkButtonAfter?.text()).toContain('Telmex empezó a pagar (0)')
   })
 })

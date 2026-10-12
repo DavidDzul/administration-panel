@@ -59,7 +59,7 @@
     -->
     <template #[`item.actions`]="{ item }">
       <div style="width: 100%; text-align: right">
-        <v-tooltip v-if="canManage && item.status === 'ACTIVA'" text="Marcar inicio de pago Telmex" location="bottom">
+        <v-tooltip v-if="canManage && item.status === 'ACTIVA'" text="Telmex empezó a pagar" location="bottom">
           <template v-slot:activator="{ props: tooltipProps }">
             <span v-bind="tooltipProps" style="display: inline-block">
               <v-btn

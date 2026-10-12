@@ -8,7 +8,7 @@
     <v-card>
       <v-form ref="formRef" @submit.prevent="onSubmit">
         <v-toolbar dark>
-          <v-toolbar-title>Marcar inicio de pago Telmex</v-toolbar-title>
+          <v-toolbar-title>Telmex empezó a pagar</v-toolbar-title>
           <v-spacer></v-spacer>
           <v-toolbar-items>
             <v-btn icon @click="close"><v-icon>mdi-close</v-icon></v-btn>
@@ -20,18 +20,17 @@
               <p class="text-body-2">
                 Becario: <strong>{{ coverage.becario_name }}</strong>
               </p>
-              <p class="text-body-2 text-medium-emphasis">
-                Indica el mes en que Telmex empezó a pagar directamente. El mes anterior será el último cubierto por
-                IU.
-              </p>
             </v-col>
             <v-col cols="12">
               <v-text-field
                 v-model="telmexStartPeriod"
                 type="month"
-                label="Telmex empezó a pagar en *"
+                label="¿Cuál es el primer mes que pagó Telmex? *"
                 :rules="[requiredRule]"
               ></v-text-field>
+            </v-col>
+            <v-col v-if="consequence" cols="12">
+              <v-alert type="info" variant="tonal" density="compact">{{ consequence }}</v-alert>
             </v-col>
           </v-row>
         </v-card-text>
@@ -51,9 +50,10 @@
 // month` (design's Debt/Lifecycle section) — this dialog only collects the
 // month Telmex itself started paying, never the derived end_period, so
 // staff can't accidentally submit an off-by-one month.
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useTelmexCoverageStore } from '@/stores/api/telmexCoverageStore'
 import { useAlertStore } from '@/stores/alert'
+import { isMonthBefore, monthInWords, previousMonthInWords } from '@/utils/monthInWords'
 import type { TelmexCoverage } from '@/interfaces/telmexCoverage'
 
 interface Props {
@@ -79,6 +79,22 @@ const telmexStartPeriod = ref('')
 
 const requiredRule = (v: unknown): true | string => (!!v && String(v).trim() !== '') || 'Campo requerido.'
 
+// Plain-language consequence shown once a month is picked: from that month
+// IU stops paying the Telmex part, and the covered months before it become
+// the amount the becario must repay.
+const consequence = computed<string>(() => {
+  const chosen = telmexStartPeriod.value
+  const startPeriod = props.coverage?.start_period
+  if (!monthInWords(chosen) || !startPeriod) return ''
+
+  const stopsPaying = `A partir de ${monthInWords(chosen)} IU deja de pagar la parte de Telmex.`
+  if (!isMonthBefore(startPeriod, chosen)) {
+    return `${stopsPaying} IU no adelantó ningún mes, así que no hay nada por devolver.`
+  }
+
+  return `${stopsPaying} Los meses de ${monthInWords(startPeriod)} a ${previousMonthInWords(chosen)} quedan como adelanto por devolver.`
+})
+
 const resetForm = (): void => {
   telmexStartPeriod.value = ''
   formRef.value?.resetValidation()
@@ -102,7 +118,7 @@ const getErrorMessage = (error: unknown): string => {
   const fieldError = err.response?.data?.errors
     ? Object.values(err.response.data.errors)[0]?.[0]
     : undefined
-  return fieldError ?? err.response?.data?.msg ?? 'Error al registrar el inicio de pago Telmex, intenta nuevamente.'
+  return fieldError ?? err.response?.data?.msg ?? 'Error al registrar que Telmex empezó a pagar, intenta nuevamente.'
 }
 
 const onSubmit = async (): Promise<void> => {
@@ -119,7 +135,7 @@ const onSubmit = async (): Promise<void> => {
     emit('ended', coverage)
     close()
   } catch (error: unknown) {
-    console.error('Error al registrar el inicio de pago Telmex:', error)
+    console.error('Error al registrar que Telmex empezó a pagar:', error)
     showAlert({ title: getErrorMessage(error), status: 'error' })
   } finally {
     saving.value = false

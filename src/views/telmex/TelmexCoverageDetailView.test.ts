@@ -117,7 +117,7 @@ describe('TelmexCoverageDetailView', () => {
 
     expect(wrapper.text()).toContain('Juan Pérez')
     expect(wrapper.text()).toContain('Telmex')
-    expect(wrapper.text()).toContain('En cobro')
+    expect(wrapper.text()).toContain('Por devolver')
     expect(wrapper.text()).toContain('01/2026')
     expect(wrapper.text()).toContain('Adelantado')
     expect(wrapper.text()).toContain('Devuelto')

@@ -80,7 +80,7 @@ describe('TelmexCoveragesTable — renders rows', () => {
   it('renders the status label for each lifecycle state', () => {
     const wrapper = mountTable({ coverages: [buildCoverage({ status: 'EN_COBRO' })] })
 
-    expect(wrapper.text()).toContain('En cobro')
+    expect(wrapper.text()).toContain('Por devolver')
   })
 
   it('shows "Presente" for an open-ended covered period (end_period null)', () => {
@@ -98,7 +98,7 @@ describe('TelmexCoveragesTable — renders rows', () => {
 })
 
 describe('TelmexCoveragesTable — row actions gated on canManage and status', () => {
-  it('shows "Marcar inicio de pago" only for ACTIVA rows when canManage is true', async () => {
+  it('shows "Telmex empezó a pagar" only for ACTIVA rows when canManage is true', async () => {
     const wrapper = mountTable({ coverages: [buildCoverage({ status: 'ACTIVA' })], canManage: true })
 
     const endButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-cash-check')
@@ -125,7 +125,7 @@ describe('TelmexCoveragesTable — row actions gated on canManage and status', (
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 
-  it('hides "Cancelar" and "Marcar inicio de pago" for a LIQUIDADA row', () => {
+  it('hides "Cancelar" and "Telmex empezó a pagar" for a LIQUIDADA row', () => {
     const wrapper = mountTable({ coverages: [buildCoverage({ status: 'LIQUIDADA' })], canManage: true })
 
     expect(wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-cash-check')).toHaveLength(0)
