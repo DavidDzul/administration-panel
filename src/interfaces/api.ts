@@ -10,6 +10,7 @@ import type {
   EligibleTelmexBecario,
   TelmexCoverageStatement,
   TelmexCoveragePayment,
+  BulkEndTelmexCoveragesResult,
 } from './telmexCoverage'
 import type {
   ExportSummary,
@@ -218,4 +219,13 @@ export interface TelmexCoveragePaymentResponse {
   res: boolean
   msg?: string
   data: TelmexCoveragePayment
+}
+
+// Matches BulkEndTelmexCoveragesAction's response envelope (design #1931 D5)
+// — always 200 on a request-shape-valid payload, even when every coverage
+// fails; per-coverage outcomes live in `data.ended`/`data.failed`.
+export interface BulkEndTelmexCoveragesResponse {
+  res: boolean
+  msg?: string
+  data: BulkEndTelmexCoveragesResult
 }

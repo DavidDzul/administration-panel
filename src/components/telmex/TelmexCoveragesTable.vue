@@ -1,5 +1,16 @@
 <template>
-  <v-data-table :headers="tableHeaders" :items="coverages" class="elevation-1" :loading="loading" item-value="id">
+  <v-data-table
+    :headers="tableHeaders"
+    :items="coverages"
+    class="elevation-1"
+    :loading="loading"
+    item-value="id"
+    :show-select="canManage"
+    :item-selectable="isActiva"
+    select-strategy="all"
+    :model-value="selected"
+    @update:model-value="emit('update:selected', $event as number[])"
+  >
     <template #[`item.becario_name`]="{ item }">
       <button
         type="button"
@@ -121,21 +132,32 @@ interface Props {
   coverages?: TelmexCoverage[]
   loading?: boolean
   canManage?: boolean
+  // Bulk selection (sdd/telmex-cobertura-lote, PR2, design #1931 D10) — ids
+  // of the currently selected rows, owned by the parent (useTelmexCoveragesPage).
+  selected?: number[]
 }
 
 withDefaults(defineProps<Props>(), {
   coverages: () => [],
   loading: false,
   canManage: false,
+  selected: () => [],
 })
 
 interface Emits {
   (e: 'end', coverage: TelmexCoverage): void
   (e: 'cancel', coverage: TelmexCoverage): void
   (e: 'reactivate', coverage: TelmexCoverage): void
+  (e: 'update:selected', ids: number[]): void
 }
 
 const emit = defineEmits<Emits>()
+
+// Only ACTIVA rows are selectable (spec: "Row selection restricted to
+// ACTIVA"); `v-data-table`'s `item-selectable` receives the raw row item
+// (verified against node_modules/vuetify/lib/util/helpers.js's
+// getPropertyFromItem — a function prop is called as `fn(item)`).
+const isActiva = (coverage: TelmexCoverage): boolean => coverage.status === 'ACTIVA'
 
 const tableHeaders = [
   { title: 'Becario', key: 'becario_name' },

@@ -1,4 +1,4 @@
-import { computed, onBeforeMount, ref } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTelmexCoverageStore } from '@/stores/api/telmexCoverageStore'
 import { useAuthStore } from '@/stores/api/authStore'
@@ -30,6 +30,18 @@ export function useTelmexCoveragesPage() {
   const eligibleLoadError = ref<boolean>(false)
   const statusFilter = ref<TelmexCoverageStatus | null>(null)
   const search = ref<string>('')
+  // Client-side filters (spec: "Generación and sede filters"), same rationale
+  // as statusFilter/search above — filtered over the already-fetched list.
+  const generationFilter = ref<string | null>(null)
+  const campusFilter = ref<string | null>(null)
+
+  const reloadCoverages = async (): Promise<void> => {
+    loading.value = true
+    loadError.value = false
+    const coveragesLoaded = await fetchCoverages()
+    if (!coveragesLoaded) loadError.value = true
+    loading.value = false
+  }
 
   onBeforeMount(async () => {
     loading.value = true
@@ -43,15 +55,56 @@ export function useTelmexCoveragesPage() {
 
   const allCoveragesList = computed<TelmexCoverage[]>(() => [...allCoverages.value.values()])
 
+  // Sorted, non-null options derived from the loaded list (design #1931,
+  // Panel file changes table) rather than a fixed catalog — mirrors
+  // usePersonsPage's `filteredCampus` precedent of deriving filter choices
+  // from what's actually there instead of a static source that could drift.
+  const generationOptions = computed<string[]>(() => {
+    const values = new Set(
+      allCoveragesList.value
+        .map((coverage) => coverage.generation)
+        .filter((generation): generation is string => generation !== null),
+    )
+    return [...values].sort((a, b) => a.localeCompare(b))
+  })
+
+  const campusOptions = computed<string[]>(() => {
+    const values = new Set(allCoveragesList.value.map((coverage) => coverage.campus))
+    return [...values].sort((a, b) => a.localeCompare(b))
+  })
+
   const coverages = computed<TelmexCoverage[]>(() => {
     const normalizedSearch = search.value.trim().toLowerCase()
     return allCoveragesList.value.filter((coverage) => {
       const matchesStatus = statusFilter.value === null || coverage.status === statusFilter.value
+      const matchesGeneration = generationFilter.value === null || coverage.generation === generationFilter.value
+      const matchesCampus = campusFilter.value === null || coverage.campus === campusFilter.value
       const matchesSearch =
         normalizedSearch === '' || coverage.becario_name.toLowerCase().includes(normalizedSearch)
-      return matchesStatus && matchesSearch
+      return matchesStatus && matchesGeneration && matchesCampus && matchesSearch
     })
   })
+
+  // Bulk selection (spec: "Row selection restricted to ACTIVA", "Bulk action
+  // trigger and feedback"; design #1931 D9). Selection is plain coverage ids
+  // — `selectedCoverages` below is the actual submission payload source,
+  // intersected against the currently visible ACTIVA rows so a stale id
+  // (hidden by a filter, or no longer ACTIVA) is never sent.
+  const selectedIds = ref<number[]>([])
+
+  watch([statusFilter, generationFilter, campusFilter, search], () => {
+    selectedIds.value = []
+  })
+
+  const selectedCoverages = computed<TelmexCoverage[]>(() =>
+    coverages.value.filter((coverage) => coverage.status === 'ACTIVA' && selectedIds.value.includes(coverage.id)),
+  )
+
+  const canBulkEnd = computed<boolean>(() => selectedCoverages.value.length > 0)
+
+  const clearSelection = (): void => {
+    selectedIds.value = []
+  }
 
   const eligibleBecarios = computed<EligibleTelmexBecario[]>(() => storeEligibleBecarios.value)
   const canManage = computed<boolean>(() => manageTelmexCoverage.value)
@@ -65,7 +118,16 @@ export function useTelmexCoveragesPage() {
     eligibleLoadError,
     statusFilter,
     search,
+    generationFilter,
+    campusFilter,
+    generationOptions,
+    campusOptions,
     canManage,
     canManageRepayments,
+    selectedIds,
+    selectedCoverages,
+    canBulkEnd,
+    clearSelection,
+    reloadCoverages,
   }
 }
