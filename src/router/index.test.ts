@@ -27,9 +27,12 @@ describe('router auth guard', () => {
   // evaluated one by one; two concurrent first loads can see a
   // half-evaluated module (`propsFactory is not a function`), which shows up
   // under full-suite load. Evaluating Vuetify once, up front, removes the race.
+  // The first evaluation of Vuetify can take longer than Vitest's default
+  // 10s hookTimeout under full-suite load, so this hook gets its own limit
+  // (same order as test.testTimeout in vite.config.ts).
   beforeAll(async () => {
     await import('vuetify/components')
-  })
+  }, 30000)
 
   beforeEach(async () => {
     localStorage.clear()
