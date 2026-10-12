@@ -24,6 +24,21 @@ export const becTypeArray: SelectOption[] = [
   { value: 'BEC_INACTIVE', text: 'Egresado/a' },
 ]
 
+// Pagos batch type (sdd/pagos-lote-pago-adelantado, amendment #1942): no
+// default is exported here deliberately — the "Tipo de lote" select has NO
+// initial value, staff must explicitly choose one. The label "CERT-UNID" is
+// used (never "Pago adelantado", which already means something else on this
+// page — advance_paid rows).
+export const batchTypeOptions: SelectOption[] = [
+  { value: 'NORMAL', text: 'Normal' },
+  { value: 'CERT_UNID', text: 'CERT-UNID' },
+]
+
+export const batchTypeMap = new Map<string, SelectOption>([
+  ['NORMAL', { value: 'NORMAL', text: 'Normal' }],
+  ['CERT_UNID', { value: 'CERT_UNID', text: 'CERT-UNID' }],
+])
+
 // Pagos batch key requires `period_month` as an integer 1-12 (design D1,
 // matches ScholarshipPaymentController's validation). Kept as its own
 // `{value: number, text: string}` shape rather than `SelectOption` — the

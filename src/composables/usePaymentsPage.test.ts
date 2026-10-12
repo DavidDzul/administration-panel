@@ -103,13 +103,36 @@ describe('usePaymentsPage', () => {
 
     result.periodMonth.value = 9
     await flushPromises()
+    expect(fetchBatchSpy).not.toHaveBeenCalled()
+
+    result.batchType.value = 'NORMAL'
+    await flushPromises()
 
     expect(fetchBatchSpy).toHaveBeenCalledTimes(1)
     expect(fetchBatchSpy).toHaveBeenCalledWith({
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 9,
+      batch_type: 'NORMAL',
     })
+  })
+
+  // Amendment #1942: "Tipo de lote" has NO default — filtersComplete must
+  // stay false until it is explicitly chosen, same gate as the other 3
+  // fields. Regression guard distinct from the test above (which proves the
+  // ordering doesn't matter): this proves batchType alone gates the fetch.
+  it('filtersComplete stays false (no fetch) when only batchType is missing', async () => {
+    const paymentsStore = usePaymentsStore()
+    const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)
+
+    const result = withSetup(() => usePaymentsPage())
+    result.campus.value = 'MERIDA'
+    result.periodYear.value = 2026
+    result.periodMonth.value = 9
+    await flushPromises()
+
+    expect(result.filtersComplete.value).toBe(false)
+    expect(fetchBatchSpy).not.toHaveBeenCalled()
   })
 
   it('refetches when an already-complete filter set changes', async () => {
@@ -120,6 +143,7 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
     expect(fetchBatchSpy).toHaveBeenCalledTimes(1)
 
@@ -131,6 +155,33 @@ describe('usePaymentsPage', () => {
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 10,
+      batch_type: 'NORMAL',
+    })
+  })
+
+  // Changing ONLY batchType (campus/year/month unchanged) must also refetch
+  // — it is a batch-key field like the other 3, not a cosmetic display value.
+  it('refetches when batchType changes on an already-complete filter set', async () => {
+    const paymentsStore = usePaymentsStore()
+    const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockResolvedValue(true)
+
+    const result = withSetup(() => usePaymentsPage())
+    result.campus.value = 'MERIDA'
+    result.periodYear.value = 2026
+    result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
+    await flushPromises()
+    expect(fetchBatchSpy).toHaveBeenCalledTimes(1)
+
+    result.batchType.value = 'CERT_UNID'
+    await flushPromises()
+
+    expect(fetchBatchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchBatchSpy).toHaveBeenLastCalledWith({
+      campus: 'MERIDA',
+      period_year: 2026,
+      period_month: 9,
+      batch_type: 'CERT_UNID',
     })
   })
 
@@ -146,6 +197,7 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
 
     expect(result.canProcess.value).toBe(false)
@@ -163,6 +215,7 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
 
     expect(result.canProcess.value).toBe(true)
@@ -183,13 +236,14 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
 
     const outcome = await result.confirmProcess()
     await flushPromises()
 
     expect(processBatchSpy).toHaveBeenCalledWith(
-      { campus: 'MERIDA', period_year: 2026, period_month: 9 },
+      { campus: 'MERIDA', period_year: 2026, period_month: 9, batch_type: 'NORMAL' },
       1,
       '1000.00',
     )
@@ -213,6 +267,7 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
 
     const callsBeforeConfirm = fetchBatchSpy.mock.calls.length
@@ -239,6 +294,7 @@ describe('usePaymentsPage', () => {
     result.campus.value = 'MERIDA'
     result.periodYear.value = 2026
     result.periodMonth.value = 9
+    result.batchType.value = 'NORMAL'
     await flushPromises()
     await result.confirmProcess()
     await flushPromises()
@@ -268,6 +324,7 @@ describe('usePaymentsPage', () => {
       count: 4,
       total_amount: '2600.02',
       filename: 'PAGO_1_MERIDA_202609_42.TXT',
+      batch_type: 'NORMAL',
       ...overrides,
     })
 
@@ -294,6 +351,7 @@ describe('usePaymentsPage', () => {
       result.campus.value = 'MERIDA'
       result.periodYear.value = 2026
       result.periodMonth.value = 9
+      result.batchType.value = 'NORMAL'
       await flushPromises()
 
       return { result, paymentsStore, downloadSpy }
@@ -326,6 +384,7 @@ describe('usePaymentsPage', () => {
       result.campus.value = 'MERIDA'
       result.periodYear.value = 2026
       result.periodMonth.value = 9
+      result.batchType.value = 'NORMAL'
       await flushPromises()
 
       expect(fetchExportSummarySpy).not.toHaveBeenCalled()
@@ -392,6 +451,7 @@ describe('usePaymentsPage', () => {
       result.campus.value = 'MERIDA'
       result.periodYear.value = 2026
       result.periodMonth.value = 9
+      result.batchType.value = 'NORMAL'
       await flushPromises()
 
       return result
@@ -456,6 +516,7 @@ describe('usePaymentsPage', () => {
       result.campus.value = 'MERIDA'
       result.periodYear.value = 2026
       result.periodMonth.value = 9
+      result.batchType.value = 'NORMAL'
       await flushPromises()
 
       result.showOnlyPending.value = true

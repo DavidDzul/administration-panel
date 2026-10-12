@@ -31,23 +31,40 @@
         @update:model-value="(value) => emit('update:periodMonth', value)"
       ></v-select>
     </v-col>
+    <v-col cols="12" sm="3">
+      <v-select
+        :items="batchTypeOptions"
+        :model-value="batchType"
+        item-title="text"
+        item-value="value"
+        label="Tipo de lote"
+        hint="Elige Normal o CERT-UNID para cargar el lote"
+        persistent-hint
+        clearable
+        @update:model-value="(value) => emit('update:batchType', value)"
+      ></v-select>
+    </v-col>
   </v-row>
 </template>
 
 <script setup lang="ts">
 // Pagos batch filters — D7 (sdd/becario-payment-file-generation/design): all
-// 3 fields are REQUIRED server params for a batch key (sdd/pagos-batch-sede-
+// fields are REQUIRED server params for a batch key (sdd/pagos-batch-sede-
 // totals: batch key is campus+period only, generation_id/Generación selector
-// removed). This component owns NO fetch/refetch logic itself (that lives in
+// removed; sdd/pagos-lote-pago-adelantado amendment #1942 adds `batch_type`
+// as a 4th required field, with NO default — the select starts empty). This
+// component owns NO fetch/refetch logic itself (that lives in
 // usePaymentsPage) — it is a pure controlled input, each field bound via its
 // own `v-model:*` pair from PaymentsView.vue.
 import type { SelectOption } from '@/constants'
-import { monthsArray } from '@/constants'
+import { monthsArray, batchTypeOptions } from '@/constants'
+import type { PaymentBatchType } from '@/interfaces/payment'
 
 interface Props {
   campus: string | null
   periodYear: number | null
   periodMonth: number | null
+  batchType: PaymentBatchType | null
   campusOptions?: SelectOption[]
 }
 
@@ -59,6 +76,7 @@ interface Emits {
   (e: 'update:campus', value: string | null): void
   (e: 'update:periodYear', value: number | null): void
   (e: 'update:periodMonth', value: number | null): void
+  (e: 'update:batchType', value: PaymentBatchType | null): void
 }
 
 const emit = defineEmits<Emits>()

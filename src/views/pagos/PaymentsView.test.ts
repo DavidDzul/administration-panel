@@ -93,6 +93,7 @@ const setAllFilters = async (wrapper: ReturnType<typeof mountView>): Promise<voi
   await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
   await selectByLabel(wrapper, 'Año')?.vm.$emit('update:modelValue', 2026)
   await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 9)
+  await selectByLabel(wrapper, 'Tipo de lote')?.vm.$emit('update:modelValue', 'NORMAL')
   await flushPromises()
 }
 
@@ -147,7 +148,7 @@ describe('PaymentsView', () => {
     expect(wrapper.findComponent({ name: 'VDataTable' }).exists()).toBe(false)
   })
 
-  it('fetches the batch with the exact key once all 3 filters are chosen, and renders summary + table', async () => {
+  it('fetches the batch with the exact key once all 4 filters are chosen, and renders summary + table', async () => {
     const wrapper = mountView()
     await flushPromises()
     await setAllFilters(wrapper)
@@ -155,11 +156,62 @@ describe('PaymentsView', () => {
     expect(mockAxiosGet).toHaveBeenCalledWith(
       'api/admin/scholarship-payments',
       expect.objectContaining({
-        params: { campus: 'MERIDA', period_year: 2026, period_month: 9 },
+        params: { campus: 'MERIDA', period_year: 2026, period_month: 9, batch_type: 'NORMAL' },
       }),
     )
     expect(wrapper.text()).toContain('Ada Lovelace')
     expect(wrapper.text()).toContain('1') // total becarios
+  })
+
+  // Amendment #1942: "Tipo de lote" has NO default — it must gate the fetch
+  // exactly like Sede/Año/Mes, not just be along for the ride.
+  it('does not fetch the batch when Sede/Año/Mes are set but Tipo de lote is not chosen', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
+    await selectByLabel(wrapper, 'Año')?.vm.$emit('update:modelValue', 2026)
+    await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 9)
+    await flushPromises()
+
+    expect(mockAxiosGet).not.toHaveBeenCalledWith('api/admin/scholarship-payments', expect.anything())
+  })
+
+  it('renders the "Tipo de lote" select with no default value', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const select = selectByLabel(wrapper, 'Tipo de lote')
+    expect(select).toBeDefined()
+    expect(select?.props('modelValue')).toBeFalsy()
+  })
+
+  it('shows a chip with the selected batch type label once the batch loads', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await setAllFilters(wrapper)
+
+    const chip = wrapper.find('[data-testid="batch-type-chip"]')
+    expect(chip.exists()).toBe(true)
+    expect(chip.text()).toContain('Normal')
+  })
+
+  it('shows the "CERT-UNID" chip label when that batch type is selected', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await selectByLabel(wrapper, 'Sede')?.vm.$emit('update:modelValue', 'MERIDA')
+    await selectByLabel(wrapper, 'Año')?.vm.$emit('update:modelValue', 2026)
+    await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 9)
+    await selectByLabel(wrapper, 'Tipo de lote')?.vm.$emit('update:modelValue', 'CERT_UNID')
+    await flushPromises()
+
+    const chip = wrapper.find('[data-testid="batch-type-chip"]')
+    expect(chip.text()).toContain('CERT-UNID')
+    expect(mockAxiosGet).toHaveBeenCalledWith(
+      'api/admin/scholarship-payments',
+      expect.objectContaining({
+        params: { campus: 'MERIDA', period_year: 2026, period_month: 9, batch_type: 'CERT_UNID' },
+      }),
+    )
   })
 
   it('shows the readiness chip and the specific blocking reason per row', async () => {
@@ -248,6 +300,7 @@ describe('PaymentsView', () => {
       campus: 'MERIDA',
       period_year: 2026,
       period_month: 9,
+      batch_type: 'NORMAL',
       expected_count: 1,
       expected_total: '1000.00',
     })

@@ -204,15 +204,25 @@ export interface GenerationPaymentSummary {
   telmex_coverage_amount?: string
 }
 
+// Batch type partition (sdd/pagos-lote-pago-adelantado, amendment #1942,
+// binding override of the original design's "sometimes/defaults to NORMAL"):
+// REQUIRED end-to-end, no default anywhere — the backend validates
+// `required|in:NORMAL,CERT_UNID` and returns 422 when missing/invalid, and
+// the panel's "Tipo de lote" select has no initial value either. NORMAL is
+// the existing (pre-this-change) batch; CERT_UNID is the new, independent
+// batch for CERT-UNID-eligible becarios.
+export type PaymentBatchType = 'NORMAL' | 'CERT_UNID'
+
 // The batch identity posted to both GET (query params) and POST /process
 // (body) — the server always re-derives membership from this key, never
-// trusts a client-supplied ids[] (design D2). Batch key is campus + period
-// only (sdd/pagos-batch-sede-totals) — generation_id removed: a batch now
-// spans becarios across all generaciones at a campus/period.
+// trusts a client-supplied ids[] (design D2). Batch key is campus + period +
+// batch_type (sdd/pagos-batch-sede-totals removed generation_id; this change
+// adds batch_type as a REQUIRED 4th key field, not optional).
 export interface BatchKey {
   campus: string
   period_year: number
   period_month: number
+  batch_type: PaymentBatchType
 }
 
 // Matches ScholarshipPaymentController::index()'s new `data.batch` block
@@ -232,11 +242,14 @@ export interface PaymentBatchBlock {
 // PaymentBatchService::paidRows() + BankDataValidator gate export() uses, so
 // this can never promise a total the file endpoint fails to deliver.
 // `filename` is server-owned (BankPaymentFileName::forBatch(), design D5) —
-// the SPA never composes it.
+// the SPA never composes it. `batch_type` (sdd/pagos-lote-pago-adelantado)
+// echoes the already-persisted batch's type — always present since a batch
+// row always has one, never derived/guessed client-side.
 export interface ExportSummary {
   count: number
   total_amount: string
   filename: string
+  batch_type: PaymentBatchType
 }
 
 // Matches BankDataValidator::validate()'s per-row rejection shape.
