@@ -295,3 +295,131 @@ describe('TelmexCoveragesView — end / cancel / reactivate row actions', () => 
     expect(wrapper.text()).toContain('Activa')
   })
 })
+
+describe('TelmexCoveragesView — generación/sede filters (sdd/telmex-cobertura-lote, PR3)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockAxiosGet.mockReset()
+    mockAxiosPost.mockReset()
+    setManageTelmexCoverage(true)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  it('renders Generación and Sede selects next to Estado and Buscar', async () => {
+    mockGetByUrl([buildCoverage({ generation: 'Gen 2024', campus: 'MERIDA' })], [])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const selectLabels = wrapper.findAllComponents(VSelect).map((s) => s.props('label'))
+    expect(selectLabels).toContain('Generación')
+    expect(selectLabels).toContain('Sede')
+  })
+
+  it('narrows the table when a generación is selected', async () => {
+    mockGetByUrl(
+      [
+        buildCoverage({ id: 1, becario_name: 'Grace Hopper', generation: 'Gen 2024' }),
+        buildCoverage({ id: 2, becario_name: 'Ada Lovelace', generation: 'Gen 2025' }),
+      ],
+      [],
+    )
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Grace Hopper')
+    expect(wrapper.text()).toContain('Ada Lovelace')
+
+    const generationSelect = wrapper.findAllComponents(VSelect).find((s) => s.props('label') === 'Generación')
+    await generationSelect?.setValue('Gen 2025')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Grace Hopper')
+    expect(wrapper.text()).toContain('Ada Lovelace')
+  })
+})
+
+describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockAxiosGet.mockReset()
+    mockAxiosPost.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  it('does not show the bulk bar without ADM_MANAGE_TELMEX_COVERAGE', async () => {
+    setManageTelmexCoverage(false)
+    mockGetByUrl([buildCoverage({ status: 'ACTIVA' })], [])
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Marcar inicio de pago Telmex (')
+  })
+
+  it('shows the bulk button disabled with count 0 when nothing is selected', async () => {
+    setManageTelmexCoverage(true)
+    mockGetByUrl([buildCoverage({ id: 1, status: 'ACTIVA' })], [])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
+    expect(bulkButton).toBeDefined()
+    expect(bulkButton?.text()).toContain('Marcar inicio de pago Telmex (0)')
+    expect(bulkButton?.attributes('disabled')).toBeDefined()
+  })
+
+  it('selecting a row enables the bulk button with the right count, and completing the dialog refetches and clears the selection', async () => {
+    setManageTelmexCoverage(true)
+    mockGetByUrl([buildCoverage({ id: 7, status: 'ACTIVA', becario_name: 'Rosalind Franklin' })], [])
+    const bulkResult = {
+      ended: [{ coverage_id: 7, user_id: 10, becario_name: 'Rosalind Franklin' }],
+      failed: [],
+    }
+    mockAxiosPost.mockImplementation((url: string) => {
+      if (url === 'api/admin/telmex-coverages/end-bulk') return Promise.resolve({ data: { res: true, data: bulkResult } })
+      return Promise.reject(new Error(`unexpected url ${url}`))
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    await checkboxes[1].trigger('click')
+    await flushPromises()
+
+    const bulkButton = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
+    expect(bulkButton?.text()).toContain('Marcar inicio de pago Telmex (1)')
+    expect(bulkButton?.attributes('disabled')).toBeUndefined()
+
+    await bulkButton?.trigger('click')
+    await flushPromises()
+
+    await fieldByLabelPrefix(wrapper, 'Telmex empieza')?.setValue('2026-03')
+    await submitOpenForm()
+    await flushPromises()
+
+    expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/telmex-coverages/end-bulk', {
+      coverage_ids: [7],
+      telmex_start_period: '2026-03-01',
+    })
+
+    const closeButtons = body()
+      .findAll('button')
+      .filter((b) => b.text() === 'Cerrar')
+    expect(mockAxiosGet).toHaveBeenCalledTimes(2) // initial coverages+eligible fetch, refetch happens after close
+    await closeButtons[0].trigger('click')
+    await flushPromises()
+
+    expect(mockAxiosGet).toHaveBeenCalledTimes(3) // reloadCoverages() after completion
+
+    const bulkButtonAfter = wrapper.findAll('button').find((b) => b.text().includes('Marcar inicio de pago Telmex ('))
+    expect(bulkButtonAfter?.text()).toContain('Marcar inicio de pago Telmex (0)')
+  })
+})

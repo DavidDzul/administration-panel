@@ -19,7 +19,7 @@
   </v-row>
 
   <v-row v-if="!loading && !loadError">
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="3">
       <v-select
         v-model="statusFilter"
         label="Estado"
@@ -29,8 +29,34 @@
         clearable
       ></v-select>
     </v-col>
-    <v-col cols="12" sm="8">
+    <v-col cols="12" sm="3">
+      <v-select v-model="generationFilter" label="Generación" :items="generationOptions" clearable></v-select>
+    </v-col>
+    <v-col cols="12" sm="3">
+      <v-select
+        v-model="campusFilter"
+        label="Sede"
+        :items="campusSelectOptions"
+        item-title="text"
+        item-value="value"
+        clearable
+      ></v-select>
+    </v-col>
+    <v-col cols="12" sm="3">
       <v-text-field v-model="search" label="Buscar becario" prepend-inner-icon="mdi-magnify" clearable></v-text-field>
+    </v-col>
+  </v-row>
+
+  <!--
+    Bulk action bar (sdd/telmex-cobertura-lote, PR3, task 9.2) — only
+    offered to managers (spec: "Bulk action trigger and feedback"), disabled
+    when nothing is selected so the count always matches what will be sent.
+  -->
+  <v-row v-if="canManage && !loading && !loadError" justify="end">
+    <v-col cols="auto">
+      <v-btn color="primary" prepend-icon="mdi-cash-multiple" :disabled="!canBulkEnd" @click="bulkDialogOpen = true">
+        Marcar inicio de pago Telmex ({{ selectedCoverages.length }})
+      </v-btn>
     </v-col>
   </v-row>
 
@@ -56,6 +82,8 @@
       <TelmexCoveragesTable
         :coverages="coverages"
         :can-manage="canManage"
+        :selected="selectedIds"
+        @update:selected="selectedIds = $event"
         @end="openEndDialog"
         @cancel="openCancelDialog"
         @reactivate="openReactivateConfirm"
@@ -70,6 +98,7 @@
   />
   <EndCoverageDialog v-model="endDialogOpen" :coverage="selectedCoverage" @ended="onEnded" />
   <CancelCoverageDialog v-model="cancelDialogOpen" :coverage="selectedCoverage" @cancelled="onCancelled" />
+  <BulkEndCoverageDialog v-model="bulkDialogOpen" :coverages="selectedCoverages" @completed="onBulkCompleted" />
 
   <!--
     Reactivate needs no form input beyond confirmation (decisions-2 #1921
@@ -97,20 +126,46 @@
 // Becas Telmex list view (sdd/telmex-cobertura-iu, PR4, tasks 4.4/4.7).
 // Mirrors AccesosView.vue's structure: composable owns fetch + filters, this
 // view only wires the table and the 3 form dialogs + 1 confirm-only action.
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useTelmexCoveragesPage } from '@/composables/useTelmexCoveragesPage'
 import { useTelmexCoverageStore } from '@/stores/api/telmexCoverageStore'
 import { useAlertStore } from '@/stores/alert'
+import { campusMap } from '@/constants'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import TelmexCoveragesTable from '@/components/telmex/TelmexCoveragesTable.vue'
 import ActivateCoverageDialog from '@/components/telmex/ActivateCoverageDialog.vue'
 import EndCoverageDialog from '@/components/telmex/EndCoverageDialog.vue'
 import CancelCoverageDialog from '@/components/telmex/CancelCoverageDialog.vue'
+import BulkEndCoverageDialog from '@/components/telmex/BulkEndCoverageDialog.vue'
 import type { LinkInterface } from '@/interfaces/link'
 import type { TelmexCoverage } from '@/interfaces/telmexCoverage'
 
-const { coverages, eligibleBecarios, loading, loadError, eligibleLoadError, statusFilter, search, canManage } =
-  useTelmexCoveragesPage()
+const {
+  coverages,
+  eligibleBecarios,
+  loading,
+  loadError,
+  eligibleLoadError,
+  statusFilter,
+  search,
+  generationFilter,
+  campusFilter,
+  generationOptions,
+  campusOptions,
+  canManage,
+  selectedIds,
+  selectedCoverages,
+  canBulkEnd,
+  clearSelection,
+  reloadCoverages,
+} = useTelmexCoveragesPage()
+
+// Sede select needs a human label (campusMap, same source as the table's
+// column) — campusOptions itself stays plain string[] (composable owns raw
+// codes; the view owns presentation, mirrors statusOptions below).
+const campusSelectOptions = computed(() =>
+  campusOptions.value.map((campus) => ({ value: campus, text: campusMap.get(campus)?.text ?? campus })),
+)
 
 const telmexCoverageStore = useTelmexCoverageStore()
 const { showAlert } = useAlertStore()
@@ -133,6 +188,7 @@ const cancelDialogOpen = ref(false)
 const reactivateDialogOpen = ref(false)
 const reactivating = ref(false)
 const selectedCoverage = ref<TelmexCoverage | null>(null)
+const bulkDialogOpen = ref(false)
 
 const onActivated = (): void => {
   activateDialogOpen.value = false
@@ -179,5 +235,15 @@ const confirmReactivate = async (): Promise<void> => {
   } finally {
     reactivating.value = false
   }
+}
+
+// Bulk end (sdd/telmex-cobertura-lote, PR3, task 9.2) — the dialog already
+// shows the per-becario results before emitting 'completed', so by the time
+// this runs staff have already seen the outcome. Refetch (design #1931 D8:
+// one GET is the single source of truth after a bulk write) then clear the
+// selection (spec: "Selection cleared after completion").
+const onBulkCompleted = async (): Promise<void> => {
+  clearSelection()
+  await reloadCoverages()
 }
 </script>
