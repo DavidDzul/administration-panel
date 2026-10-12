@@ -58,7 +58,7 @@
       precedent for actions that don't need a form).
     -->
     <template #[`item.actions`]="{ item }">
-      <div style="width: 100%; text-align: right">
+      <div class="d-flex justify-end flex-nowrap ga-2">
         <v-tooltip v-if="canManage && item.status === 'ACTIVA'" text="Telmex empezó a pagar" location="bottom">
           <template v-slot:activator="{ props: tooltipProps }">
             <span v-bind="tooltipProps" style="display: inline-block">
@@ -169,7 +169,7 @@ const tableHeaders = [
   { title: 'Adelantado', key: 'advanced' },
   { title: 'Devuelto', key: 'repaid' },
   { title: 'Saldo', key: 'balance' },
-  { title: '', key: 'actions' },
+  { title: '', key: 'actions', minWidth: '96px', nowrap: true },
 ]
 
 const campusLabel = (campus: string): string => campusMap.get(campus)?.text ?? campus
