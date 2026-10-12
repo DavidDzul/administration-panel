@@ -1,6 +1,6 @@
 <template>
   <v-row>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="3">
       <v-select
         :items="campusOptions"
         :model-value="campus"
@@ -11,7 +11,7 @@
         @update:model-value="(value) => emit('update:campus', value)"
       ></v-select>
     </v-col>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="3">
       <v-select
         :items="yearOptions"
         :model-value="periodYear"
@@ -20,7 +20,7 @@
         @update:model-value="(value) => emit('update:periodYear', value)"
       ></v-select>
     </v-col>
-    <v-col cols="12" sm="4">
+    <v-col cols="12" sm="3">
       <v-select
         :items="monthsArray"
         :model-value="periodMonth"
