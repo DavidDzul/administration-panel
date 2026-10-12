@@ -28,6 +28,7 @@ const buildKey = (overrides: Partial<BatchKey> = {}): BatchKey => ({
   campus: 'MERIDA',
   period_year: 2026,
   period_month: 9,
+  batch_type: 'NORMAL',
   ...overrides,
 })
 
@@ -315,6 +316,7 @@ describe('paymentsStore', () => {
       count: 4,
       total_amount: '2600.02',
       filename: 'PAGO_1_MERIDA_202609_42.TXT',
+      batch_type: 'NORMAL',
       ...overrides,
     })
 
