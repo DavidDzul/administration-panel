@@ -5,10 +5,12 @@
     :campus="campus"
     :period-year="periodYear"
     :period-month="periodMonth"
+    :batch-type="batchType"
     :campus-options="filteredCampus"
     @update:campus="campus = $event"
     @update:period-year="periodYear = $event"
     @update:period-month="periodMonth = $event"
+    @update:batch-type="batchType = $event"
   />
 
   <v-row v-if="loadingBatch">
@@ -29,6 +31,14 @@
   </v-row>
 
   <template v-else-if="summary">
+    <v-row>
+      <v-col cols="12">
+        <v-chip data-testid="batch-type-chip" color="primary" variant="tonal" size="small">
+          {{ batchTypeLabel }}
+        </v-chip>
+      </v-col>
+    </v-row>
+
     <PaymentBatchSummary v-if="!isPaid" :summary="summary" />
 
     <v-row v-if="hasProcessPermission" justify="end">
@@ -114,7 +124,7 @@
 // filters + summary + table + confirm dialog via usePaymentsPage (D7 — this
 // view/composable owns filter state; PaymentBatchTable itself is purely
 // presentational).
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import PaymentBatchFilters from '@/components/pagos/PaymentBatchFilters.vue'
@@ -124,11 +134,13 @@ import ProcessPaymentDialog from '@/components/pagos/ProcessPaymentDialog.vue'
 import PaymentDocumentDialog from '@/components/pagos/PaymentDocumentDialog.vue'
 import BankFileExportCard from '@/components/pagos/BankFileExportCard.vue'
 import type { LinkInterface } from '@/interfaces/link'
+import { batchTypeMap } from '@/constants'
 
 const {
   campus,
   periodYear,
   periodMonth,
+  batchType,
   filteredCampus,
   rows,
   visibleRows,
@@ -156,6 +168,11 @@ const links: LinkInterface[] = [
 ]
 
 const dialogOpen = ref(false)
+
+// Purely a local display label (sdd/pagos-lote-pago-adelantado) — derived
+// from the already-selected filter, never from a server echo, since the
+// filter itself is the single source of truth for which type is loaded.
+const batchTypeLabel = computed(() => (batchType.value ? (batchTypeMap.get(batchType.value)?.text ?? '') : ''))
 
 const onConfirm = async (): Promise<void> => {
   await confirmProcess()

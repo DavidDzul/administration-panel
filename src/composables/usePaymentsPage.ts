@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { ProcessBatchResult } from '@/stores/api/paymentsStore'
 import { useAuthStore } from '@/stores/api/authStore'
-import type { BatchKey, ExportSummary, InvalidBankRow, PaymentBatchRow } from '@/interfaces/payment'
+import type { BatchKey, ExportSummary, InvalidBankRow, PaymentBatchRow, PaymentBatchType } from '@/interfaces/payment'
 
 // Distinct from ProcessBatchResult's states — 'blocked' is the export-time
 // all-or-nothing bank-data-validation gate (design D4), 'error' is
@@ -29,6 +29,9 @@ export function usePaymentsPage() {
   const campus = ref<string | null>(null)
   const periodYear = ref<number | null>(null)
   const periodMonth = ref<number | null>(null)
+  // No default (amendment #1942, binding override of design's "defaults to
+  // NORMAL") — staff must explicitly choose a type before anything loads.
+  const batchType = ref<PaymentBatchType | null>(null)
 
   const loadingBatch = ref<boolean>(false)
   const loadError = ref<boolean>(false)
@@ -59,7 +62,11 @@ export function usePaymentsPage() {
   )
 
   const filtersComplete = computed<boolean>(
-    () => campus.value !== null && periodYear.value !== null && periodMonth.value !== null,
+    () =>
+      campus.value !== null &&
+      periodYear.value !== null &&
+      periodMonth.value !== null &&
+      batchType.value !== null,
   )
 
   const currentKey = computed<BatchKey | null>(() =>
@@ -68,6 +75,7 @@ export function usePaymentsPage() {
           campus: campus.value as string,
           period_year: periodYear.value as number,
           period_month: periodMonth.value as number,
+          batch_type: batchType.value as PaymentBatchType,
         }
       : null,
   )
@@ -81,7 +89,7 @@ export function usePaymentsPage() {
     loadingBatch.value = false
   }
 
-  watch([campus, periodYear, periodMonth], () => {
+  watch([campus, periodYear, periodMonth, batchType], () => {
     // processResult belongs to the previous batch key; the view renders it,
     // so it must not carry over to another sede/año/mes.
     processResult.value = null
@@ -164,6 +172,8 @@ export function usePaymentsPage() {
     campus,
     periodYear,
     periodMonth,
+    batchType,
+    filtersComplete,
     filteredCampus,
     rows,
     visibleRows,

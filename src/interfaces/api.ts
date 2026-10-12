@@ -19,6 +19,7 @@ import type {
   PaymentBatchBlock,
   PaymentBatchRow,
   PaymentBatchSummary,
+  PaymentBatchType,
   PaymentDocument,
 } from './payment'
 
@@ -141,6 +142,10 @@ export interface PaymentBatchIndexResponse {
     rows: PaymentBatchRow[]
     summary: PaymentBatchSummary
     batch: PaymentBatchBlock
+    // Echoes the resolved batch_type (sdd/pagos-lote-pago-adelantado,
+    // amendment #1942) — always present since index() now requires
+    // batch_type end-to-end.
+    batch_type: PaymentBatchType
   }
 }
 

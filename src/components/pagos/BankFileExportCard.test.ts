@@ -22,6 +22,7 @@ const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSumma
   count: 4,
   total_amount: '2600.02',
   filename: 'PAGO_1_MERIDA_202609_42.TXT',
+  batch_type: 'NORMAL',
   ...overrides,
 })
 
