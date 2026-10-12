@@ -110,7 +110,7 @@ export interface VoidTelmexCoveragePaymentPayload {
   void_reason: string
 }
 
-// Bulk "Marcar inicio de pago Telmex" (sdd/telmex-cobertura-lote, PR2) —
+// Bulk "Telmex empezó a pagar" (sdd/telmex-cobertura-lote, PR2) —
 // mirrors the single-coverage EndTelmexCoveragePayload's `telmex_start_period`
 // field, plus the set of coverage ids to process. Per design #1931 D5/D6: the
 // request is request-shape-validated only (1-200 distinct ids, valid date) —

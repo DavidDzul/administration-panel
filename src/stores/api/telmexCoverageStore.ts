@@ -110,7 +110,7 @@ export const useTelmexCoverageStore = defineStore('telmexCoverageStore', () => {
     return res.data.data
   }
 
-  // Bulk "Marcar inicio de pago Telmex" (sdd/telmex-cobertura-lote, PR2) —
+  // Bulk "Telmex empezó a pagar" (sdd/telmex-cobertura-lote, PR2) —
   // does NOT mutate `allCoverages` (design #1931 D8): the response carries no
   // full coverage rows (only coverage_id/user_id/becario_name per outcome),
   // and a coverage's status/balance can change beyond just `end_period`

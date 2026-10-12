@@ -97,9 +97,20 @@ describe('BulkEndCoverageDialog', () => {
     mountDialog({ modelValue: true, coverages: [buildCoverage({ id: 1 })] })
     await flushPromises()
 
-    expect(body().text()).toContain('Elige el PRIMER mes en que Telmex empieza a pagar')
-    expect(body().text()).toContain('IU deja de pagar la parte de Telmex')
+    expect(body().text()).toContain('Telmex empezó a pagar')
+    expect(body().text()).toContain('¿Cuál es el primer mes que pagó Telmex?')
     expect(body().text()).not.toContain('IU deja de pagar la beca')
+  })
+
+  it('confirms the consequence with the chosen month and the debt cut-off in words', async () => {
+    const wrapper = mountDialog({ modelValue: true, coverages: [buildCoverage({ id: 1 })] })
+    await flushPromises()
+
+    await wrapper.findComponent(VTextField).setValue('2026-12')
+    await flushPromises()
+
+    expect(body().text()).toContain('A partir de diciembre 2026 IU deja de pagar la parte de Telmex')
+    expect(body().text()).toContain('hasta noviembre 2026 quedan como adelanto por devolver')
   })
 
   it('calls endCoveragesBulk once even on a rapid double submit', async () => {

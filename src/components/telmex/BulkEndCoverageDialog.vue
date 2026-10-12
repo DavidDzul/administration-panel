@@ -7,7 +7,7 @@
   >
     <v-card>
       <v-toolbar dark>
-        <v-toolbar-title>Marcar inicio de pago Telmex</v-toolbar-title>
+        <v-toolbar-title>Telmex empezó a pagar</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-toolbar-items v-if="step === 'confirm'">
           <v-btn icon :disabled="saving" @click="close"><v-icon>mdi-close</v-icon></v-btn>
@@ -19,26 +19,19 @@
           <v-row>
             <v-col cols="12">
               <p class="text-body-2">
-                Se marcará el inicio de pago Telmex para <strong>{{ coverages.length }}</strong> becario(s).
-              </p>
-              <p class="text-body-2 text-medium-emphasis">
-                Elige el PRIMER mes en que Telmex empieza a pagar directamente. A partir de ese mes, IU deja de
-                pagar la parte de Telmex; en becas Telmex - IU, la parte de IU se sigue pagando.
+                Se registrará que Telmex empezó a pagar a <strong>{{ coverages.length }}</strong> becario(s).
               </p>
             </v-col>
             <v-col cols="12">
               <v-text-field
                 v-model="telmexStartPeriod"
                 type="month"
-                label="Telmex empieza a pagar en *"
+                label="¿Cuál es el primer mes que pagó Telmex? *"
                 :rules="[requiredRule]"
               ></v-text-field>
             </v-col>
-            <v-col cols="12" v-if="monthInWords">
-              <p class="text-body-2">
-                Mes seleccionado: <strong>{{ monthInWords }}</strong>
-              </p>
-              <p class="text-body-2 text-medium-emphasis">Último mes cubierto por IU: {{ lastIuMonthLabel }}</p>
+            <v-col cols="12" v-if="consequence">
+              <v-alert type="info" variant="tonal" density="compact">{{ consequence }}</v-alert>
             </v-col>
             <v-col cols="12">
               <v-list density="compact" max-height="200" class="overflow-y-auto border rounded">
@@ -87,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-// Bulk "Marcar inicio de pago Telmex" dialog (sdd/telmex-cobertura-lote, PR3,
+// Bulk "Telmex empezó a pagar" dialog (sdd/telmex-cobertura-lote, PR3,
 // task 8.2). Mirrors EndCoverageDialog.vue's month field + requiredRule +
 // toMonthStart + getErrorMessage pattern (design #1931 D11/D12), but adds a
 // `step: 'confirm' | 'results'` instead of closing immediately on success —
@@ -96,6 +89,7 @@
 import { computed, ref, watch } from 'vue'
 import { useTelmexCoverageStore } from '@/stores/api/telmexCoverageStore'
 import { useAlertStore } from '@/stores/alert'
+import { monthInWords, previousMonthInWords } from '@/utils/monthInWords'
 import type { TelmexCoverage, BulkEndTelmexCoveragesResult } from '@/interfaces/telmexCoverage'
 
 interface Props {
@@ -123,37 +117,17 @@ const result = ref<BulkEndTelmexCoveragesResult | null>(null)
 
 const requiredRule = (v: unknown): true | string => (!!v && String(v).trim() !== '') || 'Campo requerido.'
 
-const MONTH_NAMES = [
-  'enero',
-  'febrero',
-  'marzo',
-  'abril',
-  'mayo',
-  'junio',
-  'julio',
-  'agosto',
-  'septiembre',
-  'octubre',
-  'noviembre',
-  'diciembre',
-]
-
-const monthInWords = computed<string>(() => {
-  const value = telmexStartPeriod.value
-  if (!value) return ''
-  const [year, month] = value.split('-').map(Number)
-  if (!year || !month || month < 1 || month > 12) return ''
-  return `${MONTH_NAMES[month - 1]} ${year}`
-})
-
-const lastIuMonthLabel = computed<string>(() => {
-  const value = telmexStartPeriod.value
-  if (!value) return ''
-  const [year, month] = value.split('-').map(Number)
-  if (!year || !month) return ''
-  const prevMonth = month === 1 ? 12 : month - 1
-  const prevYear = month === 1 ? year - 1 : year
-  return `${String(prevMonth).padStart(2, '0')}/${prevYear}`
+// Coverages in a batch start in different months, so the consequence names
+// only the cut-off: everything IU covered before the chosen month is owed.
+// Telmex - IU becarios keep receiving their IU part.
+const consequence = computed<string>(() => {
+  const chosen = telmexStartPeriod.value
+  if (!monthInWords(chosen)) return ''
+  return (
+    `A partir de ${monthInWords(chosen)} IU deja de pagar la parte de Telmex ` +
+    `(en becas Telmex - IU, la parte de IU se sigue pagando). ` +
+    `Los meses que IU cubrió hasta ${previousMonthInWords(chosen)} quedan como adelanto por devolver.`
+  )
 })
 
 const resetForm = (): void => {
@@ -184,7 +158,7 @@ const toMonthStart = (value: string): string => `${value}-01`
 const getErrorMessage = (error: unknown): string => {
   const err = error as { response?: { data?: { msg?: string; errors?: Record<string, string[]> } } }
   const fieldError = err.response?.data?.errors ? Object.values(err.response.data.errors)[0]?.[0] : undefined
-  return fieldError ?? err.response?.data?.msg ?? 'Error al marcar el inicio de pago Telmex, intenta nuevamente.'
+  return fieldError ?? err.response?.data?.msg ?? 'Error al registrar que Telmex empezó a pagar, intenta nuevamente.'
 }
 
 const onConfirm = async (): Promise<void> => {
@@ -200,7 +174,7 @@ const onConfirm = async (): Promise<void> => {
     })
     step.value = 'results'
   } catch (error: unknown) {
-    console.error('Error al marcar el inicio de pago Telmex en lote:', error)
+    console.error('Error al registrar en lote que Telmex empezó a pagar:', error)
     showAlert({ title: getErrorMessage(error), status: 'error' })
   } finally {
     saving.value = false

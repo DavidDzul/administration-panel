@@ -14,7 +14,7 @@ export interface TelmexCoverageStatusMeta {
 
 const TELMEX_COVERAGE_STATUS_META: Record<TelmexCoverageStatus, TelmexCoverageStatusMeta> = {
   ACTIVA: { label: 'Activa', color: 'info' },
-  EN_COBRO: { label: 'En cobro', color: 'warning' },
+  EN_COBRO: { label: 'Por devolver', color: 'warning' },
   LIQUIDADA: { label: 'Liquidada', color: 'success' },
   CANCELADA: { label: 'Cancelada', color: 'error' },
 }

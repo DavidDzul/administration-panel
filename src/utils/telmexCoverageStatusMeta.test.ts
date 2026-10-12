@@ -9,10 +9,10 @@ describe('telmexCoverageStatusMeta', () => {
     expect(meta.color).toBe('info')
   })
 
-  it('returns the "En cobro" label and a distinct color for EN_COBRO', () => {
+  it('returns the "Por devolver" label and a distinct color for EN_COBRO', () => {
     const meta = telmexCoverageStatusMeta('EN_COBRO')
 
-    expect(meta.label).toBe('En cobro')
+    expect(meta.label).toBe('Por devolver')
     expect(meta.color).toBe('warning')
   })
 

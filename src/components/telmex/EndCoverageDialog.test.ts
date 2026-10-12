@@ -86,6 +86,36 @@ describe('EndCoverageDialog', () => {
     expect(body().text()).toContain('Ada Lovelace')
   })
 
+  it('asks for the first month Telmex paid and spells out the consequence', async () => {
+    const wrapper = mountDialog({
+      modelValue: true,
+      coverage: buildCoverage({ start_period: '2026-09-01' }),
+    })
+    await flushPromises()
+
+    expect(body().text()).toContain('Telmex empezó a pagar')
+    expect(body().text()).toContain('¿Cuál es el primer mes que pagó Telmex?')
+
+    await wrapper.findComponent(VTextField).setValue('2026-12')
+    await flushPromises()
+
+    expect(body().text()).toContain('A partir de diciembre 2026 IU deja de pagar la parte de Telmex')
+    expect(body().text()).toContain('Los meses de septiembre 2026 a noviembre 2026 quedan como adelanto por devolver')
+  })
+
+  it('says no month is owed when Telmex paid from the first covered month', async () => {
+    const wrapper = mountDialog({
+      modelValue: true,
+      coverage: buildCoverage({ start_period: '2026-09-01' }),
+    })
+    await flushPromises()
+
+    await wrapper.findComponent(VTextField).setValue('2026-09')
+    await flushPromises()
+
+    expect(body().text()).toContain('IU no adelantó ningún mes')
+  })
+
   it('calls endCoverage with the normalized telmex_start_period, emits ended', async () => {
     const store = useTelmexCoverageStore()
     const updated = buildCoverage({ status: 'EN_COBRO', end_period: '2026-02-28' })
