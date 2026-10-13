@@ -71,9 +71,6 @@
                   <div class="d-flex align-center ga-2 mb-1">
                     <v-chip size="small" variant="tonal">{{ incident.incident_category }}</v-chip>
                     <v-chip size="small" variant="tonal">{{ incident.incident_type }}</v-chip>
-                    <v-chip size="small" :color="incident.is_resolved ? 'success' : 'warning'" variant="tonal">
-                      {{ incident.is_resolved ? 'Resuelta' : 'Pendiente' }}
-                    </v-chip>
                   </div>
                   <div class="text-body-2">{{ incident.description }}</div>
                 </v-list-item>
