@@ -46,7 +46,6 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
       incident_category: 'ACADEMICO',
       incident_type: 'INASISTENCIA',
       description: 'Faltó a clase sin justificación.',
-      is_resolved: false,
     },
   ],
   carryover_months_count: 2,
@@ -177,6 +176,19 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('Faltó a clase sin justificación.')
     expect(body().text()).toContain('ACADEMICO')
     expect(body().text()).toContain('INASISTENCIA')
+  })
+
+  // sdd/verificacion-incidencias-ux PR4b: incidents are never "resolved" in
+  // the real workflow, so the old chip read "Pendiente" forever and misled
+  // staff into thinking something was still open.
+  it('does not show a Resuelta/Pendiente status chip on incidencias', async () => {
+    mockAxiosGet.mockResolvedValue({ data: { res: true, data: buildDocument() } })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Incidencias')
+
+    expect(body().text()).not.toContain('Pendiente')
+    expect(body().text()).not.toContain('Resuelta')
   })
 
   it('renders the 3 comentario fields separately, clearly labeled, never merged into one block', async () => {
