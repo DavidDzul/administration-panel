@@ -272,14 +272,14 @@ export interface InvalidBankRow {
 // Matches ScholarshipPaymentController::document()'s real response, verified
 // by reading impulsou-api/app/Http/Controllers/Admin/ScholarshipPaymentController.php
 // directly (PR6) rather than guessing. `incident_category`/`incident_type`
-// are plain strings on ScholarshipRefrendIncident (no cast/enum), and
-// `is_resolved` is the model's real `boolean` cast.
+// are plain strings on ScholarshipRefrendIncident (no cast/enum). Incidents
+// carry no resolution state: the resolve flow was removed
+// (sdd/verificacion-incidencias-ux PR4a).
 export interface PaymentDocumentIncident {
   id: number
   incident_category: string
   incident_type: string
   description: string
-  is_resolved: boolean
 }
 
 // All money/percentage fields are Laravel `decimal:2` casts, which serialize
