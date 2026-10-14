@@ -1,9 +1,24 @@
 <template>
   <BreadCrumbs :items="links" />
 
+  <!--
+    Page actions on one row. The bulk action (sdd/telmex-cobertura-lote, PR3)
+    is disabled when nothing is selected so the count always matches what
+    will be sent.
+  -->
   <v-row v-if="canManage" justify="end">
-    <v-col cols="auto">
+    <v-col cols="auto" class="d-flex ga-2 flex-wrap">
       <v-btn color="primary" prepend-icon="mdi-plus" @click="activateDialogOpen = true">Activar cobertura</v-btn>
+      <v-btn
+        v-if="!loading && !loadError"
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-cash-multiple"
+        :disabled="!canBulkEnd"
+        @click="bulkDialogOpen = true"
+      >
+        Telmex empezó a pagar ({{ selectedCoverages.length }})
+      </v-btn>
     </v-col>
   </v-row>
 
@@ -30,9 +45,6 @@
       ></v-select>
     </v-col>
     <v-col cols="12" sm="3">
-      <v-select v-model="generationFilter" label="Generación" :items="generationOptions" clearable></v-select>
-    </v-col>
-    <v-col cols="12" sm="3">
       <v-select
         v-model="campusFilter"
         label="Sede"
@@ -43,20 +55,18 @@
       ></v-select>
     </v-col>
     <v-col cols="12" sm="3">
-      <v-text-field v-model="search" label="Buscar becario" prepend-inner-icon="mdi-magnify" clearable></v-text-field>
+      <v-select
+        v-model="generationFilter"
+        label="Generación"
+        :items="generationOptions"
+        :disabled="!campusFilter"
+        :hint="campusFilter ? undefined : 'Selecciona primero una sede'"
+        :persistent-hint="!campusFilter"
+        clearable
+      ></v-select>
     </v-col>
-  </v-row>
-
-  <!--
-    Bulk action bar (sdd/telmex-cobertura-lote, PR3, task 9.2) — only
-    offered to managers (spec: "Bulk action trigger and feedback"), disabled
-    when nothing is selected so the count always matches what will be sent.
-  -->
-  <v-row v-if="canManage && !loading && !loadError" justify="end">
-    <v-col cols="auto">
-      <v-btn color="primary" prepend-icon="mdi-cash-multiple" :disabled="!canBulkEnd" @click="bulkDialogOpen = true">
-        Telmex empezó a pagar ({{ selectedCoverages.length }})
-      </v-btn>
+    <v-col cols="12" sm="3">
+      <v-text-field v-model="search" label="Buscar becario" prepend-inner-icon="mdi-magnify" clearable></v-text-field>
     </v-col>
   </v-row>
 
