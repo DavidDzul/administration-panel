@@ -59,13 +59,23 @@ export function useTelmexCoveragesPage() {
   // Panel file changes table) rather than a fixed catalog — mirrors
   // usePersonsPage's `filteredCampus` precedent of deriving filter choices
   // from what's actually there instead of a static source that could drift.
+  //
+  // Generaciones differ per sede (and names can repeat across sedes), so the
+  // options are scoped to the selected sede and empty until one is chosen.
   const generationOptions = computed<string[]>(() => {
+    if (campusFilter.value === null) return []
     const values = new Set(
       allCoveragesList.value
+        .filter((coverage) => coverage.campus === campusFilter.value)
         .map((coverage) => coverage.generation)
         .filter((generation): generation is string => generation !== null),
     )
     return [...values].sort((a, b) => a.localeCompare(b))
+  })
+
+  // A generación picked under one sede is meaningless under another.
+  watch(campusFilter, () => {
+    generationFilter.value = null
   })
 
   const campusOptions = computed<string[]>(() => {

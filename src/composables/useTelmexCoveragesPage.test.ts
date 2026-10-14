@@ -225,8 +225,50 @@ describe('useTelmexCoveragesPage', () => {
     const result = withSetup(() => useTelmexCoveragesPage())
     await flushPromises()
 
-    expect(result.generationOptions.value).toEqual(['Gen 2024', 'Gen 2025'])
     expect(result.campusOptions.value).toEqual(['MERIDA', 'VALLADOLID'])
+    // Generaciones differ per sede, so none are offered until a sede is chosen.
+    expect(result.generationOptions.value).toEqual([])
+
+    result.campusFilter.value = 'MERIDA'
+    expect(result.generationOptions.value).toEqual(['Gen 2024'])
+
+    result.campusFilter.value = 'VALLADOLID'
+    expect(result.generationOptions.value).toEqual(['Gen 2025'])
+  })
+
+  it('clears the generación filter when the sede changes', async () => {
+    const merida = buildCoverage({ id: 1, generation: 'Gen 2024', campus: 'MERIDA' })
+    const valladolid = buildCoverage({ id: 2, generation: 'Gen 2025', campus: 'VALLADOLID' })
+    const store = useTelmexCoverageStore()
+    vi.spyOn(store, 'fetchCoverages').mockImplementation(async () => {
+      store.allCoverages = new Map([
+        [merida.id, merida],
+        [valladolid.id, valladolid],
+      ])
+      return true
+    })
+    vi.spyOn(store, 'fetchEligibleBecarios').mockResolvedValue(true)
+
+    const result = withSetup(() => useTelmexCoveragesPage())
+    await flushPromises()
+
+    result.campusFilter.value = 'MERIDA'
+    await flushPromises()
+    result.generationFilter.value = 'Gen 2024'
+    await flushPromises()
+
+    result.campusFilter.value = 'VALLADOLID'
+    await flushPromises()
+    expect(result.generationFilter.value).toBeNull()
+
+    result.campusFilter.value = 'MERIDA'
+    await flushPromises()
+    result.generationFilter.value = 'Gen 2024'
+    await flushPromises()
+
+    result.campusFilter.value = null
+    await flushPromises()
+    expect(result.generationFilter.value).toBeNull()
   })
 
   describe('bulk selection', () => {

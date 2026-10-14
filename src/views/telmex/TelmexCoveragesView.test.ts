@@ -319,11 +319,30 @@ describe('TelmexCoveragesView — generación/sede filters (sdd/telmex-cobertura
     expect(selectLabels).toContain('Sede')
   })
 
+  it('places Sede before Generación and keeps Generación disabled until a sede is chosen', async () => {
+    mockGetByUrl([buildCoverage({ generation: 'Gen 2024', campus: 'MERIDA' })], [])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const selects = wrapper.findAllComponents(VSelect)
+    const labels = selects.map((s) => s.props('label'))
+    expect(labels.indexOf('Sede')).toBeLessThan(labels.indexOf('Generación'))
+
+    const generationSelect = () => wrapper.findAllComponents(VSelect).find((s) => s.props('label') === 'Generación')
+    expect(generationSelect()?.props('disabled')).toBe(true)
+
+    const campusSelect = wrapper.findAllComponents(VSelect).find((s) => s.props('label') === 'Sede')
+    await campusSelect?.setValue('MERIDA')
+    await flushPromises()
+
+    expect(generationSelect()?.props('disabled')).toBe(false)
+  })
+
   it('narrows the table when a generación is selected', async () => {
     mockGetByUrl(
       [
-        buildCoverage({ id: 1, becario_name: 'Grace Hopper', generation: 'Gen 2024' }),
-        buildCoverage({ id: 2, becario_name: 'Ada Lovelace', generation: 'Gen 2025' }),
+        buildCoverage({ id: 1, becario_name: 'Grace Hopper', generation: 'Gen 2024', campus: 'MERIDA' }),
+        buildCoverage({ id: 2, becario_name: 'Ada Lovelace', generation: 'Gen 2025', campus: 'MERIDA' }),
       ],
       [],
     )
@@ -332,6 +351,10 @@ describe('TelmexCoveragesView — generación/sede filters (sdd/telmex-cobertura
 
     expect(wrapper.text()).toContain('Grace Hopper')
     expect(wrapper.text()).toContain('Ada Lovelace')
+
+    const campusSelect = wrapper.findAllComponents(VSelect).find((s) => s.props('label') === 'Sede')
+    await campusSelect?.setValue('MERIDA')
+    await flushPromises()
 
     const generationSelect = wrapper.findAllComponents(VSelect).find((s) => s.props('label') === 'Generación')
     await generationSelect?.setValue('Gen 2025')
@@ -361,6 +384,20 @@ describe('TelmexCoveragesView — bulk end flow (sdd/telmex-cobertura-lote, PR3)
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('Telmex empezó a pagar (')
+  })
+
+  it('shows the bulk button on the same row as "Activar cobertura"', async () => {
+    setManageTelmexCoverage(true)
+    mockGetByUrl([buildCoverage({ id: 1, status: 'ACTIVA' })], [])
+    const wrapper = mountView()
+    await flushPromises()
+
+    const activateButton = wrapper.findAll('button').find((b) => b.text() === 'Activar cobertura')
+    const row = activateButton?.element.closest('.v-row')
+    expect(row?.textContent).toContain('Telmex empezó a pagar (')
+    // "Activar cobertura" first, then the bulk action.
+    const text = row?.textContent ?? ''
+    expect(text.indexOf('Activar cobertura')).toBeLessThan(text.indexOf('Telmex empezó a pagar ('))
   })
 
   it('shows the bulk button disabled with count 0 when nothing is selected', async () => {
