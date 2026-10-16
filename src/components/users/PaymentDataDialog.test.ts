@@ -48,6 +48,8 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   temporary_increase_valid_from: null,
   temporary_increase_valid_until: null,
   temporary_increase_reason: null,
+  cycle_closed_period: null,
+  cycle_closure_reason: null,
   ...overrides,
 })
 

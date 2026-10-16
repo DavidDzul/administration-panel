@@ -2,7 +2,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
-import { VBtn, VSelect } from 'vuetify/components'
+import { VBtn, VChip, VSelect } from 'vuetify/components'
 import UsersTable from '@/components/users/UsersTable.vue'
 import type { Person } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
@@ -190,5 +190,71 @@ describe('UsersTable — eye navigation and pencil edit emit (PR3b, sdd/becarios
     const wrapper = mountTable([buildPerson()])
     const deleteButtons = wrapper.findAllComponents(VBtn).filter((b) => b.props('icon') === 'mdi-delete')
     expect(deleteButtons).toHaveLength(0)
+  })
+})
+
+// sdd/egresado-baja-definitiva (PR4, task 4.6, amendment #1991): a becario
+// with users.active=false is shown as "Baja" with its own chip, distinct
+// from the existing user_type chip (BEC_ACTIVE/BEC_INACTIVE), and lists can
+// filter by it. No new user_type — BEC_ACTIVE + active=false is still
+// possible and must read "Baja", not "Becario/a".
+describe('UsersTable — "Baja" chip (active=false, amendment #1991)', () => {
+  it('renders a "Baja" chip (distinct/error color) in the Activo column when active is false', () => {
+    const wrapper = mountTable([buildPerson({ id: 1, active: false })])
+
+    const bajaChip = wrapper.findAllComponents(VChip).find((c) => c.text() === 'Baja')
+    expect(bajaChip).toBeTruthy()
+    expect(bajaChip?.props('color')).toBe('error')
+  })
+
+  it('does not render a "Baja" chip when active is true', () => {
+    const wrapper = mountTable([buildPerson({ id: 1, active: true })])
+
+    const bajaChip = wrapper.findAllComponents(VChip).find((c) => c.text() === 'Baja')
+    expect(bajaChip).toBeUndefined()
+  })
+})
+
+describe('UsersTable — Estado filter (Activos / Baja / Todos, amendment #1991)', () => {
+  // Regression guard for "default view behavior must not hide anyone who is
+  // visible today" — no Estado filter selected (default) must show both
+  // active and inactive rows, exactly like before this feature existed.
+  it('shows both active and inactive persons by default (no Estado filter applied)', () => {
+    const activePerson = buildPerson({ id: 1, first_name: 'Activa Person', active: true })
+    const bajaPerson = buildPerson({ id: 2, first_name: 'Baja Person', active: false })
+    const wrapper = mountTable([activePerson, bajaPerson])
+
+    expect(wrapper.text()).toContain('Activa Person')
+    expect(wrapper.text()).toContain('Baja Person')
+  })
+
+  it('shows only inactive (Baja) persons when the Estado filter is set to "inactive"', async () => {
+    const activePerson = buildPerson({ id: 1, first_name: 'Activa Person', active: true })
+    const bajaPerson = buildPerson({ id: 2, first_name: 'Baja Person', active: false })
+    const wrapper = mountTable([activePerson, bajaPerson])
+    await openFilterMenu(wrapper)
+
+    const selects = wrapper.findAllComponents(VSelect)
+    const estadoSelect = selects[3]
+    await estadoSelect.vm.$emit('update:modelValue', 'inactive')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Baja Person')
+    expect(wrapper.text()).not.toContain('Activa Person')
+  })
+
+  it('shows only active persons when the Estado filter is set to "active"', async () => {
+    const activePerson = buildPerson({ id: 1, first_name: 'Activa Person', active: true })
+    const bajaPerson = buildPerson({ id: 2, first_name: 'Baja Person', active: false })
+    const wrapper = mountTable([activePerson, bajaPerson])
+    await openFilterMenu(wrapper)
+
+    const selects = wrapper.findAllComponents(VSelect)
+    const estadoSelect = selects[3]
+    await estadoSelect.vm.$emit('update:modelValue', 'active')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Activa Person')
+    expect(wrapper.text()).not.toContain('Baja Person')
   })
 })

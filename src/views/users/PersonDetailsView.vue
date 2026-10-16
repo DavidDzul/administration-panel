@@ -40,6 +40,12 @@
             <div class="text-caption text-medium-emphasis mb-1">Tipo</div>
             <div class="font-weight-medium">
               {{ selectedPerson.user_type === 'BEC_ACTIVE' ? 'Becario activo' : 'Becario inactivo' }}
+              <!-- sdd/egresado-baja-definitiva (PR4, task 4.6, amendment
+                   #1991): active=false is independent of user_type (a
+                   becario can be BEC_ACTIVE and dado de baja). -->
+              <v-chip v-if="!selectedPerson.active" color="error" size="small" variant="tonal" class="ml-1">
+                Baja
+              </v-chip>
             </div>
           </v-col>
         </v-row>
