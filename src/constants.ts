@@ -24,6 +24,16 @@ export const becTypeArray: SelectOption[] = [
   { value: 'BEC_INACTIVE', text: 'Egresado/a' },
 ]
 
+// Estado filter (sdd/egresado-baja-definitiva, PR4, amendment #1991): reads
+// `users.active`, independent of `user_type` — a becario can be BEC_ACTIVE
+// and still have active=false (dado de baja / Baja definitiva). No
+// "Todos" option here: that's the filter's `clearable`/null state, same
+// convention as userTypeOptions/becTypeArray above.
+export const personStatusOptions: SelectOption[] = [
+  { value: 'active', text: 'Activos' },
+  { value: 'inactive', text: 'Baja' },
+]
+
 // Pagos batch type (sdd/pagos-lote-pago-adelantado, amendment #1942): no
 // default is exported here deliberately — the "Tipo de lote" select has NO
 // initial value, staff must explicitly choose one. The label "CERT-UNID" is

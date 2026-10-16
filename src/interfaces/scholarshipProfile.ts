@@ -30,6 +30,14 @@ export interface ScholarshipProfileConfig {
   temporary_increase_valid_from: string | null
   temporary_increase_valid_until: string | null
   temporary_increase_reason: string | null
+  // Read-only (sdd/egresado-baja-definitiva, PR4). Set once a becario's cycle
+  // is cut terminally (EGRESADO or BAJA_DEFINITIVA). `cycle_closed_period` is
+  // a full ISO-8601 TIMESTAMP (e.g. "2026-10-01T06:00:00Z"), NOT a plain
+  // date — parse it by STRING SLICING (chars 0-4 = year, 5-7 = month), never
+  // via `Date`/dayjs, same convention already documented for
+  // TelmexCoverage's start_period/end_period and pinned by PR2c/PR3's tests.
+  cycle_closed_period: string | null
+  cycle_closure_reason: 'EGRESADO' | 'BAJA_DEFINITIVA' | null
 }
 
 // Submission shape for `PUT scholarship-profiles/{userId}/config`. Numeric

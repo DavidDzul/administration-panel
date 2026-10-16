@@ -103,6 +103,24 @@ describe('PersonDetailsView — smoke (loading / error / loaded states)', () => 
     expect(wrapper.findComponent({ name: 'VAlert' }).exists()).toBe(false)
   })
 
+  // sdd/egresado-baja-definitiva (PR4, task 4.6, amendment #1991): the
+  // becario profile header shows a "Baja" chip when active is false, so
+  // staff landing directly on /becarios/:id see it without opening the
+  // table filter first.
+  it('shows a "Baja" chip in the header when the person has active=false', () => {
+    selectedPerson.value = buildPerson({ active: false })
+    const wrapper = mountView()
+
+    expect(wrapper.text()).toContain('Baja')
+  })
+
+  it('does not show a "Baja" chip when the person has active=true', () => {
+    selectedPerson.value = buildPerson({ active: true })
+    const wrapper = mountView()
+
+    expect(wrapper.text()).not.toContain('Baja')
+  })
+
   it('renders a single expansion panel and no calificaciones/documentos/historial panels (spec R6)', () => {
     selectedPerson.value = buildPerson()
     const wrapper = mountView()

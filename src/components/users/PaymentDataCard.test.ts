@@ -53,6 +53,8 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   temporary_increase_valid_from: null,
   temporary_increase_valid_until: null,
   temporary_increase_reason: null,
+  cycle_closed_period: null,
+  cycle_closure_reason: null,
   ...overrides,
 })
 
@@ -399,6 +401,53 @@ describe('PaymentDataCard', () => {
       await flushPromises()
 
       expect(wrapper.text()).not.toContain('Aumento temporal')
+    })
+  })
+
+  // sdd/egresado-baja-definitiva (PR4, task 4.2): read-only stop-marker chip,
+  // mirrors psicol-panel's ScholarshipProfileCard.vue chip exactly (same
+  // label format, same string-slicing of the ISO-8601 timestamp — see
+  // amendment #1988/design note: cycle_closed_period must NEVER be parsed
+  // via Date/dayjs).
+  describe('Cycle closure chip (sdd/egresado-baja-definitiva)', () => {
+    it('shows "Ciclo cerrado: 10/2026 · Egresado" when cycle_closed_period/reason are set to EGRESADO', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({
+          cycle_closed_period: '2026-10-01T06:00:00Z',
+          cycle_closure_reason: 'EGRESADO',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Ciclo cerrado: 10/2026 · Egresado')
+    })
+
+    it('shows "Baja definitiva" as the reason label when cycle_closure_reason is BAJA_DEFINITIVA', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({
+          cycle_closed_period: '2026-01-01T06:00:00Z',
+          cycle_closure_reason: 'BAJA_DEFINITIVA',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Ciclo cerrado: 01/2026 · Baja definitiva')
+    })
+
+    it('does not render the chip when cycle_closed_period is null', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Ciclo cerrado')
     })
   })
 })

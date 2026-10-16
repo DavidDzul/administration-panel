@@ -64,6 +64,14 @@
                     item-value="id"
                     label="Generación"
                   ></v-select>
+                  <v-select
+                    clearable
+                    :items="personStatusOptions"
+                    v-model="statusFilter"
+                    item-title="text"
+                    item-value="value"
+                    label="Estado"
+                  ></v-select>
                 </v-col>
               </v-row>
             </v-card-text>
@@ -86,9 +94,16 @@
       </v-chip>
     </template>
 
+    <!--
+      sdd/egresado-baja-definitiva (PR4, task 4.6, amendment #1991): a
+      becario with active=false now reads as a distinct "Baja" chip instead
+      of a bare mdi-close icon, so dado-de-baja status is unmistakable in
+      the list (previously looked identical to any other falsy boolean
+      column). Active rows keep the existing check icon unchanged.
+    -->
     <template #[`item.active`]="{ item }">
       <v-icon v-if="item.active" color="success">mdi-check</v-icon>
-      <v-icon v-else color="error">mdi-close</v-icon>
+      <v-chip v-else color="error" size="small" variant="tonal">Baja</v-chip>
     </template>
 
     <!--
@@ -147,7 +162,7 @@ import { useRouter } from 'vue-router'
 import type { Person, PersonType } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
 import type { SelectOption } from '@/constants'
-import { becTypeArray } from '@/constants'
+import { becTypeArray, personStatusOptions } from '@/constants'
 
 interface Props {
   persons?: Person[]
@@ -180,6 +195,10 @@ const search = ref('')
 const generation_id = ref<number | null>(null)
 const campus = ref<string | null>(null)
 const userTypeFilter = ref<PersonType | null>(null)
+// sdd/egresado-baja-definitiva (PR4, amendment #1991): null = "Todos" (no
+// filter applied) — default view must not hide anyone, same as the other
+// clearable filters above.
+const statusFilter = ref<'active' | 'inactive' | null>(null)
 
 // Used for individual row chips (singular).
 const userTypeLabelMap: Record<string, string> = {
@@ -236,7 +255,13 @@ const filteredPersons = computed(() =>
     const typeMatch = userTypeFilter.value ? person.user_type === userTypeFilter.value : true
     const campusMatch = campus.value ? person.campus === campus.value : true
     const generationMatch = generation_id.value ? Number(person.generation_id) === generation_id.value : true
-    return typeMatch && campusMatch && generationMatch
+    const statusMatch =
+      statusFilter.value === 'active'
+        ? person.active
+        : statusFilter.value === 'inactive'
+          ? !person.active
+          : true
+    return typeMatch && campusMatch && generationMatch && statusMatch
   }),
 )
 
