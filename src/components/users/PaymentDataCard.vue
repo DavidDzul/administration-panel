@@ -4,7 +4,14 @@
          regardless of whether `paymentData` exists: fixes the flagged
          gotcha where this whole card used to gate ALL content on
          `paymentData` truthy. -->
-    <div class="text-subtitle-2 mb-2">Configuración de beca</div>
+    <div class="d-flex align-center mb-2">
+      <div class="text-subtitle-2">Configuración de beca</div>
+      <!-- Stop-marker chip (sdd/egresado-baja-definitiva, task 4.2): read-only,
+           shown only once the backend has a cycle_closed_period set. -->
+      <v-chip v-if="cycleClosedLabel" size="small" variant="tonal" color="error" class="ml-2">
+        Ciclo cerrado: {{ cycleClosedLabel }}
+      </v-chip>
+    </div>
     <v-progress-linear v-if="loadingProfileConfig" indeterminate color="primary" class="mb-3" />
 
     <template v-else-if="profileConfig">
@@ -111,6 +118,7 @@ import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore
 import { useAuthStore } from '@/stores/api/authStore'
 import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
 import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
+import { resolutionMeta } from '@/utils/resolutionMeta'
 import type { PaymentData } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig } from '@/interfaces/scholarshipProfile'
 
@@ -152,6 +160,21 @@ const scholarshipTypeLabel = (value: string): string => SCHOLARSHIP_TYPE_LABELS[
 const temporaryIncrease = computed(() =>
   profileConfig.value ? temporaryIncreaseDisplay(profileConfig.value) : null,
 )
+
+// sdd/egresado-baja-definitiva (PR4, task 4.2): derives "MM/YYYY · {reason}"
+// by STRING SLICING the ISO-8601 timestamp (never Date/dayjs — see field
+// doc comment in interfaces/scholarshipProfile.ts). Reuses resolutionMeta's
+// label map for "Egresado"/"Baja definitiva" so the wording matches the rest
+// of this panel's resolution-type vocabulary exactly.
+const cycleClosedLabel = computed<string | null>(() => {
+  const period = profileConfig.value?.cycle_closed_period
+  const reason = profileConfig.value?.cycle_closure_reason
+  if (!period || !reason) return null
+  const year = period.slice(0, 4)
+  const month = period.slice(5, 7)
+  const reasonLabel = resolutionMeta(reason)?.label ?? reason
+  return `${month}/${year} · ${reasonLabel}`
+})
 
 const loadPaymentData = async (): Promise<void> => {
   loadingPaymentData.value = true
