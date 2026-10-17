@@ -60,7 +60,6 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     discount_percentage: '0.00',
     discount_amount: '0.00',
     amount_pending_from_previous: '450.00',
-    refund_amount_from_previous: '0.00',
     final_amount: '1000.00',
     total_to_pay: '1450.00',
   },
@@ -228,7 +227,6 @@ describe('PaymentDocumentDialog', () => {
             discount_percentage: '0.00',
             discount_amount: '0.00',
             amount_pending_from_previous: '450.00',
-            refund_amount_from_previous: '0.00',
             final_amount: '1000.00',
             total_to_pay: '1450.00',
           },
@@ -258,7 +256,6 @@ describe('PaymentDocumentDialog', () => {
             discount_percentage: '0.00',
             discount_amount: '0.00',
             amount_pending_from_previous: '450.00',
-            refund_amount_from_previous: '0.00',
             final_amount: '1000.00',
             total_to_pay: '1450.00',
           },
@@ -296,7 +293,6 @@ describe('PaymentDocumentDialog', () => {
             discount_percentage: '0.00',
             discount_amount: '0.00',
             amount_pending_from_previous: '450.00',
-            refund_amount_from_previous: '0.00',
             final_amount: '1000.00',
             total_to_pay: '1450.00',
           },
@@ -308,6 +304,21 @@ describe('PaymentDocumentDialog', () => {
     await clickTab(wrapper, 'Desglose de monto')
 
     expect(body().text()).not.toContain('aumento temporal')
+  })
+
+  it('renders no refund column and no "$undefined"/NaN text when the payload lacks refund_amount_from_previous', async () => {
+    const document = buildDocument()
+    expect(document.amount_breakdown).not.toHaveProperty('refund_amount_from_previous')
+    mockAxiosGet.mockResolvedValue({ data: { res: true, data: document } })
+    const wrapper = mountDialog()
+    await flushPromises()
+    await clickTab(wrapper, 'Desglose de monto')
+
+    const text = body().text()
+    expect(text).toContain('Pendiente de periodo anterior')
+    expect(text).not.toContain('Reembolso')
+    expect(text).not.toContain('undefined')
+    expect(text).not.toContain('NaN')
   })
 
   it('renders the retention breakdown panel with the real document.retentions data under the Retenciones tab', async () => {

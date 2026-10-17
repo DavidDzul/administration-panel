@@ -105,7 +105,7 @@ describe('GenerationPaymentSummary', () => {
 
     expect(tooltip.exists()).toBe(true)
     expect(tooltip.props('text')).toBe(
-      'Diferencia entre lo que corresponde por beca y apoyo, y lo que se paga. Positiva: descuentos y retenciones aplicadas. Negativa: se pagó de más este mes por aumentos temporales, meses retenidos liberados, reembolsos o adelantos.',
+      'Diferencia entre lo que corresponde por beca y apoyo, y lo que se paga. Positiva: descuentos y retenciones aplicadas. Negativa: se pagó de más este mes por aumentos temporales, meses retenidos liberados o adelantos.',
     )
   })
 
