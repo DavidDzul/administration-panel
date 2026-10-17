@@ -50,6 +50,7 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   temporary_increase_reason: null,
   cycle_closed_period: null,
   cycle_closure_reason: null,
+  config_set_at: '2026-10-01T12:00:00Z',
   ...overrides,
 })
 
@@ -383,6 +384,32 @@ describe('PaymentDataDialog', () => {
         monthly_amount: 1500,
         monto_apoyo: 200,
         advance_payment_eligible: true,
+        iu_payment_amount: 0,
+      })
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
+
+    it('saves the config for a becario with no scholarship profile (fetch -> null) and emits saved', async () => {
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+      const { wrapper, scholarshipProfileStore, paymentDataStore } = await openWithConfig(null)
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+      vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+      await fieldByLabelPrefix(wrapper, 'Monto mensual')?.setValue(1200)
+      await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(0)
+
+      await submitForm()
+      await flushPromises()
+
+      expect(scholarshipProfileStore.saveProfileConfig).toHaveBeenCalledWith(5, {
+        scholarship_type: 'IU',
+        monthly_amount: 1200,
+        monto_apoyo: 0,
+        advance_payment_eligible: false,
         iu_payment_amount: 0,
       })
       expect(wrapper.emitted('saved')).toHaveLength(1)

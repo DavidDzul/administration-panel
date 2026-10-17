@@ -35,10 +35,10 @@ export const useScholarshipProfileStore = defineStore('scholarshipProfileStore',
     }
   }
 
-  // No POST variant: a scholarship profile is a prerequisite already
-  // enforced elsewhere (created by psicol-panel's onboarding flow). If it
-  // does not exist yet, the backend's `firstOrFail()` 404s — acceptable per
-  // design D5.
+  // No POST variant needed: PUT /config is create-or-update (sdd/perfil-beca-montos-admin).
+  // If the becario has no scholarship profile yet, the backend creates it and
+  // stamps `config_set_at`; if one exists, it updates the 4 config fields and
+  // refreshes `config_set_at`. Always responds 200.
   const saveProfileConfig = async (
     userId: number,
     form: ScholarshipProfileConfigForm,

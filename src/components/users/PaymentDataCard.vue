@@ -15,6 +15,17 @@
     <v-progress-linear v-if="loadingProfileConfig" indeterminate color="primary" class="mb-3" />
 
     <template v-else-if="profileConfig">
+      <!-- sdd/perfil-beca-montos-admin: amounts never saved by Administración
+           (config_set_at null) -> refrend generation is blocked. -->
+      <v-alert
+        v-if="!profileConfig.config_set_at"
+        type="warning"
+        variant="tonal"
+        density="compact"
+        class="mb-3"
+      >
+        Montos pendientes de configurar. Guarda la configuración de beca para habilitar la generación de refrendos.
+      </v-alert>
       <v-row dense>
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Tipo de beca</div>
@@ -58,8 +69,8 @@
       </v-row>
     </template>
 
-    <v-alert v-else type="info" variant="tonal" density="compact">
-      Sin configurar.
+    <v-alert v-else type="warning" variant="tonal" density="compact">
+      Sin configurar. Montos pendientes de configurar: guarda la configuración de beca para crear el perfil.
     </v-alert>
 
     <v-divider class="my-4" />

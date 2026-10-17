@@ -29,6 +29,7 @@ const buildConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): Scholar
   temporary_increase_reason: null,
   cycle_closed_period: null,
   cycle_closure_reason: null,
+  config_set_at: '2026-10-01T12:00:00Z',
   ...overrides,
 })
 
