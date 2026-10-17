@@ -55,6 +55,7 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   temporary_increase_reason: null,
   cycle_closed_period: null,
   cycle_closure_reason: null,
+  config_set_at: '2026-10-01T12:00:00Z',
   ...overrides,
 })
 
@@ -237,6 +238,38 @@ describe('PaymentDataCard', () => {
       await flushPromises()
 
       expect(wrapper.text()).toContain('Sin configurar')
+    })
+
+    it('shows the pending-amounts warning when the profile exists but config_set_at is null', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(
+        buildProfileConfig({ config_set_at: null }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Montos pendientes de configurar')
+      expect(wrapper.text()).toContain('1500.00')
+    })
+
+    it('hides the pending-amounts warning when config_set_at is set', async () => {
+      const { scholarshipProfileStore } = stubDefaults()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Montos pendientes')
+    })
+
+    it('prompts to configure when there is no scholarship profile at all', async () => {
+      stubDefaults()
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Montos pendientes de configurar')
     })
 
     it('re-fetches the scholarship-profile config after the dialog emits saved', async () => {
