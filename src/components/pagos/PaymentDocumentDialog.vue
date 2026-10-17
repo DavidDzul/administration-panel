@@ -107,10 +107,6 @@
                   <div class="text-body-1">${{ document.amount_breakdown.amount_pending_from_previous }}</div>
                 </v-col>
                 <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">Reembolso de periodo anterior</div>
-                  <div class="text-body-1">${{ document.amount_breakdown.refund_amount_from_previous }}</div>
-                </v-col>
-                <v-col cols="6" sm="4">
                   <div class="text-caption text-medium-emphasis mb-1">Monto final</div>
                   <div class="text-body-1">${{ document.amount_breakdown.final_amount }}</div>
                 </v-col>

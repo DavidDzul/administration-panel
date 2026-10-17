@@ -45,7 +45,6 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
     discount_percentage: '0.00',
     discount_amount: '0.00',
     amount_pending_from_previous: '0.00',
-    refund_amount_from_previous: '0.00',
     final_amount: '1000.00',
     total_to_pay: '1000.00',
   },

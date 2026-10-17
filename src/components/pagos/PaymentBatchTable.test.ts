@@ -59,7 +59,6 @@ const buildRow = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow => 
   snapshot_discount_percentage: null,
   final_amount: '1000.00',
   amount_pending_from_previous: '0.00',
-  refund_amount_from_previous: '0.00',
   ...overrides,
 })
 
@@ -816,7 +815,6 @@ describe('PaymentBatchTable', () => {
         buildRow({
           final_amount: '900.00',
           amount_pending_from_previous: '0.00',
-          refund_amount_from_previous: '0.00',
           advance_payment_amount: '0.00',
         }),
       ])
@@ -829,7 +827,6 @@ describe('PaymentBatchTable', () => {
         buildRow({
           final_amount: '900.00',
           amount_pending_from_previous: '100.00',
-          refund_amount_from_previous: '50.00',
           advance_payment_amount: '25.00',
         }),
       ])
@@ -837,11 +834,10 @@ describe('PaymentBatchTable', () => {
       const text = wrapper.find('[data-testid="cell-final-amount"]').text()
       expect(text).toContain('$900.00')
       const retIndex = text.indexOf('ret.')
-      const reembIndex = text.indexOf('reemb.')
       const adelantoIndex = text.indexOf('adelanto')
       expect(retIndex).toBeGreaterThan(-1)
-      expect(reembIndex).toBeGreaterThan(retIndex)
-      expect(adelantoIndex).toBeGreaterThan(reembIndex)
+      expect(adelantoIndex).toBeGreaterThan(retIndex)
+      expect(text).not.toContain('reemb.')
     })
 
     it('Total a pagar uses the same es-MX money format as the breakdown columns', () => {

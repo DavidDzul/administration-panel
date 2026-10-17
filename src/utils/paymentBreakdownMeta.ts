@@ -48,7 +48,6 @@ export interface PaymentBreakdownRowFields {
   discount_percentage: string
   final_amount: string
   amount_pending_from_previous: string
-  refund_amount_from_previous: string
   advance_payment_amount: string
   // Cob. Telmex column (sdd/telmex-cobertura-iu PR5, task 5.5). Both fields
   // optional — additive PaymentBatchRow fields that may be absent on
@@ -127,13 +126,13 @@ export function discountPercent(row: PaymentBreakdownRowFields): DiscountPercent
 }
 
 export interface FinalAdjustment {
-  label: 'ret.' | 'reemb.' | 'adelanto'
+  label: 'ret.' | 'adelanto'
   amount: string
 }
 
 /**
  * Final column's extra lines — one per non-zero adjustment, ALWAYS shown
- * together in this fixed order (spec: "not else-if"): retención, reembolso,
+ * together in this fixed order (spec: "not else-if"): retención,
  * adelanto. The main `final_amount` line itself is formatted directly by
  * the caller via `formatAmount`.
  */
@@ -154,9 +153,6 @@ export function finalAdjustments(row: PaymentBreakdownRowFields): FinalAdjustmen
 
   if (Number(row.amount_pending_from_previous) > 0) {
     adjustments.push({ label: 'ret.', amount: formatAmount(row.amount_pending_from_previous) })
-  }
-  if (Number(row.refund_amount_from_previous) > 0) {
-    adjustments.push({ label: 'reemb.', amount: formatAmount(row.refund_amount_from_previous) })
   }
   if (Number(row.advance_payment_amount) > 0) {
     adjustments.push({ label: 'adelanto', amount: formatAmount(row.advance_payment_amount) })
