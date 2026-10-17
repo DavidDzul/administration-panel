@@ -2,13 +2,11 @@
 // Plain frozen record + pure lookup — no reactive state, so this lives in
 // utils/, not composables/ (design D3; mirrors maskAccountNumber.ts's exact
 // precedent). Mirrors psicol-panel's statusChip() (useRefrendTableDisplay.ts)
-// icon/color choices for 8 of the 9 real resolution_type values (design D2)
+// icon/color choices for the 6 staff-selectable resolution_type values
 // so an admin who has seen psicol-panel's refrendo table reads the same
-// glyph for the same state. REEMBOLSO_PARCIAL is the one invention here,
-// borrowed from SITUATION_MENU_ITEMS's PAGO_MESES entry (same "money
-// flowing back" semantic, the one glyph not already spoken for).
+// glyph for the same state.
 //
-// 8 of the 9 values are verified against ScholarshipRefrendController.php:334's
+// The 6 staff-selectable values are verified against ScholarshipRefrendController's
 // validation rule. PAGO_MESES is deliberately NOT a key here — it is a
 // psicol-panel-only action-menu key, never a resolution_type value.
 // EGRESO_RETICULA (sdd/egresado-status-timing) is the 9th value: it is
@@ -22,10 +20,8 @@ export type ResolutionType =
   | 'BECA_MES'
   | 'SIN_PAGO'
   | 'RETENIDA'
-  | 'SUSPENDIDA'
   | 'BAJA_DEFINITIVA'
   | 'EGRESADO'
-  | 'REEMBOLSO_PARCIAL'
   | 'DESCUENTO_DEFINITIVO'
   | 'EGRESO_RETICULA'
 
@@ -39,10 +35,8 @@ export const RESOLUTION_META: Record<ResolutionType, ResolutionMeta> = {
   BECA_MES: { icon: 'mdi-cash-check', color: 'green', label: 'Pago sin penalización' },
   SIN_PAGO: { icon: 'mdi-cash-remove', color: 'red', label: 'Sin pago' },
   RETENIDA: { icon: 'mdi-lock-outline', color: 'amber-darken-2', label: 'Beca retenida' },
-  SUSPENDIDA: { icon: 'mdi-pause-circle-outline', color: 'deep-orange', label: 'Suspensión temporal' },
   BAJA_DEFINITIVA: { icon: 'mdi-account-remove-outline', color: 'red-darken-3', label: 'Baja definitiva' },
   EGRESADO: { icon: 'mdi-account-check-outline', color: 'blue-grey', label: 'Egresado' },
-  REEMBOLSO_PARCIAL: { icon: 'mdi-cash-refund', color: 'teal', label: 'Reembolso parcial' },
   DESCUENTO_DEFINITIVO: { icon: 'mdi-cash-minus', color: 'purple-darken-2', label: 'Descuento definitivo' },
   EGRESO_RETICULA: { icon: 'mdi-account-clock-outline', color: 'indigo', label: 'Egresado (retícula)' },
 }

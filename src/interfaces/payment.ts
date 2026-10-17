@@ -131,7 +131,6 @@ export interface PaymentBatchRow {
   snapshot_discount_percentage: string | null
   final_amount: string
   amount_pending_from_previous: string
-  refund_amount_from_previous: string
   // Telmex coverage pass-throughs (sdd/telmex-cobertura-iu PR5, mirrors
   // impulsou-api PR2's PaymentBatchService::rows() additions). Both
   // OPTIONAL — deliberately not required, mirroring PR6's explicit choice
@@ -298,7 +297,6 @@ export interface PaymentAmountBreakdown {
   discount_percentage: string
   discount_amount: string
   amount_pending_from_previous: string
-  refund_amount_from_previous: string
   final_amount: string
   total_to_pay: string
 }

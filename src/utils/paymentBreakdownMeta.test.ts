@@ -29,7 +29,6 @@ const buildRow = (overrides: Partial<PaymentBreakdownRowFields> = {}): PaymentBr
   discount_percentage: '0',
   final_amount: '1700.00',
   amount_pending_from_previous: '0.00',
-  refund_amount_from_previous: '0.00',
   advance_payment_amount: '0.00',
   ...overrides,
 })
@@ -229,10 +228,10 @@ describe('finalAdjustments (Final column, extra lines)', () => {
     expect(finalAdjustments(row)).toEqual([{ label: 'ret.', amount: '$50.00' }])
   })
 
-  it('returns only "reemb." when refund_amount_from_previous > 0', () => {
-    const row = buildRow({ refund_amount_from_previous: '75.00' })
+  it('ignores a legacy refund_amount_from_previous key and never produces NaN or "reemb."', () => {
+    const row = { ...buildRow(), refund_amount_from_previous: '75.00' }
 
-    expect(finalAdjustments(row)).toEqual([{ label: 'reemb.', amount: '$75.00' }])
+    expect(finalAdjustments(row)).toEqual([])
   })
 
   it('returns only "adelanto" when advance_payment_amount > 0', () => {
@@ -241,16 +240,14 @@ describe('finalAdjustments (Final column, extra lines)', () => {
     expect(finalAdjustments(row)).toEqual([{ label: 'adelanto', amount: '$125.00' }])
   })
 
-  it('returns all three together, in fixed order, when all are non-zero', () => {
+  it('returns both together, in fixed order, when all are non-zero', () => {
     const row = buildRow({
       amount_pending_from_previous: '50.00',
-      refund_amount_from_previous: '75.00',
       advance_payment_amount: '125.00',
     })
 
     expect(finalAdjustments(row)).toEqual([
       { label: 'ret.', amount: '$50.00' },
-      { label: 'reemb.', amount: '$75.00' },
       { label: 'adelanto', amount: '$125.00' },
     ])
   })

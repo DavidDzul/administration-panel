@@ -3,27 +3,24 @@ import { RESOLUTION_META, resolutionMeta } from '@/utils/resolutionMeta'
 
 // sdd/resolution-status-visibility: the catalog behind the flags-column
 // resolution chip. Mirrors psicol-panel's statusChip() icon/color choices
-// for 7 of the 8 values (design D2) — REEMBOLSO_PARCIAL is the one
-// invention, borrowed from SITUATION_MENU_ITEMS's PAGO_MESES entry.
+// for the 6 staff-selectable values (design D2).
 describe('resolutionMeta', () => {
-  it('RESOLUTION_META has exactly 9 keys (8 staff-selectable + 1 server-only)', () => {
-    expect(Object.keys(RESOLUTION_META)).toHaveLength(9)
+  it('RESOLUTION_META has exactly 7 keys (6 staff-selectable + 1 server-only)', () => {
+    expect(Object.keys(RESOLUTION_META)).toHaveLength(7)
   })
 
   it('does not include PAGO_MESES — it is a psicol-panel-only menu key, never a resolution_type value', () => {
     expect(RESOLUTION_META).not.toHaveProperty('PAGO_MESES')
   })
 
-  it('includes all 8 real resolution_type values from ScholarshipRefrendController.php:334, plus the server-only EGRESO_RETICULA', () => {
+  it('includes all 6 live resolution_type values from ScholarshipRefrendController, plus the server-only EGRESO_RETICULA', () => {
     expect(Object.keys(RESOLUTION_META).sort()).toEqual(
       [
         'BECA_MES',
         'SIN_PAGO',
         'RETENIDA',
-        'SUSPENDIDA',
         'BAJA_DEFINITIVA',
         'EGRESADO',
-        'REEMBOLSO_PARCIAL',
         'DESCUENTO_DEFINITIVO',
         'EGRESO_RETICULA',
       ].sort(),
@@ -45,6 +42,11 @@ describe('resolutionMeta', () => {
   it('resolutionMeta returns the matching catalog entry for a known value', () => {
     expect(resolutionMeta('RETENIDA')).toEqual(RESOLUTION_META.RETENIDA)
     expect(resolutionMeta('BECA_MES')).toEqual(RESOLUTION_META.BECA_MES)
+  })
+
+  it.each(['SUSPENDIDA', 'REEMBOLSO_PARCIAL'])('retired value %s falls back to the generic grey chip', (value) => {
+    expect(RESOLUTION_META).not.toHaveProperty(value)
+    expect(resolutionMeta(value)).toEqual({ icon: 'mdi-help-circle-outline', color: 'grey', label: value })
   })
 
   it('resolutionMeta falls back to a grey chip carrying the raw value for an unknown value', () => {
