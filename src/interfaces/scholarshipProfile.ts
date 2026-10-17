@@ -38,6 +38,11 @@ export interface ScholarshipProfileConfig {
   // TelmexCoverage's start_period/end_period and pinned by PR2c/PR3's tests.
   cycle_closed_period: string | null
   cycle_closure_reason: 'EGRESADO' | 'BAJA_DEFINITIVA' | null
+  // Read-only (sdd/perfil-beca-montos-admin). Timestamp of the last time
+  // Administración saved the scholarship amounts via PUT /config; `null`
+  // means the amounts are still pending configuration (refrend generation
+  // is blocked for the becario). NEVER sent back in the form.
+  config_set_at: string | null
 }
 
 // Submission shape for `PUT scholarship-profiles/{userId}/config`. Numeric
