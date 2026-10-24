@@ -288,9 +288,9 @@ describe('PaymentDocumentDialog', () => {
     )
 
     expect(row('base').text()).toContain('$1000.00')
-    expect(row('apoyo').text()).toContain('+ Monto de apoyo')
+    expect(row('apoyo').text()).toMatch(/^Monto de apoyo\s*\+\$20\.00$/)
     expect(row('apoyo').text()).toContain('+$20.00')
-    expect(row('aumento').text()).toContain('+ Aumento temporal')
+    expect(row('aumento').text()).toContain('Aumento temporal')
     expect(row('aumento').text()).toContain('+$30.00')
     expect(row('aumento').text()).toContain('Motivo: Apoyo transporte')
     expect(row('bruto').text()).toContain('$1050.00')
@@ -332,7 +332,7 @@ describe('PaymentDocumentDialog', () => {
       }),
     )
 
-    expect(row('academico').text()).toContain('− Descuento académico (10%)')
+    expect(row('academico').text()).toContain('Descuento académico (10%)')
     expect(row('academico').text()).toContain('−$100.00')
     expect(row('academico').text()).toContain('Motivo: Promedio bajo')
   })
@@ -341,14 +341,14 @@ describe('PaymentDocumentDialog', () => {
     await openDesglose(
       breakdownWith({ discount_label: 'Retención', discount_percentage: '25.00', discount_amount: '250.00' }),
     )
-    expect(row('descuento').text()).toContain('− Retención (25%)')
+    expect(row('descuento').text()).toContain('Retención (25%)')
     expect(row('descuento').text()).toContain('−$250.00')
 
     document.body.innerHTML = ''
     await openDesglose(
       breakdownWith({ discount_label: 'Sin pago', discount_percentage: '0.00', discount_amount: '900.00' }),
     )
-    expect(row('descuento').text()).toContain('− Sin pago')
+    expect(row('descuento').text()).toContain('Sin pago')
     expect(row('descuento').text()).not.toContain('%')
   })
 
@@ -365,7 +365,7 @@ describe('PaymentDocumentDialog', () => {
       }),
     )
 
-    expect(row('telmex').text()).toContain('+ Cobertura Telmex')
+    expect(row('telmex').text()).toContain('Cobertura Telmex')
     expect(row('telmex').text()).toContain('+$1600.00')
   })
 
@@ -373,7 +373,7 @@ describe('PaymentDocumentDialog', () => {
     await openDesglose(breakdownWith({ manual_adjustment: '-220.00' }))
 
     const r = row('ajuste')
-    expect(r.text()).toContain('± Ajuste manual')
+    expect(r.text()).toContain('Ajuste manual')
     expect(r.text()).toContain('−$220.00')
     expect(r.text()).toContain('Diferencia por edición manual del monto final')
     expect(r.html()).toContain('text-warning')
@@ -388,10 +388,32 @@ describe('PaymentDocumentDialog', () => {
   it('shows pending and advance payment after the final amount, before the total', async () => {
     await openDesglose(breakdownWith({ advance_payment_amount: '300.00', total_to_pay: '1750.00' }))
 
-    expect(row('pendiente').text()).toContain('+ Pendiente de periodo anterior')
-    expect(row('adelanto').text()).toContain('+ Pago adelantado')
+    expect(row('pendiente').text()).toContain('Pendiente de periodo anterior')
+    expect(row('adelanto').text()).toContain('Pago adelantado')
     expect(row('adelanto').text()).toContain('+$300.00')
     expect(row('total').text()).toContain('$1750.00')
+  })
+
+  it('shows the sign only on the amounts, never as a label prefix', async () => {
+    await openDesglose(
+      breakdownWith({
+        monto_apoyo: '20.00',
+        temporary_increase_amount: '30.00',
+        academic_discount_percentage: '10.00',
+        academic_discount_amount: '100.00',
+        discount_percentage: '5.00',
+        discount_amount: '50.00',
+        telmex_covered_amount: '10.00',
+        manual_adjustment: '-5.00',
+        advance_payment_amount: '300.00',
+      }),
+    )
+
+    for (const key of ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'pendiente', 'adelanto']) {
+      expect(row(key).text(), key).toMatch(/^[^+−±]/)
+    }
+    expect(row('bruto').text()).not.toMatch(/[+−±]/)
+    expect(row('final').text()).not.toMatch(/[+−±]/)
   })
 
   it('hides the base row for pure Telmex (base 0) but keeps the subtotals', async () => {

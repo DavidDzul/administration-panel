@@ -209,12 +209,12 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
     rows.push({ key: 'base', label: 'Monto base', amount: money(b.base_amount) })
   }
   if (isPresent(b.monto_apoyo)) {
-    rows.push({ key: 'apoyo', label: '+ Monto de apoyo', amount: signed('+', b.monto_apoyo) })
+    rows.push({ key: 'apoyo', label: 'Monto de apoyo', amount: signed('+', b.monto_apoyo) })
   }
   if (isPresent(b.temporary_increase_amount)) {
     rows.push({
       key: 'aumento',
-      label: '+ Aumento temporal',
+      label: 'Aumento temporal',
       amount: signed('+', b.temporary_increase_amount),
       caption: b.temporary_increase_reason ? `Motivo: ${b.temporary_increase_reason}` : undefined,
       color: TEMPORARY_INCREASE_META.color,
@@ -227,7 +227,7 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
   if (isPresent(b.academic_discount_amount)) {
     rows.push({
       key: 'academico',
-      label: `− Descuento académico (${percent(b.academic_discount_percentage)}%)`,
+      label: `Descuento académico (${percent(b.academic_discount_percentage)}%)`,
       amount: signed('−', b.academic_discount_amount),
       caption: b.academic_discount_reason ? `Motivo: ${b.academic_discount_reason}` : undefined,
     })
@@ -237,17 +237,17 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
     const pct = Number(b.discount_percentage ?? 0)
     rows.push({
       key: 'descuento',
-      label: pct > 0 ? `− ${label} (${percent(b.discount_percentage)}%)` : `− ${label}`,
+      label: pct > 0 ? `${label} (${percent(b.discount_percentage)}%)` : label,
       amount: signed('−', b.discount_amount),
     })
   }
   if (isPresent(b.telmex_covered_amount)) {
-    rows.push({ key: 'telmex', label: '+ Cobertura Telmex', amount: signed('+', b.telmex_covered_amount) })
+    rows.push({ key: 'telmex', label: 'Cobertura Telmex', amount: signed('+', b.telmex_covered_amount) })
   }
   if (isPresent(b.manual_adjustment)) {
     rows.push({
       key: 'ajuste',
-      label: '± Ajuste manual',
+      label: 'Ajuste manual',
       amount: manualAmount(b.manual_adjustment),
       caption: 'Diferencia por edición manual del monto final',
       color: 'warning',
@@ -259,12 +259,12 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
   if (isPresent(b.amount_pending_from_previous)) {
     rows.push({
       key: 'pendiente',
-      label: '+ Pendiente de periodo anterior',
+      label: 'Pendiente de periodo anterior',
       amount: signed('+', b.amount_pending_from_previous),
     })
   }
   if (isPresent(b.advance_payment_amount)) {
-    rows.push({ key: 'adelanto', label: '+ Pago adelantado', amount: signed('+', b.advance_payment_amount) })
+    rows.push({ key: 'adelanto', label: 'Pago adelantado', amount: signed('+', b.advance_payment_amount) })
   }
 
   return rows
