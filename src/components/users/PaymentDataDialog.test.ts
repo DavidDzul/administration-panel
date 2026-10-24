@@ -291,7 +291,7 @@ describe('PaymentDataDialog', () => {
       const { wrapper } = await openWithConfig(buildProfileConfig())
 
       expect(selectByLabelPrefix(wrapper, 'Tipo de beca')?.props('modelValue')).toBe('IU')
-      expect(fieldByLabelPrefix(wrapper, 'Monto mensual')?.props('modelValue')).toBe(1500)
+      expect(fieldByLabelPrefix(wrapper, 'Beca')?.props('modelValue')).toBe(1500)
       expect(fieldByLabelPrefix(wrapper, 'Apoyo')?.props('modelValue')).toBe(200)
       expect(switchByLabel(wrapper, '¿Estudia en el CERT de Mérida o UNID Tizimín?')?.props('modelValue')).toBe(true)
     })
@@ -300,7 +300,7 @@ describe('PaymentDataDialog', () => {
       const { wrapper } = await openWithConfig(null)
 
       expect(selectByLabelPrefix(wrapper, 'Tipo de beca')?.props('modelValue')).toBe('IU')
-      expect(fieldByLabelPrefix(wrapper, 'Monto mensual')?.props('modelValue')).toBe(0)
+      expect(fieldByLabelPrefix(wrapper, 'Beca')?.props('modelValue')).toBe(0)
       expect(fieldByLabelPrefix(wrapper, 'Apoyo')?.props('modelValue')).toBe(0)
       expect(switchByLabel(wrapper, '¿Estudia en el CERT de Mérida o UNID Tizimín?')?.props('modelValue')).toBe(false)
     })
@@ -311,7 +311,7 @@ describe('PaymentDataDialog', () => {
       const { wrapper } = await openWithConfig(buildProfileConfig())
 
       expect(selectByLabelPrefix(wrapper, 'Tipo de beca')?.props('disabled')).toBe(true)
-      expect(fieldByLabelPrefix(wrapper, 'Monto mensual')?.props('disabled')).toBe(true)
+      expect(fieldByLabelPrefix(wrapper, 'Beca')?.props('disabled')).toBe(true)
       expect(fieldByLabelPrefix(wrapper, 'Apoyo')?.props('disabled')).toBe(true)
       expect(switchByLabel(wrapper, '¿Estudia en el CERT de Mérida o UNID Tizimín?')?.props('disabled')).toBe(true)
     })
@@ -322,7 +322,7 @@ describe('PaymentDataDialog', () => {
       const { wrapper } = await openWithConfig(buildProfileConfig())
 
       expect(selectByLabelPrefix(wrapper, 'Tipo de beca')?.props('disabled')).toBeFalsy()
-      expect(fieldByLabelPrefix(wrapper, 'Monto mensual')?.props('disabled')).toBeFalsy()
+      expect(fieldByLabelPrefix(wrapper, 'Beca')?.props('disabled')).toBeFalsy()
       expect(fieldByLabelPrefix(wrapper, 'Apoyo')?.props('disabled')).toBeFalsy()
     })
 
@@ -336,7 +336,7 @@ describe('PaymentDataDialog', () => {
       await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
       await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
-      await fieldByLabelPrefix(wrapper, 'Monto mensual')?.setValue(0)
+      await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(0)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
 
       await submitForm()
@@ -377,7 +377,7 @@ describe('PaymentDataDialog', () => {
       await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
       await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
-      await fieldByLabelPrefix(wrapper, 'Monto mensual')?.setValue(1500)
+      await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
 
       await submitForm()
@@ -403,7 +403,7 @@ describe('PaymentDataDialog', () => {
       await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
       await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
-      await fieldByLabelPrefix(wrapper, 'Monto mensual')?.setValue(1200)
+      await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1200)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(0)
 
       await submitForm()
@@ -448,7 +448,7 @@ describe('PaymentDataDialog', () => {
       await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
       await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
-      await fieldByLabelPrefix(wrapper, 'Monto mensual')?.setValue(1500)
+      await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
 
       await submitForm()

@@ -733,7 +733,7 @@ describe('PaymentBatchTable', () => {
   // desglose, spec "Breakdown columns rendered per scholarship type") ──────
 
   describe('breakdown columns per scholarship type', () => {
-    it('IU row: Monto mensual = gross − apoyo − aumento temporal, Pago IU is a dash', () => {
+    it('IU row: Beca = gross − apoyo − aumento temporal, Pago IU is a dash', () => {
       const wrapper = mountTable([
         buildRow({
           snapshot_scholarship_type: 'IU',
@@ -747,7 +747,7 @@ describe('PaymentBatchTable', () => {
       expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('—')
     })
 
-    it('TELMEX_IU row: Pago IU = gross − aumento temporal, Monto mensual is a dash', () => {
+    it('TELMEX_IU row: Pago IU = gross − aumento temporal, Beca is a dash', () => {
       const wrapper = mountTable([
         buildRow({
           snapshot_scholarship_type: 'TELMEX_IU',
@@ -760,7 +760,7 @@ describe('PaymentBatchTable', () => {
       expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('—')
     })
 
-    it('TELMEX row with a frozen temporary increase: both Monto mensual and Pago IU are dashes', () => {
+    it('TELMEX row with a frozen temporary increase: both Beca and Pago IU are dashes', () => {
       const wrapper = mountTable([
         buildRow({
           snapshot_scholarship_type: 'TELMEX',

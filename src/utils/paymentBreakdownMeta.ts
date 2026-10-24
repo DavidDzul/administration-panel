@@ -63,7 +63,7 @@ export interface PaymentBreakdownRowFields {
 }
 
 /**
- * Monto mensual column. IU rows only (spec) — gross − apoyo − aumento
+ * Beca column. IU rows only (spec) — gross − apoyo − aumento
  * temporal. "—" for every other scholarship type, and when the gross
  * snapshot itself is null.
  */

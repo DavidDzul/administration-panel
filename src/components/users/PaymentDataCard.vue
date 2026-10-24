@@ -32,7 +32,7 @@
           <div class="font-weight-medium">{{ scholarshipTypeLabel(profileConfig.scholarship_type) }}</div>
         </v-col>
         <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Monto mensual</div>
+          <div class="text-caption text-medium-emphasis mb-1">Beca</div>
           <div class="font-weight-medium">{{ profileConfig.monthly_amount }}</div>
         </v-col>
         <v-col cols="12" sm="6">

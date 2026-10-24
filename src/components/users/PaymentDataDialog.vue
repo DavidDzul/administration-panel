@@ -58,7 +58,7 @@
               <v-text-field
                 v-model.number="configForm.monthly_amount"
                 type="number"
-                label="Monto mensual *"
+                label="Beca *"
                 :rules="[nonNegativeNumberRule]"
                 :disabled="!editScholarshipProfile"
               ></v-text-field>
