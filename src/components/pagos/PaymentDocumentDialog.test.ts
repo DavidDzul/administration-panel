@@ -235,44 +235,6 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('1450.00')
   })
 
-  it('always shows the subtotals and the total, and hides every zero/null optional row', async () => {
-    await openDesglose(buildDocument())
-
-    expect(row('base').exists()).toBe(true)
-    expect(row('bruto').text()).toContain('Monto bruto')
-    expect(row('bruto').text()).toContain('$1000.00')
-    expect(row('final').text()).toContain('Monto final')
-    expect(row('total').text()).toContain('Total a pagar')
-    expect(row('total').text()).toContain('$1450.00')
-
-    for (const key of ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'adelanto']) {
-      expect(row(key).exists(), key).toBe(false)
-    }
-    // pending is non-zero in the default fixture
-    expect(row('pendiente').text()).toContain('+$450.00')
-  })
-
-  it('treats "0.00" strings as hidden (truthy string guard)', async () => {
-    await openDesglose(
-      breakdownWith({
-        monto_apoyo: '0.00',
-        temporary_increase_amount: '0.00',
-        academic_discount_amount: '0.00',
-        discount_amount: '0.00',
-        telmex_covered_amount: '0.00',
-        manual_adjustment: '0.00',
-        advance_payment_amount: '0.00',
-        amount_pending_from_previous: '0.00',
-      }),
-    )
-
-    for (const key of ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'adelanto', 'pendiente']) {
-      expect(row(key).exists(), key).toBe(false)
-    }
-    expect(body().text()).not.toContain('undefined')
-    expect(body().text()).not.toContain('NaN')
-  })
-
   it('reconciles an IU case with monto de apoyo and a temporary increase, in order', async () => {
     await openDesglose(
       breakdownWith({
@@ -303,9 +265,176 @@ describe('PaymentDocumentDialog', () => {
       'breakdown-row-apoyo',
       'breakdown-row-aumento',
       'breakdown-row-bruto',
+      'breakdown-row-academico',
+      'breakdown-row-descuento',
+      'breakdown-row-telmex',
+      'breakdown-row-ajuste',
       'breakdown-row-final',
+      'breakdown-row-pendiente',
+      'breakdown-row-adelanto',
       'breakdown-row-total',
     ])
+  })
+
+  const ALL_ROW_KEYS = [
+    'base',
+    'apoyo',
+    'aumento',
+    'bruto',
+    'academico',
+    'descuento',
+    'telmex',
+    'ajuste',
+    'final',
+    'pendiente',
+    'adelanto',
+    'total',
+  ]
+  const OPTIONAL_KEYS = ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'pendiente', 'adelanto']
+
+  const rowKeys = () =>
+    Array.from(body().element.querySelectorAll('[data-testid^="breakdown-row-"]')).map((el) =>
+      (el.getAttribute('data-testid') ?? '').replace('breakdown-row-', ''),
+    )
+
+  const zeroBreakdown = {
+    monto_apoyo: '0.00',
+    temporary_increase_amount: '0.00',
+    temporary_increase_reason: 'Motivo ignorado',
+    academic_discount_percentage: '0.00',
+    academic_discount_reason: 'Razón ignorada',
+    academic_discount_amount: '0.00',
+    discount_percentage: '0.00',
+    discount_amount: '0.00',
+    telmex_covered_amount: '0.00',
+    manual_adjustment: '0.00',
+    amount_pending_from_previous: '0.00',
+    advance_payment_amount: '0.00',
+  } as const
+
+  it('always renders all 12 rows in order, with zero values as $0.00 and no sign', async () => {
+    await openDesglose(breakdownWith({ ...zeroBreakdown }))
+
+    expect(rowKeys()).toEqual(ALL_ROW_KEYS)
+    for (const key of OPTIONAL_KEYS) {
+      expect(row(key).text(), key).toContain('$0.00')
+      expect(row(key).text(), key).not.toMatch(/[+−±]/)
+    }
+    expect(body().text()).not.toContain('undefined')
+    expect(body().text()).not.toContain('NaN')
+  })
+
+  it('renders all 12 rows when the optional values are null', async () => {
+    await openDesglose(
+      breakdownWith({
+        monto_apoyo: null,
+        temporary_increase_amount: null,
+        academic_discount_percentage: null,
+        academic_discount_amount: null,
+        manual_adjustment: null,
+        advance_payment_amount: null,
+        amount_pending_from_previous: '0.00',
+        discount_amount: '0.00',
+        telmex_covered_amount: '0.00',
+      }),
+    )
+
+    expect(rowKeys()).toEqual(ALL_ROW_KEYS)
+    expect(row('apoyo').text()).toContain('$0.00')
+  })
+
+  it('mutes zero rows (label and amount) and leaves non-zero rows unmuted', async () => {
+    await openDesglose(
+      breakdownWith({ ...zeroBreakdown, monto_apoyo: '20.00', amount_pending_from_previous: '450.00' }),
+    )
+
+    for (const key of ['aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'adelanto']) {
+      expect(row(key).classes(), key).toContain('text-disabled')
+    }
+    for (const key of ['apoyo', 'pendiente']) {
+      expect(row(key).classes(), key).not.toContain('text-disabled')
+    }
+  })
+
+  it('never mutes the subtotals or the total, even when they are zero', async () => {
+    await openDesglose(
+      breakdownWith({ ...zeroBreakdown, gross_amount: '0.00', final_amount: '0.00', total_to_pay: '0.00' }),
+    )
+
+    for (const key of ['bruto', 'final', 'total']) {
+      expect(row(key).classes(), key).not.toContain('text-disabled')
+      expect(row(key).html(), key).not.toContain('text-disabled')
+    }
+  })
+
+  it('shows pure Telmex "Monto base" as a muted $0.00 instead of hiding it', async () => {
+    await openDesglose(
+      breakdownWith({
+        scholarship_type: 'TELMEX',
+        base_amount: '0.00',
+        gross_amount: '0.00',
+        telmex_covered_amount: '1950.00',
+        final_amount: '1950.00',
+        amount_pending_from_previous: '0.00',
+        total_to_pay: '1950.00',
+      }),
+    )
+
+    expect(row('base').text()).toContain('$0.00')
+    expect(row('base').classes()).toContain('text-disabled')
+    expect(row('final').text()).toContain('$1950.00')
+  })
+
+  it('never prints "(0%)" for zero-valued discount rows', async () => {
+    await openDesglose(breakdownWith({ ...zeroBreakdown, discount_label: 'Retención' }))
+
+    expect(row('academico').text()).toContain('Descuento académico')
+    expect(row('academico').text()).not.toContain('%')
+    expect(row('descuento').text()).toContain('Retención')
+    expect(row('descuento').text()).not.toContain('%')
+  })
+
+  it('falls back to the default discount label when it is missing', async () => {
+    const doc = breakdownWith({ ...zeroBreakdown })
+    delete (doc.amount_breakdown as Partial<PaymentDocument['amount_breakdown']>).discount_label
+    await openDesglose(doc)
+
+    expect(row('descuento').text()).toContain('Descuentos por penalizaciones')
+  })
+
+  it('hides the Motivo and manual-adjustment captions on zero rows', async () => {
+    await openDesglose(breakdownWith({ ...zeroBreakdown }))
+
+    expect(row('aumento').text()).not.toContain('Motivo')
+    expect(row('academico').text()).not.toContain('Motivo')
+    expect(row('ajuste').text()).not.toContain('Diferencia por edición manual')
+  })
+
+  it('shows the Motivo captions only when there is a value and a reason', async () => {
+    await openDesglose(
+      breakdownWith({
+        temporary_increase_amount: '30.00',
+        temporary_increase_reason: 'Apoyo transporte',
+        academic_discount_percentage: '10.00',
+        academic_discount_amount: '100.00',
+        academic_discount_reason: 'Promedio bajo',
+      }),
+    )
+
+    expect(row('aumento').text()).toContain('Motivo: Apoyo transporte')
+    expect(row('academico').text()).toContain('Motivo: Promedio bajo')
+  })
+
+  it('uses the warning color for Ajuste manual only when it is non-zero', async () => {
+    await openDesglose(breakdownWith({ manual_adjustment: '-5.00' }))
+    expect(row('ajuste').html()).toContain('text-warning')
+    expect(row('ajuste').classes()).not.toContain('text-disabled')
+    expect(row('ajuste').text()).toContain('Diferencia por edición manual del monto final')
+
+    document.body.innerHTML = ''
+    await openDesglose(breakdownWith({ manual_adjustment: '0.00' }))
+    expect(row('ajuste').html()).not.toContain('text-warning')
+    expect(row('ajuste').classes()).toContain('text-disabled')
   })
 
   it('omits the increase caption when there is no reason', async () => {
@@ -414,24 +543,6 @@ describe('PaymentDocumentDialog', () => {
     }
     expect(row('bruto').text()).not.toMatch(/[+−±]/)
     expect(row('final').text()).not.toMatch(/[+−±]/)
-  })
-
-  it('hides the base row for pure Telmex (base 0) but keeps the subtotals', async () => {
-    await openDesglose(
-      breakdownWith({
-        scholarship_type: 'TELMEX',
-        base_amount: '0.00',
-        gross_amount: '0.00',
-        telmex_covered_amount: '1950.00',
-        final_amount: '1950.00',
-        amount_pending_from_previous: '0.00',
-        total_to_pay: '1950.00',
-      }),
-    )
-
-    expect(row('base').exists()).toBe(false)
-    expect(row('bruto').text()).toContain('$0.00')
-    expect(row('final').text()).toContain('$1950.00')
   })
 
   it('renders no refund column and no "$undefined"/NaN text when the payload lacks refund_amount_from_previous', async () => {

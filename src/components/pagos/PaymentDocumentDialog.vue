@@ -94,17 +94,17 @@
                   <v-divider v-if="row.subtotal" class="my-2"></v-divider>
                   <div
                     class="d-flex justify-space-between align-start py-1"
-                    :class="{ 'font-weight-bold': row.subtotal }"
+                    :class="{ 'font-weight-bold': row.subtotal, 'text-disabled': row.zero }"
                     :data-testid="`breakdown-row-${row.key}`"
                   >
                     <div>
                       <div class="d-flex align-center ga-2" :class="row.subtotal ? 'text-body-1' : 'text-body-2'">
-                        <v-icon v-if="row.icon" :icon="row.icon" :color="row.color" size="small" />
+                        <v-icon v-if="row.icon" :icon="row.icon" :color="row.zero ? undefined : row.color" size="small" />
                         <span>{{ row.label }}</span>
                       </div>
                       <div v-if="row.caption" class="text-caption text-medium-emphasis">{{ row.caption }}</div>
                     </div>
-                    <div :class="[row.subtotal ? 'text-body-1' : 'text-body-2', row.color ? `text-${row.color}` : '']">
+                    <div :class="[row.subtotal ? 'text-body-1' : 'text-body-2', row.color && !row.zero ? `text-${row.color}` : '']">
                       {{ row.amount }}
                     </div>
                   </div>
@@ -172,6 +172,8 @@ type BreakdownRow = {
   caption?: string
   color?: string
   icon?: string
+  // Zero-valued non-subtotal row: rendered muted (label and amount).
+  zero?: boolean
 }
 
 // Non-zero / non-null guard for the optional rows. "0.00" and malformed
@@ -194,80 +196,90 @@ const manualAmount = (value: string): string => {
   return `${n < 0 ? '−' : '+'}$${abs}`
 }
 
-// Vertical reconciliation list: every non-subtotal row is shown ONLY when its
-// amount is non-zero/non-null; the subtotals (Monto bruto, Monto final) are
-// always shown. Order mirrors RefrendAmountBreakdown's invariants:
+// Vertical reconciliation list: ALL rows are always rendered, in the order of
+// RefrendAmountBreakdown's invariants:
 //   base + apoyo + aumento = bruto
 //   bruto - academico - descuento + cobertura + ajuste = final
+// A null/zero amount renders as "$0.00" with no sign and the row is muted
+// (`zero`); subtotals are never muted. Percentages and captions only appear
+// when the row has a value.
 const breakdown = computed(() => document.value!.amount_breakdown)
+
+const DEFAULT_DISCOUNT_LABEL = 'Descuentos por penalizaciones'
 
 const breakdownRows = computed<BreakdownRow[]>(() => {
   const b = breakdown.value
-  const rows: BreakdownRow[] = []
 
-  if (isPresent(b.base_amount)) {
-    rows.push({ key: 'base', label: 'Monto base', amount: money(b.base_amount) })
-  }
-  if (isPresent(b.monto_apoyo)) {
-    rows.push({ key: 'apoyo', label: 'Monto de apoyo', amount: signed('+', b.monto_apoyo) })
-  }
-  if (isPresent(b.temporary_increase_amount)) {
-    rows.push({
-      key: 'aumento',
-      label: 'Aumento temporal',
-      amount: signed('+', b.temporary_increase_amount),
-      caption: b.temporary_increase_reason ? `Motivo: ${b.temporary_increase_reason}` : undefined,
-      color: TEMPORARY_INCREASE_META.color,
-      icon: TEMPORARY_INCREASE_META.icon,
-    })
+  // Optional row: signed amount when present, plain "$0.00" otherwise.
+  const optional = (
+    row: Omit<BreakdownRow, 'amount' | 'zero'>,
+    value: string | null | undefined,
+    sign: '+' | '\u2212',
+  ): BreakdownRow => {
+    const present = isPresent(value)
+    return { ...row, amount: present ? signed(sign, value) : money(null), zero: !present }
   }
 
-  rows.push({ key: 'bruto', label: 'Monto bruto', amount: money(b.gross_amount ?? b.base_amount), subtotal: true })
+  const hasIncrease = isPresent(b.temporary_increase_amount)
+  const hasAcademic = isPresent(b.academic_discount_amount)
+  const hasDiscount = isPresent(b.discount_amount)
+  const hasManual = isPresent(b.manual_adjustment)
+  const discountLabel = b.discount_label ?? DEFAULT_DISCOUNT_LABEL
 
-  if (isPresent(b.academic_discount_amount)) {
-    rows.push({
-      key: 'academico',
-      label: `Descuento académico (${percent(b.academic_discount_percentage)}%)`,
-      amount: signed('−', b.academic_discount_amount),
-      caption: b.academic_discount_reason ? `Motivo: ${b.academic_discount_reason}` : undefined,
-    })
-  }
-  if (isPresent(b.discount_amount)) {
-    const label = b.discount_label ?? 'Descuentos por penalizaciones'
-    const pct = Number(b.discount_percentage ?? 0)
-    rows.push({
-      key: 'descuento',
-      label: pct > 0 ? `${label} (${percent(b.discount_percentage)}%)` : label,
-      amount: signed('−', b.discount_amount),
-    })
-  }
-  if (isPresent(b.telmex_covered_amount)) {
-    rows.push({ key: 'telmex', label: 'Cobertura Telmex', amount: signed('+', b.telmex_covered_amount) })
-  }
-  if (isPresent(b.manual_adjustment)) {
-    rows.push({
+  return [
+    {
+      key: 'base',
+      label: 'Monto base',
+      amount: isPresent(b.base_amount) ? money(b.base_amount) : money(null),
+      zero: !isPresent(b.base_amount),
+    },
+    optional({ key: 'apoyo', label: 'Monto de apoyo' }, b.monto_apoyo, '+'),
+    optional(
+      {
+        key: 'aumento',
+        label: 'Aumento temporal',
+        caption: hasIncrease && b.temporary_increase_reason ? `Motivo: ${b.temporary_increase_reason}` : undefined,
+        color: TEMPORARY_INCREASE_META.color,
+        icon: TEMPORARY_INCREASE_META.icon,
+      },
+      b.temporary_increase_amount,
+      '+',
+    ),
+    { key: 'bruto', label: 'Monto bruto', amount: money(b.gross_amount ?? b.base_amount), subtotal: true },
+    optional(
+      {
+        key: 'academico',
+        label: hasAcademic && Number(b.academic_discount_percentage ?? 0) > 0
+          ? `Descuento acad\u00e9mico (${percent(b.academic_discount_percentage)}%)`
+          : 'Descuento acad\u00e9mico',
+        caption: hasAcademic && b.academic_discount_reason ? `Motivo: ${b.academic_discount_reason}` : undefined,
+      },
+      b.academic_discount_amount,
+      '\u2212',
+    ),
+    optional(
+      {
+        key: 'descuento',
+        label: hasDiscount && Number(b.discount_percentage ?? 0) > 0
+          ? `${discountLabel} (${percent(b.discount_percentage)}%)`
+          : discountLabel,
+      },
+      b.discount_amount,
+      '\u2212',
+    ),
+    optional({ key: 'telmex', label: 'Cobertura Telmex' }, b.telmex_covered_amount, '+'),
+    {
       key: 'ajuste',
       label: 'Ajuste manual',
-      amount: manualAmount(b.manual_adjustment),
-      caption: 'Diferencia por edición manual del monto final',
+      amount: hasManual ? manualAmount(b.manual_adjustment as string) : money(null),
+      caption: hasManual ? 'Diferencia por edici\u00f3n manual del monto final' : undefined,
       color: 'warning',
-    })
-  }
-
-  rows.push({ key: 'final', label: 'Monto final', amount: money(b.final_amount), subtotal: true })
-
-  if (isPresent(b.amount_pending_from_previous)) {
-    rows.push({
-      key: 'pendiente',
-      label: 'Pendiente de periodo anterior',
-      amount: signed('+', b.amount_pending_from_previous),
-    })
-  }
-  if (isPresent(b.advance_payment_amount)) {
-    rows.push({ key: 'adelanto', label: 'Pago adelantado', amount: signed('+', b.advance_payment_amount) })
-  }
-
-  return rows
+      zero: !hasManual,
+    },
+    { key: 'final', label: 'Monto final', amount: money(b.final_amount), subtotal: true },
+    optional({ key: 'pendiente', label: 'Pendiente de periodo anterior' }, b.amount_pending_from_previous, '+'),
+    optional({ key: 'adelanto', label: 'Pago adelantado' }, b.advance_payment_amount, '+'),
+  ]
 })
 
 // Always starts on the first tab for each becario, same "reset on open"
