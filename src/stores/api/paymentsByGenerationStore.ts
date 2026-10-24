@@ -1,7 +1,7 @@
 import axios from '@/axiosConfig'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { GenerationPaymentSummary, GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
+import type { GenerationPaymentRow, GenerationPaymentSummary, GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
 import type { PaymentsByGenerationResponse } from '@/interfaces/api'
 
 // Read-only summary slice (sdd/pagos-consulta-por-generacion, design D6) —
@@ -12,6 +12,7 @@ import type { PaymentsByGenerationResponse } from '@/interfaces/api'
 // decide how to surface a failed load.
 export const usePaymentsByGenerationStore = defineStore('paymentsByGenerationStore', () => {
   const summary = ref<GenerationPaymentSummary | null>(null)
+  const rows = ref<GenerationPaymentRow[]>([])
   const generation = ref<GenerationSummaryGeneration | null>(null)
 
   const fetchSummary = async (key: GenerationSummaryKey): Promise<boolean> => {
@@ -21,6 +22,7 @@ export const usePaymentsByGenerationStore = defineStore('paymentsByGenerationSto
         headers: { accept: 'application/json' },
       })
       summary.value = res.data.data.summary
+      rows.value = res.data.data.rows ?? []
       generation.value = res.data.data.generation
       return true
     } catch (error: unknown) {
@@ -31,6 +33,7 @@ export const usePaymentsByGenerationStore = defineStore('paymentsByGenerationSto
 
   return {
     summary,
+    rows,
     generation,
     fetchSummary,
   }

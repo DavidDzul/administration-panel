@@ -42,7 +42,7 @@
   </v-row>
 
   <template v-else>
-    <v-row v-if="summary.total === 0">
+    <v-row v-if="summary.total === 0 && rows.length === 0">
       <v-col cols="12">
         <v-alert
           type="info"
@@ -53,6 +53,8 @@
     </v-row>
 
     <GenerationPaymentSummary :summary="summary" />
+
+    <GenerationPaymentRowsTable v-if="rows.length > 0" :rows="rows" />
   </template>
 </template>
 
@@ -74,6 +76,14 @@
 // still present and still the row count on the new paid/pending/blocked
 // shape.
 //
+// Per-becario amounts table (sdd/tabla-montos-por-generacion): rendered under
+// the cards ONLY when `rows` is non-empty, inside the same `v-else` branch, so
+// loading / error / incomplete-filters (and therefore stale rows) are already
+// ruled out by the ladder above. The empty-state alert now also requires
+// `rows.length === 0`: a generation whose only refrends are pure Telmex
+// without IU payment has `summary.total === 0` but still has NO_IU_PAYMENT
+// rows to show, and "Sin refrendos" would be false for it.
+//
 // Sede → Generación cascade (user decision 2026-10-08, supersedes design
 // D8's single picker): clearing `campus` clears `generationId` too (inside
 // the composable), which already falls through `filtersComplete`'s existing
@@ -82,6 +92,7 @@ import { usePaymentsByGenerationPage } from '@/composables/usePaymentsByGenerati
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import GenerationSummaryFilters from '@/components/pagos/GenerationSummaryFilters.vue'
 import GenerationPaymentSummary from '@/components/pagos/GenerationPaymentSummary.vue'
+import GenerationPaymentRowsTable from '@/components/pagos/GenerationPaymentRowsTable.vue'
 import type { LinkInterface } from '@/interfaces/link'
 
 // `generation` (the server-echoed sede/generación block) is intentionally
@@ -100,6 +111,7 @@ const {
   loading,
   loadError,
   summary,
+  rows,
 } = usePaymentsByGenerationPage()
 
 const links: LinkInterface[] = [

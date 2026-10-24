@@ -17,7 +17,7 @@
                       icon="mdi-information-outline"
                       size="small"
                       tabindex="0"
-                      aria-label="Ayuda: diferencia"
+                      :aria-label="`Ayuda: ${card.label}`"
                     ></v-icon>
                   </template>
                 </v-tooltip>
@@ -49,8 +49,12 @@ const props = withDefaults(defineProps<Props>(), { summary: null })
 const formatAmount = (amount: string): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(amount))
 
-const DIFFERENCE_HELP =
-  'Diferencia entre lo que corresponde por beca y apoyo, y lo que se paga. Positiva: descuentos y retenciones aplicadas. Negativa: se pagó de más este mes por aumentos temporales, meses retenidos liberados o adelantos.'
+// difference_amount is the TRUE discounts and retentions
+// (sdd/tabla-montos-por-generacion): every nominal component, including
+// temporary increases and pending/advance, minus the total to pay. It no
+// longer goes negative because of increases or released months.
+const DIFFERENCE_HELP = 'Descuentos académicos, penalizaciones y retenciones aplicadas'
+const TELMEX_WITHOUT_IU_HELP = 'Becarios Telmex a quienes IU no realiza pago este mes'
 
 interface SummaryCard {
   label: string
@@ -68,31 +72,59 @@ const card = (
   help?: string,
 ): SummaryCard => ({ label, value, icon, color, help })
 
-// 3 rows (design D6): paid/pending/blocked counts (cols=6 sm=3), nominal
-// components (cols=6 sm=4), payment-state money (cols=12 sm=4) — each
-// divides cleanly into the Vuetify 12-col grid at every breakpoint.
-const cardGroups = computed(() => {
+interface CardGroup {
+  cols: number
+  // `true` = equal-width columns (Vuetify auto layout), used when a row has
+  // a variable number of cards.
+  sm: number | boolean
+  cards: SummaryCard[]
+}
+
+// 3 rows (design D6): paid/pending/blocked counts (+ the conditional
+// "Telmex sin pago IU" count), nominal components, payment-state money. Rows
+// with a fixed card count use explicit column widths; the two rows that gain
+// cards use equal-width columns so they always fill the line.
+const cardGroups = computed<CardGroup[]>(() => {
   const s = props.summary
   if (!s) return []
 
-  const groups = [
+  const hasTelmexWithoutIu = Number(s.telmex_without_iu_payment ?? 0) > 0
+
+  const countCards = [
+    card('Total becarios', s.total, 'mdi-account-group-outline'),
+    card('Pagados', s.paid, 'mdi-check-decagram-outline', 'success'),
+    card('Por pagar', s.pending, 'mdi-clock-outline', 'primary'),
+    card('Bloqueados', s.blocked, 'mdi-alert-circle-outline', 'error'),
+  ]
+  // Pure TELMEX becarios IU does not pay this month; they are listed in the
+  // table but excluded from every figure, so surface their count here.
+  if (hasTelmexWithoutIu) {
+    countCards.push(
+      card(
+        'Telmex sin pago IU',
+        s.telmex_without_iu_payment,
+        'mdi-account-cancel-outline',
+        'grey',
+        TELMEX_WITHOUT_IU_HELP,
+      ),
+    )
+  }
+
+  const groups: CardGroup[] = [
     {
       cols: 6,
-      sm: 3,
-      cards: [
-        card('Total becarios', s.total, 'mdi-account-group-outline'),
-        card('Pagados', s.paid, 'mdi-check-decagram-outline', 'success'),
-        card('Por pagar', s.pending, 'mdi-clock-outline', 'primary'),
-        card('Bloqueados', s.blocked, 'mdi-alert-circle-outline', 'error'),
-      ],
+      sm: hasTelmexWithoutIu ? true : 3,
+      cards: countCards,
     },
     {
       cols: 6,
-      sm: 4,
+      sm: true,
       cards: [
         card('Monto total de beca', formatAmount(s.beca_amount), 'mdi-school-outline', 'info'),
         card('Monto total de apoyo', formatAmount(s.apoyo_amount), 'mdi-hand-heart-outline', 'info'),
         card('Monto total Pago IU', formatAmount(s.pago_iu_amount), 'mdi-cash-sync', 'info'),
+        card('Aumentos temporales', formatAmount(s.temporary_increase_amount), 'mdi-trending-up', 'info'),
+        card('Pendientes y adelantos', formatAmount(s.pending_and_advance_amount), 'mdi-cash-fast', 'info'),
       ],
     },
     {
