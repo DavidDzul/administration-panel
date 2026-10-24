@@ -17,6 +17,9 @@ export interface Person {
   campus: string
   generation_id: number | string | null
   active: boolean
+  // Set by GET api/admin/users and api/admin/graduates: true only when the
+  // scholarship profile exists and its amounts were configured.
+  amounts_configured?: boolean
 }
 
 export interface UserRole {
