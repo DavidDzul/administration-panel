@@ -1,5 +1,14 @@
 <template>
   <div class="mt-4" data-testid="generation-rows-table">
+    <v-alert
+      v-if="hasPendingNoIu"
+      data-testid="no-iu-pending-alert"
+      type="warning"
+      variant="tonal"
+      density="compact"
+      class="mb-3"
+      text="Hay becarios Telmex sin pago IU con montos pendientes de meses anteriores. Revisa su situación antes de cerrar el periodo."
+    ></v-alert>
     <v-data-table
       v-model:sort-by="sortBy"
       :headers="headers"
@@ -36,22 +45,22 @@
       </template>
 
       <template #[`item.state`]="{ item }">
-        <v-tooltip v-if="item.state === 'NO_IU_PAYMENT'" :text="NO_IU_PAYMENT_HELP" location="top">
+        <v-tooltip v-if="chipFor(item).help" :text="chipFor(item).help" location="top">
           <template #activator="{ props: tooltipProps }">
             <v-chip
               v-bind="tooltipProps"
               data-testid="state-chip"
-              :color="stateMeta[item.state].color"
+              :color="chipFor(item).color"
               size="small"
               variant="tonal"
               tabindex="0"
             >
-              {{ stateMeta[item.state].label }}
+              {{ chipFor(item).label }}
             </v-chip>
           </template>
         </v-tooltip>
-        <v-chip v-else data-testid="state-chip" :color="stateMeta[item.state].color" size="small" variant="tonal">
-          {{ stateMeta[item.state].label }}
+        <v-chip v-else data-testid="state-chip" :color="chipFor(item).color" size="small" variant="tonal">
+          {{ chipFor(item).label }}
         </v-chip>
       </template>
 
@@ -61,7 +70,7 @@
 
       <template #tfoot>
         <tr class="generation-rows-totals" data-testid="totals-row">
-          <td class="font-weight-bold" colspan="4">Totales</td>
+          <td class="font-weight-bold" colspan="3">Totales</td>
           <td v-for="column in totalColumns" :key="column.key" class="text-end font-weight-bold">
             <span :data-testid="`total-${column.key}`">{{ column.text }}</span>
           </td>
@@ -108,6 +117,7 @@ type MoneyKey =
   | 'total_to_pay'
 
 const NO_IU_PAYMENT_HELP = 'Telmex paga directamente su beca; IU no realiza pago este mes'
+const NO_IU_PENDING_HELP = 'Telmex sin pago IU con monto pendiente de meses anteriores'
 
 const TYPE_LABELS: Record<GenerationPaymentRow['scholarship_type'], string> = {
   IU: 'IU',
@@ -122,6 +132,20 @@ const stateMeta: Record<GenerationPaymentRowState, { label: string; color: strin
   PENDING: { label: 'Por pagar', color: 'info' },
   BLOCKED: { label: 'Bloqueado', color: 'error' },
   NO_IU_PAYMENT: { label: 'Sin pago IU', color: 'grey' },
+}
+
+// A pure Telmex refrend IU does not pay this month can still carry money
+// pending/advanced from other months. Such a row needs a human look, so it is
+// neither muted nor labelled as a plain "Sin pago IU".
+const isPendingNoIu = (row: GenerationPaymentRow): boolean =>
+  row.state === 'NO_IU_PAYMENT' && toCents(row.total_to_pay) > 0
+
+const hasPendingNoIu = computed(() => props.rows.some(isPendingNoIu))
+
+const chipFor = (row: GenerationPaymentRow): { label: string; color: string; help?: string } => {
+  if (isPendingNoIu(row)) return { label: 'Revisar pendiente', color: 'warning', help: NO_IU_PENDING_HELP }
+  if (row.state === 'NO_IU_PAYMENT') return { ...stateMeta.NO_IU_PAYMENT, help: NO_IU_PAYMENT_HELP }
+  return stateMeta[row.state]
 }
 
 const money = (key: string, title: string) => ({ title, key, align: 'end' as const, sortable: true })
@@ -185,7 +209,7 @@ const discountText = (amount: string): string => {
 }
 
 const rowProps = ({ item }: { item: GenerationPaymentRow }) =>
-  item.state === 'NO_IU_PAYMENT' ? { class: 'generation-row-muted text-disabled' } : {}
+  item.state === 'NO_IU_PAYMENT' && !isPendingNoIu(item) ? { class: 'generation-row-muted text-disabled' } : {}
 
 const totalColumns = computed(() => {
   const counted = props.rows.filter((row) => row.state === 'PAID' || row.state === 'PENDING')

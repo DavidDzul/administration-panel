@@ -184,6 +184,132 @@ describe('GenerationPaymentRowsTable', () => {
     expect(totals).toEqual([formatAmount('95.00'), formatAmount('900.00'), formatAmount('1000.00')])
   })
 
+  // Footer cells are laid out with colspan, so alignment is checked on the
+  // starting grid column of each cell, not on the DOM child index.
+  const footerColumns = (wrapper: ReturnType<typeof mountTable>) => {
+    let start = 0
+    return wrapper.findAll('[data-testid="totals-row"] td').map((td) => {
+      const span = Number(td.attributes('colspan') ?? 1)
+      const cell = { start, span, el: td }
+      start += span
+      return cell
+    })
+  }
+
+  it('footer spans exactly the header column count', () => {
+    const wrapper = mountTable([buildRow()])
+    const headerCount = wrapper.findAll('thead th').length
+    const cells = footerColumns(wrapper)
+
+    expect(cells.reduce((sum, c) => sum + c.span, 0)).toBe(headerCount)
+  })
+
+  it('places every total under its own header', () => {
+    const wrapper = mountTable([buildRow({ state: 'PAID', beca: '10.00', total_to_pay: '10.00' })])
+    const titles = wrapper.findAll('thead th').map((th) => th.text())
+    const byKey: Record<string, string> = {
+      beca: 'Beca',
+      apoyo: 'Apoyo',
+      pago_iu: 'Pago IU',
+      temporary_increase: 'Aumento temporal',
+      telmex_coverage: 'Cobertura Telmex',
+      discounts: 'Descuentos y retenciones',
+      pending_and_advance: 'Pendiente / adelanto',
+      total_to_pay: 'Total a pagar',
+    }
+    const cells = footerColumns(wrapper)
+
+    for (const [key, title] of Object.entries(byKey)) {
+      const cell = cells.find((c) => c.el.find(`[data-testid="total-${key}"]`).exists())
+      expect(cell?.start, key).toBe(titles.indexOf(title))
+    }
+  })
+
+  it('adds float-prone cents exactly', () => {
+    const wrapper = mountTable([
+      buildRow({ state: 'PAID', total_to_pay: '0.10' }),
+      buildRow({ state: 'PAID', total_to_pay: '0.20' }),
+      buildRow({ state: 'PENDING', total_to_pay: '0.70' }),
+    ])
+
+    expect(wrapper.find('[data-testid="total-total_to_pay"]').text()).toBe(formatAmount('1.00'))
+  })
+
+  it('totals a negative discounts value with a plus prefix', () => {
+    const wrapper = mountTable([
+      buildRow({ state: 'PAID', discounts: '-100.00' }),
+      buildRow({ state: 'PENDING', discounts: '40.00' }),
+    ])
+
+    expect(wrapper.find('[data-testid="total-discounts"]').text()).toBe(`+${formatAmount('60.00')}`)
+    expect(wrapper.findAll('[data-testid="cell-discounts"]').map((c) => c.text())).toContain(
+      `+${formatAmount('100.00')}`,
+    )
+  })
+
+  it('totals are all zero when every row is BLOCKED or NO_IU_PAYMENT', () => {
+    const wrapper = mountTable([
+      buildRow({ state: 'BLOCKED', beca: '500.00', discounts: '50.00', total_to_pay: '450.00' }),
+      buildRow({ state: 'NO_IU_PAYMENT', scholarship_type: 'TELMEX' }),
+    ])
+
+    for (const key of ['beca', 'discounts', 'pending_and_advance', 'total_to_pay']) {
+      expect(wrapper.find(`[data-testid="total-${key}"]`).text()).toBe(formatAmount('0.00'))
+    }
+  })
+
+  describe('NO_IU_PAYMENT rows with pending money', () => {
+    const pendingNoIu = () =>
+      buildRow({
+        full_name: 'Pendiente Paz',
+        scholarship_type: 'TELMEX',
+        state: 'NO_IU_PAYMENT',
+        pending_and_advance: '250.00',
+        total_to_pay: '250.00',
+      })
+
+    it('does not mute the row and shows the warning chip "Revisar pendiente"', () => {
+      const wrapper = mountTable([pendingNoIu()])
+
+      const chip = wrapper.find('[data-testid="state-chip"]')
+      expect(chip.text()).toBe('Revisar pendiente')
+      expect(chip.classes()).toContain('text-warning')
+      expect(bodyRows(wrapper)[0].classes()).not.toContain('generation-row-muted')
+    })
+
+    it('exposes the tooltip text for the warning chip', () => {
+      const wrapper = mountTable([pendingNoIu()])
+
+      const tooltips = wrapper.findAllComponents({ name: 'VTooltip' }).map((t) => t.props('text'))
+      expect(tooltips).toContain('Telmex sin pago IU con monto pendiente de meses anteriores')
+    })
+
+    it('shows a warning alert above the table when any such row exists', () => {
+      const wrapper = mountTable([pendingNoIu()])
+
+      const alert = wrapper.find('[data-testid="no-iu-pending-alert"]')
+      expect(alert.exists()).toBe(true)
+      expect(alert.text()).toBe(
+        'Hay becarios Telmex sin pago IU con montos pendientes de meses anteriores. Revisa su situación antes de cerrar el periodo.',
+      )
+      expect(wrapper.html().indexOf('no-iu-pending-alert')).toBeLessThan(wrapper.html().indexOf('<table'))
+    })
+
+    it('keeps the grey "Sin pago IU" chip, muting and no alert for zero rows', () => {
+      const wrapper = mountTable([buildRow({ scholarship_type: 'TELMEX', state: 'NO_IU_PAYMENT' })])
+
+      expect(wrapper.find('[data-testid="state-chip"]').text()).toBe('Sin pago IU')
+      expect(bodyRows(wrapper)[0].classes()).toContain('generation-row-muted')
+      expect(wrapper.find('[data-testid="no-iu-pending-alert"]').exists()).toBe(false)
+    })
+
+    it('still excludes the pending NO_IU_PAYMENT row from the footer totals', () => {
+      const wrapper = mountTable([pendingNoIu()])
+
+      expect(wrapper.find('[data-testid="total-total_to_pay"]').text()).toBe(formatAmount('0.00'))
+    })
+  })
+
   it('footer totals equal the summary cards for a consistent fixture', () => {
     const rows = [
       buildRow({
@@ -222,26 +348,31 @@ describe('GenerationPaymentRowsTable', () => {
       total_amount: '6610.00',
       difference_amount: '340.00',
       telmex_without_iu_payment: 1,
+      telmex_without_iu_payment_pending_amount: '0.00',
     }
 
     const table = mountTable(rows)
     const cards = mount(GenerationPaymentSummary, { global: { plugins: [vuetify] }, props: { summary } })
 
     const total = (key: string) => table.find(`[data-testid="total-${key}"]`).text()
-    const cardText = cards.text()
+    const cardValue = (label: string): string => {
+      const card = cards.findAll('.payment-summary-card').find((c) => c.text().includes(label))
+      expect(card, label).toBeDefined()
+      return card!.text().replace(label, '').trim()
+    }
 
-    expect(cardText).toContain(total('beca'))
-    expect(cardText).toContain(total('apoyo'))
-    expect(cardText).toContain(total('pago_iu'))
-    expect(cardText).toContain(total('temporary_increase'))
-    expect(cardText).toContain(total('telmex_coverage'))
-    expect(cardText).toContain(total('pending_and_advance'))
+    expect(cardValue('Monto total de beca')).toBe(total('beca'))
+    expect(cardValue('Monto total de apoyo')).toBe(total('apoyo'))
+    expect(cardValue('Monto total Pago IU')).toBe(total('pago_iu'))
+    expect(cardValue('Aumentos temporales')).toBe(total('temporary_increase'))
+    expect(cardValue('Adelanto Telmex')).toBe(total('telmex_coverage'))
+    expect(cardValue('Pendientes y adelantos')).toBe(total('pending_and_advance'))
     // No card shows total_amount; it is paid_amount + pending_amount.
+    expect(cardValue('Monto pagado')).toBe(formatAmount(summary.paid_amount))
+    expect(cardValue('Monto por pagar')).toBe(formatAmount(summary.pending_amount))
     expect(total('total_to_pay')).toBe(formatAmount(summary.total_amount))
-    expect(cardText).toContain(formatAmount(summary.paid_amount))
-    expect(cardText).toContain(formatAmount(summary.pending_amount))
-    // difference card shows the discounts total unsigned; the table prefixes "−".
+    // The difference card shows discounts unsigned; the table prefixes the minus.
+    expect(cardValue('Diferencia por descuentos y retenciones')).toBe(formatAmount(summary.difference_amount))
     expect(total('discounts')).toBe(`−${formatAmount(summary.difference_amount)}`)
-    expect(cardText).toContain(formatAmount(summary.difference_amount))
   })
 })
