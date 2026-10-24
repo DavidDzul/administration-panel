@@ -54,12 +54,22 @@ const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocumen
   pedagogia_observations: 'Bajo rendimiento en cálculo.',
   resolution_notes: 'Aprobado tras revisión.',
   amount_breakdown: {
+    scholarship_type: 'IU',
     base_amount: '1000.00',
+    monto_apoyo: null,
     temporary_increase_amount: null,
     temporary_increase_reason: null,
+    gross_amount: '1000.00',
+    academic_discount_percentage: null,
+    academic_discount_reason: null,
+    academic_discount_amount: null,
     discount_percentage: '0.00',
     discount_amount: '0.00',
+    discount_label: 'Descuentos por penalizaciones',
+    telmex_covered_amount: '0.00',
+    manual_adjustment: null,
     amount_pending_from_previous: '450.00',
+    advance_payment_amount: null,
     final_amount: '1000.00',
     total_to_pay: '1450.00',
   },
@@ -204,106 +214,202 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('Aprobado tras revisión.')
   })
 
-  it('renders the monto breakdown down to the final total under the Desglose tab', async () => {
-    mockAxiosGet.mockResolvedValue({ data: { res: true, data: buildDocument() } })
+  const breakdownWith = (overrides: Partial<PaymentDocument['amount_breakdown']>): PaymentDocument =>
+    buildDocument({ amount_breakdown: { ...buildDocument().amount_breakdown, ...overrides } })
+
+  const openDesglose = async (doc: PaymentDocument) => {
+    mockAxiosGet.mockResolvedValue({ data: { res: true, data: doc } })
     const wrapper = mountDialog()
     await flushPromises()
     await clickTab(wrapper, 'Desglose de monto')
+    return wrapper
+  }
+
+  const row = (key: string) => body().find(`[data-testid="breakdown-row-${key}"]`)
+
+  it('renders the monto breakdown down to the final total under the Desglose tab', async () => {
+    await openDesglose(buildDocument())
 
     expect(body().text()).toContain('1000.00')
     expect(body().text()).toContain('450.00')
     expect(body().text()).toContain('1450.00')
   })
 
-  it('shows the temporary-increase alert with amount and reason for an IU document', async () => {
-    mockAxiosGet.mockResolvedValue({
-      data: {
-        res: true,
-        data: buildDocument({
-          amount_breakdown: {
-            base_amount: '1000.00',
-            temporary_increase_amount: '500.00',
-            temporary_increase_reason: 'Ajuste de renta',
-            discount_percentage: '0.00',
-            discount_amount: '0.00',
-            amount_pending_from_previous: '450.00',
-            final_amount: '1000.00',
-            total_to_pay: '1450.00',
-          },
-        }),
-      },
-    })
-    const wrapper = mountDialog()
-    await flushPromises()
-    await clickTab(wrapper, 'Desglose de monto')
+  it('always shows the subtotals and the total, and hides every zero/null optional row', async () => {
+    await openDesglose(buildDocument())
 
-    expect(body().text()).toContain('aumento temporal')
-    expect(body().text()).toContain('500.00')
-    expect(body().text()).toContain('ya contemplado en el monto base')
-    expect(body().text()).toContain('Ajuste de renta')
+    expect(row('base').exists()).toBe(true)
+    expect(row('bruto').text()).toContain('Monto bruto')
+    expect(row('bruto').text()).toContain('$1000.00')
+    expect(row('final').text()).toContain('Monto final')
+    expect(row('total').text()).toContain('Total a pagar')
+    expect(row('total').text()).toContain('$1450.00')
+
+    for (const key of ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'adelanto']) {
+      expect(row(key).exists(), key).toBe(false)
+    }
+    // pending is non-zero in the default fixture
+    expect(row('pendiente').text()).toContain('+$450.00')
   })
 
-  it('shows the identical temporary-increase alert for a TELMEX_IU document (no type-conditional difference)', async () => {
-    mockAxiosGet.mockResolvedValue({
-      data: {
-        res: true,
-        data: buildDocument({
-          enrollment: 'TELMEX-0001',
-          amount_breakdown: {
-            base_amount: '1000.00',
-            temporary_increase_amount: '500.00',
-            temporary_increase_reason: 'Ajuste de renta',
-            discount_percentage: '0.00',
-            discount_amount: '0.00',
-            amount_pending_from_previous: '450.00',
-            final_amount: '1000.00',
-            total_to_pay: '1450.00',
-          },
-        }),
-      },
-    })
-    const wrapper = mountDialog()
-    await flushPromises()
-    await clickTab(wrapper, 'Desglose de monto')
+  it('treats "0.00" strings as hidden (truthy string guard)', async () => {
+    await openDesglose(
+      breakdownWith({
+        monto_apoyo: '0.00',
+        temporary_increase_amount: '0.00',
+        academic_discount_amount: '0.00',
+        discount_amount: '0.00',
+        telmex_covered_amount: '0.00',
+        manual_adjustment: '0.00',
+        advance_payment_amount: '0.00',
+        amount_pending_from_previous: '0.00',
+      }),
+    )
 
-    expect(body().text()).toContain('aumento temporal')
-    expect(body().text()).toContain('500.00')
-    expect(body().text()).toContain('ya contemplado en el monto base')
-    expect(body().text()).toContain('Ajuste de renta')
+    for (const key of ['apoyo', 'aumento', 'academico', 'descuento', 'telmex', 'ajuste', 'adelanto', 'pendiente']) {
+      expect(row(key).exists(), key).toBe(false)
+    }
+    expect(body().text()).not.toContain('undefined')
+    expect(body().text()).not.toContain('NaN')
   })
 
-  it('does not show the temporary-increase alert when temporary_increase_amount is null', async () => {
-    mockAxiosGet.mockResolvedValue({ data: { res: true, data: buildDocument() } })
-    const wrapper = mountDialog()
-    await flushPromises()
-    await clickTab(wrapper, 'Desglose de monto')
+  it('reconciles an IU case with monto de apoyo and a temporary increase, in order', async () => {
+    await openDesglose(
+      breakdownWith({
+        base_amount: '1000.00',
+        monto_apoyo: '20.00',
+        temporary_increase_amount: '30.00',
+        temporary_increase_reason: 'Apoyo transporte',
+        gross_amount: '1050.00',
+        final_amount: '1050.00',
+        amount_pending_from_previous: '0.00',
+        total_to_pay: '1050.00',
+      }),
+    )
 
-    expect(body().text()).not.toContain('aumento temporal')
+    expect(row('base').text()).toContain('$1000.00')
+    expect(row('apoyo').text()).toContain('+ Monto de apoyo')
+    expect(row('apoyo').text()).toContain('+$20.00')
+    expect(row('aumento').text()).toContain('+ Aumento temporal')
+    expect(row('aumento').text()).toContain('+$30.00')
+    expect(row('aumento').text()).toContain('Motivo: Apoyo transporte')
+    expect(row('bruto').text()).toContain('$1050.00')
+
+    const keys = Array.from(body().element.querySelectorAll('[data-testid^="breakdown-row-"]')).map((el) =>
+      el.getAttribute('data-testid'),
+    )
+    expect(keys).toEqual([
+      'breakdown-row-base',
+      'breakdown-row-apoyo',
+      'breakdown-row-aumento',
+      'breakdown-row-bruto',
+      'breakdown-row-final',
+      'breakdown-row-total',
+    ])
   })
 
-  it('does not show the temporary-increase alert when temporary_increase_amount is "0.00" (truthy string guard)', async () => {
-    mockAxiosGet.mockResolvedValue({
-      data: {
-        res: true,
-        data: buildDocument({
-          amount_breakdown: {
-            base_amount: '1000.00',
-            temporary_increase_amount: '0.00',
-            temporary_increase_reason: null,
-            discount_percentage: '0.00',
-            discount_amount: '0.00',
-            amount_pending_from_previous: '450.00',
-            final_amount: '1000.00',
-            total_to_pay: '1450.00',
-          },
-        }),
-      },
-    })
-    const wrapper = mountDialog()
-    await flushPromises()
-    await clickTab(wrapper, 'Desglose de monto')
+  it('omits the increase caption when there is no reason', async () => {
+    await openDesglose(breakdownWith({ temporary_increase_amount: '30.00', temporary_increase_reason: null }))
 
-    expect(body().text()).not.toContain('aumento temporal')
+    expect(row('aumento').exists()).toBe(true)
+    expect(row('aumento').text()).not.toContain('Motivo')
+  })
+
+  it('no longer shows the misleading "ya contemplado en el monto base" note', async () => {
+    await openDesglose(breakdownWith({ temporary_increase_amount: '30.00', temporary_increase_reason: 'x' }))
+
+    expect(body().text()).not.toContain('ya contemplado')
+  })
+
+  it('shows the academic discount with its percentage and reason', async () => {
+    await openDesglose(
+      breakdownWith({
+        academic_discount_percentage: '10.00',
+        academic_discount_reason: 'Promedio bajo',
+        academic_discount_amount: '100.00',
+        final_amount: '900.00',
+        total_to_pay: '1350.00',
+      }),
+    )
+
+    expect(row('academico').text()).toContain('− Descuento académico (10%)')
+    expect(row('academico').text()).toContain('−$100.00')
+    expect(row('academico').text()).toContain('Motivo: Promedio bajo')
+  })
+
+  it('renders the discount_label from the API with the percentage only when it is > 0', async () => {
+    await openDesglose(
+      breakdownWith({ discount_label: 'Retención', discount_percentage: '25.00', discount_amount: '250.00' }),
+    )
+    expect(row('descuento').text()).toContain('− Retención (25%)')
+    expect(row('descuento').text()).toContain('−$250.00')
+
+    document.body.innerHTML = ''
+    await openDesglose(
+      breakdownWith({ discount_label: 'Sin pago', discount_percentage: '0.00', discount_amount: '900.00' }),
+    )
+    expect(row('descuento').text()).toContain('− Sin pago')
+    expect(row('descuento').text()).not.toContain('%')
+  })
+
+  it('shows the Telmex coverage row', async () => {
+    await openDesglose(
+      breakdownWith({
+        scholarship_type: 'TELMEX_IU',
+        base_amount: '600.00',
+        gross_amount: '600.00',
+        telmex_covered_amount: '1600.00',
+        final_amount: '2200.00',
+        amount_pending_from_previous: '0.00',
+        total_to_pay: '2200.00',
+      }),
+    )
+
+    expect(row('telmex').text()).toContain('+ Cobertura Telmex')
+    expect(row('telmex').text()).toContain('+$1600.00')
+  })
+
+  it('shows a negative manual adjustment with an explicit sign, the caption and warning color', async () => {
+    await openDesglose(breakdownWith({ manual_adjustment: '-220.00' }))
+
+    const r = row('ajuste')
+    expect(r.text()).toContain('± Ajuste manual')
+    expect(r.text()).toContain('−$220.00')
+    expect(r.text()).toContain('Diferencia por edición manual del monto final')
+    expect(r.html()).toContain('text-warning')
+  })
+
+  it('shows a positive manual adjustment with a plus sign', async () => {
+    await openDesglose(breakdownWith({ manual_adjustment: '900.00' }))
+
+    expect(row('ajuste').text()).toContain('+$900.00')
+  })
+
+  it('shows pending and advance payment after the final amount, before the total', async () => {
+    await openDesglose(breakdownWith({ advance_payment_amount: '300.00', total_to_pay: '1750.00' }))
+
+    expect(row('pendiente').text()).toContain('+ Pendiente de periodo anterior')
+    expect(row('adelanto').text()).toContain('+ Pago adelantado')
+    expect(row('adelanto').text()).toContain('+$300.00')
+    expect(row('total').text()).toContain('$1750.00')
+  })
+
+  it('hides the base row for pure Telmex (base 0) but keeps the subtotals', async () => {
+    await openDesglose(
+      breakdownWith({
+        scholarship_type: 'TELMEX',
+        base_amount: '0.00',
+        gross_amount: '0.00',
+        telmex_covered_amount: '1950.00',
+        final_amount: '1950.00',
+        amount_pending_from_previous: '0.00',
+        total_to_pay: '1950.00',
+      }),
+    )
+
+    expect(row('base').exists()).toBe(false)
+    expect(row('bruto').text()).toContain('$0.00')
+    expect(row('final').text()).toContain('$1950.00')
   })
 
   it('renders no refund column and no "$undefined"/NaN text when the payload lacks refund_amount_from_previous', async () => {

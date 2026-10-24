@@ -89,46 +89,32 @@
             </v-window-item>
 
             <v-window-item value="desglose">
-              <v-row>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">Monto base</div>
-                  <div class="text-body-1">${{ document.amount_breakdown.base_amount }}</div>
-                </v-col>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">% descuento</div>
-                  <div class="text-body-1">{{ document.amount_breakdown.discount_percentage }}</div>
-                </v-col>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">Monto descuento</div>
-                  <div class="text-body-1">${{ document.amount_breakdown.discount_amount }}</div>
-                </v-col>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">Pendiente de periodo anterior</div>
-                  <div class="text-body-1">${{ document.amount_breakdown.amount_pending_from_previous }}</div>
-                </v-col>
-                <v-col cols="6" sm="4">
-                  <div class="text-caption text-medium-emphasis mb-1">Monto final</div>
-                  <div class="text-body-1">${{ document.amount_breakdown.final_amount }}</div>
-                </v-col>
-              </v-row>
-              <v-alert
-                v-if="temporaryIncrease"
-                class="mt-2"
-                variant="tonal"
-                density="compact"
-                :color="TEMPORARY_INCREASE_META.color"
-                :icon="TEMPORARY_INCREASE_META.icon"
-              >
-                <div class="text-body-2">
-                  Incluye un aumento temporal de ${{ temporaryIncrease.amount }}, ya contemplado en el monto base.
-                </div>
-                <div v-if="temporaryIncrease.reason" class="text-caption text-medium-emphasis mt-1">
-                  Motivo: {{ temporaryIncrease.reason }}
-                </div>
-              </v-alert>
+              <div class="amount-breakdown" data-testid="amount-breakdown">
+                <template v-for="row in breakdownRows" :key="row.key">
+                  <v-divider v-if="row.subtotal" class="my-2"></v-divider>
+                  <div
+                    class="d-flex justify-space-between align-start py-1"
+                    :class="{ 'font-weight-bold': row.subtotal }"
+                    :data-testid="`breakdown-row-${row.key}`"
+                  >
+                    <div>
+                      <div class="d-flex align-center ga-2" :class="row.subtotal ? 'text-body-1' : 'text-body-2'">
+                        <v-icon v-if="row.icon" :icon="row.icon" :color="row.color" size="small" />
+                        <span>{{ row.label }}</span>
+                      </div>
+                      <div v-if="row.caption" class="text-caption text-medium-emphasis">{{ row.caption }}</div>
+                    </div>
+                    <div :class="[row.subtotal ? 'text-body-1' : 'text-body-2', row.color ? `text-${row.color}` : '']">
+                      {{ row.amount }}
+                    </div>
+                  </div>
+                </template>
+              </div>
               <v-divider class="my-4"></v-divider>
-              <div class="text-caption text-medium-emphasis mb-1">Total a pagar</div>
-              <div class="text-h5">${{ document.amount_breakdown.total_to_pay }}</div>
+              <div class="d-flex justify-space-between align-center" data-testid="breakdown-row-total">
+                <div class="text-h5">Total a pagar</div>
+                <div class="text-h5">${{ breakdown.total_to_pay }}</div>
+              </div>
             </v-window-item>
 
             <v-window-item value="retenciones">
@@ -178,16 +164,110 @@ const { document, loading, loadError } = usePaymentDocumentPage(toRef(props, 're
 
 const tab = ref('resumen')
 
-// Annotation, never a peer line item: these pesos are already INSIDE
-// base_amount. Guard mirrors temporaryIncreaseMeta.ts's temporaryIncreaseChip
-// — "0.00" and malformed strings are truthy, so coerce numerically, never
-// `?? value`. Identical for IU and TELMEX_IU — no type-conditional logic.
-const temporaryIncrease = computed<{ amount: string; reason: string | null } | null>(() => {
-  const breakdown = document.value?.amount_breakdown
-  if (!breakdown) return null
-  const raw = Number(breakdown.temporary_increase_amount ?? 0)
-  if (!Number.isFinite(raw) || raw <= 0) return null
-  return { amount: breakdown.temporary_increase_amount as string, reason: breakdown.temporary_increase_reason }
+type BreakdownRow = {
+  key: string
+  label: string
+  amount: string
+  subtotal?: boolean
+  caption?: string
+  color?: string
+  icon?: string
+}
+
+// Non-zero / non-null guard for the optional rows. "0.00" and malformed
+// strings are truthy, so coerce numerically, never test the string itself.
+const isPresent = (value: string | null | undefined): value is string => {
+  const n = Number(value ?? 0)
+  return Number.isFinite(n) && n !== 0
+}
+
+const money = (value: string | null | undefined): string => `$${value ?? '0.00'}`
+const signed = (sign: '+' | '−', value: string | null | undefined): string => `${sign}${money(value)}`
+
+// "30.00" -> "30", "12.50" -> "12.5": percentages read better without padding.
+const percent = (value: string | null | undefined): string => String(Number(value ?? 0))
+
+// Signed manual adjustment: the API already carries the sign ("-220.00").
+const manualAmount = (value: string): string => {
+  const n = Number(value)
+  const abs = Math.abs(n).toFixed(2)
+  return `${n < 0 ? '−' : '+'}$${abs}`
+}
+
+// Vertical reconciliation list: every non-subtotal row is shown ONLY when its
+// amount is non-zero/non-null; the subtotals (Monto bruto, Monto final) are
+// always shown. Order mirrors RefrendAmountBreakdown's invariants:
+//   base + apoyo + aumento = bruto
+//   bruto - academico - descuento + cobertura + ajuste = final
+const breakdown = computed(() => document.value!.amount_breakdown)
+
+const breakdownRows = computed<BreakdownRow[]>(() => {
+  const b = breakdown.value
+  const rows: BreakdownRow[] = []
+
+  if (isPresent(b.base_amount)) {
+    rows.push({ key: 'base', label: 'Monto base', amount: money(b.base_amount) })
+  }
+  if (isPresent(b.monto_apoyo)) {
+    rows.push({ key: 'apoyo', label: '+ Monto de apoyo', amount: signed('+', b.monto_apoyo) })
+  }
+  if (isPresent(b.temporary_increase_amount)) {
+    rows.push({
+      key: 'aumento',
+      label: '+ Aumento temporal',
+      amount: signed('+', b.temporary_increase_amount),
+      caption: b.temporary_increase_reason ? `Motivo: ${b.temporary_increase_reason}` : undefined,
+      color: TEMPORARY_INCREASE_META.color,
+      icon: TEMPORARY_INCREASE_META.icon,
+    })
+  }
+
+  rows.push({ key: 'bruto', label: 'Monto bruto', amount: money(b.gross_amount ?? b.base_amount), subtotal: true })
+
+  if (isPresent(b.academic_discount_amount)) {
+    rows.push({
+      key: 'academico',
+      label: `− Descuento académico (${percent(b.academic_discount_percentage)}%)`,
+      amount: signed('−', b.academic_discount_amount),
+      caption: b.academic_discount_reason ? `Motivo: ${b.academic_discount_reason}` : undefined,
+    })
+  }
+  if (isPresent(b.discount_amount)) {
+    const label = b.discount_label ?? 'Descuentos por penalizaciones'
+    const pct = Number(b.discount_percentage ?? 0)
+    rows.push({
+      key: 'descuento',
+      label: pct > 0 ? `− ${label} (${percent(b.discount_percentage)}%)` : `− ${label}`,
+      amount: signed('−', b.discount_amount),
+    })
+  }
+  if (isPresent(b.telmex_covered_amount)) {
+    rows.push({ key: 'telmex', label: '+ Cobertura Telmex', amount: signed('+', b.telmex_covered_amount) })
+  }
+  if (isPresent(b.manual_adjustment)) {
+    rows.push({
+      key: 'ajuste',
+      label: '± Ajuste manual',
+      amount: manualAmount(b.manual_adjustment),
+      caption: 'Diferencia por edición manual del monto final',
+      color: 'warning',
+    })
+  }
+
+  rows.push({ key: 'final', label: 'Monto final', amount: money(b.final_amount), subtotal: true })
+
+  if (isPresent(b.amount_pending_from_previous)) {
+    rows.push({
+      key: 'pendiente',
+      label: '+ Pendiente de periodo anterior',
+      amount: signed('+', b.amount_pending_from_previous),
+    })
+  }
+  if (isPresent(b.advance_payment_amount)) {
+    rows.push({ key: 'adelanto', label: '+ Pago adelantado', amount: signed('+', b.advance_payment_amount) })
+  }
+
+  return rows
 })
 
 // Always starts on the first tab for each becario, same "reset on open"

@@ -286,17 +286,32 @@ export interface PaymentDocumentIncident {
 // controller feature test's `assertSame('1000.00', ...)` assertions) — never
 // numbers, same convention as PaymentBatchRow.total_to_pay.
 export interface PaymentAmountBreakdown {
+  // Reconciling breakdown (impulsou-api RefrendAmountBreakdown). Invariants:
+  //   base_amount + monto_apoyo + temporary_increase_amount = gross_amount
+  //   gross_amount - academic_discount_amount - discount_amount
+  //     + telmex_covered_amount + manual_adjustment = final_amount
+  //   final_amount + amount_pending_from_previous + advance_payment_amount = total_to_pay
+  scholarship_type: 'IU' | 'TELMEX_IU' | 'TELMEX' | null
   base_amount: string
-  // Frozen snapshot of a temporary increase already included in base_amount
-  // above (sdd/payment-document-temp-increase-breakdown, design D1/D7) —
-  // purely an annotation for display, never a separate addend. `null` when
-  // no temporary increase was frozen on this refrend's snapshot; both keys
-  // are always present, identically for IU and TELMEX_IU.
+  // IU only; null for TELMEX types (it is part of the covered amount there).
+  monto_apoyo: string | null
+  // Frozen snapshot of a temporary increase; `null` when none was frozen.
   temporary_increase_amount: string | null
   temporary_increase_reason: string | null
+  gross_amount: string
+  academic_discount_percentage: string | null
+  academic_discount_reason: string | null
+  academic_discount_amount: string | null
   discount_percentage: string
   discount_amount: string
+  // Spanish label for the discount_amount line, by resolution type.
+  discount_label: string
+  // Covered Telmex money actually included in final_amount (0 on $0 paths).
+  telmex_covered_amount: string
+  // Signed residual, non-null only when final_amount was edited by hand.
+  manual_adjustment: string | null
   amount_pending_from_previous: string
+  advance_payment_amount: string | null
   final_amount: string
   total_to_pay: string
 }
