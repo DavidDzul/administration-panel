@@ -2,7 +2,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
-import { VBtn, VChip, VSelect } from 'vuetify/components'
+import { VBtn, VChip, VSelect, VTooltip } from 'vuetify/components'
 import UsersTable from '@/components/users/UsersTable.vue'
 import type { Person } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
@@ -75,12 +75,12 @@ describe('UsersTable — Tipo column visibility', () => {
     expect(headers.some((h) => h.includes('Tipo'))).toBe(true)
   })
 
-  it('hides the Tipo column once a tipo filter is selected', async () => {
+  it('hides the Tipo column once a single tipo is selected', async () => {
     const wrapper = mountTable()
     await openFilterMenu(wrapper)
 
     const selects = wrapper.findAllComponents(VSelect)
-    await selects[0].vm.$emit('update:modelValue', 'BEC_ACTIVE')
+    await selects[0].vm.$emit('update:modelValue', ['BEC_ACTIVE'])
     await wrapper.vm.$nextTick()
 
     const headers = wrapper.findAll('th').map((th) => th.text())
@@ -256,5 +256,129 @@ describe('UsersTable — Estado filter (Activos / Baja / Todos, amendment #1991)
 
     expect(wrapper.text()).toContain('Activa Person')
     expect(wrapper.text()).not.toContain('Baja Person')
+  })
+})
+
+const mixedPersons = () => [
+  buildPerson({ id: 1, first_name: 'Becaria Uno', user_type: 'BEC_ACTIVE' }),
+  buildPerson({ id: 2, first_name: 'Egresado Dos', user_type: 'BEC_INACTIVE' }),
+]
+
+const hasTipoHeader = (wrapper: ReturnType<typeof mountTable>) =>
+  wrapper.findAll('th').some((th) => th.text().includes('Tipo'))
+
+const headerText = (wrapper: ReturnType<typeof mountTable>) =>
+  wrapper.find('.bg-grey-lighten-5').text()
+
+const setTipo = async (wrapper: ReturnType<typeof mountTable>, value: string[]) => {
+  await openFilterMenu(wrapper)
+  await wrapper.findAllComponents(VSelect)[0].vm.$emit('update:modelValue', value)
+  await wrapper.vm.$nextTick()
+}
+
+describe('UsersTable — Tipo multi-select (default: becarios + egresados)', () => {
+  it('defaults the Tipo selection to both types and shows every becario and egresado', async () => {
+    const wrapper = mountTable(mixedPersons())
+    await openFilterMenu(wrapper)
+
+    const tipo = wrapper.findAllComponents(VSelect)[0]
+    expect(tipo.props('multiple')).toBe(true)
+    expect(tipo.props('modelValue')).toEqual(['BEC_ACTIVE', 'BEC_INACTIVE'])
+    expect(wrapper.text()).toContain('Becaria Uno')
+    expect(wrapper.text()).toContain('Egresado Dos')
+    expect(hasTipoHeader(wrapper)).toBe(true)
+  })
+
+  it('shows only egresados and hides the Tipo column when BEC_ACTIVE is deselected', async () => {
+    const wrapper = mountTable(mixedPersons())
+    await setTipo(wrapper, ['BEC_INACTIVE'])
+
+    expect(wrapper.text()).toContain('Egresado Dos')
+    expect(wrapper.text()).not.toContain('Becaria Uno')
+    expect(hasTipoHeader(wrapper)).toBe(false)
+  })
+
+  it('shows only becarios and hides the Tipo column when BEC_INACTIVE is deselected', async () => {
+    const wrapper = mountTable(mixedPersons())
+    await setTipo(wrapper, ['BEC_ACTIVE'])
+
+    expect(wrapper.text()).toContain('Becaria Uno')
+    expect(wrapper.text()).not.toContain('Egresado Dos')
+    expect(hasTipoHeader(wrapper)).toBe(false)
+  })
+
+  it('treats an empty selection as no type filter (shows everyone, Tipo column visible)', async () => {
+    const wrapper = mountTable(mixedPersons())
+    await setTipo(wrapper, [])
+
+    expect(wrapper.text()).toContain('Becaria Uno')
+    expect(wrapper.text()).toContain('Egresado Dos')
+    expect(hasTipoHeader(wrapper)).toBe(true)
+  })
+
+  it('shows the matching header label for each selection', async () => {
+    const wrapper = mountTable(mixedPersons())
+    expect(headerText(wrapper)).toContain('Becarios y egresados')
+    expect(headerText(wrapper)).not.toContain('Todas las personas')
+
+    await setTipo(wrapper, ['BEC_ACTIVE'])
+    expect(headerText(wrapper)).toContain('Becarios')
+    expect(headerText(wrapper)).not.toContain('y egresados')
+
+    await setTipo(wrapper, ['BEC_INACTIVE'])
+    expect(headerText(wrapper)).toContain('Egresados')
+
+    await setTipo(wrapper, [])
+    expect(headerText(wrapper)).toContain('Becarios y egresados')
+  })
+
+  it('keeps the persona count chip in sync with the selection', async () => {
+    const wrapper = mountTable(mixedPersons())
+    expect(headerText(wrapper)).toContain('2 personas')
+
+    await setTipo(wrapper, ['BEC_ACTIVE'])
+    expect(headerText(wrapper)).toContain('1 persona')
+  })
+})
+
+describe('UsersTable — Montos column (pending scholarship amounts)', () => {
+  const pendingChip = (wrapper: ReturnType<typeof mountTable>) =>
+    wrapper.findAllComponents(VChip).filter((c) => c.text() === 'Pendientes')
+
+  it('renders the Montos header between Activo and the actions column', () => {
+    const wrapper = mountTable([buildPerson()])
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    const activo = headers.findIndex((h) => h.includes('Activo'))
+    const montos = headers.findIndex((h) => h.includes('Montos'))
+    expect(montos).toBe(activo + 1)
+    expect(montos).toBe(headers.length - 2)
+  })
+
+  it('shows the warning "Pendientes" chip when amounts_configured is false', () => {
+    const wrapper = mountTable([buildPerson({ amounts_configured: false })])
+    const chips = pendingChip(wrapper)
+    expect(chips).toHaveLength(1)
+    expect(chips[0].props('color')).toBe('warning')
+    expect(chips[0].props('variant')).toBe('tonal')
+    expect(chips[0].props('size')).toBe('small')
+    expect(chips[0].props('prependIcon')).toBe('mdi-alert-circle-outline')
+  })
+
+  it('shows the chip when amounts_configured is undefined', () => {
+    const wrapper = mountTable([buildPerson()])
+    expect(pendingChip(wrapper)).toHaveLength(1)
+  })
+
+  it('does not show the chip when amounts_configured is true', () => {
+    const wrapper = mountTable([buildPerson({ amounts_configured: true })])
+    expect(pendingChip(wrapper)).toHaveLength(0)
+  })
+
+  it('wraps the chip in a tooltip saying "Montos de beca sin configurar"', () => {
+    const wrapper = mountTable([buildPerson({ amounts_configured: false })])
+    const tooltip = wrapper
+      .findAllComponents(VTooltip)
+      .find((t) => t.props('text') === 'Montos de beca sin configurar')
+    expect(tooltip).toBeTruthy()
   })
 })
