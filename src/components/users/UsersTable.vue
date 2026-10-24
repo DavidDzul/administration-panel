@@ -6,6 +6,8 @@
     :loading="loading"
     :search="search"
     item-value="id"
+    v-model:sort-by="sortBy"
+    :custom-key-sort="customKeySort"
   >
     <template #top>
       <v-toolbar :flat="true">
@@ -175,6 +177,7 @@
 
 <script setup lang="ts">
 import { computed, ref, mergeProps, watch } from 'vue'
+import type { DataTableCompareFunction } from 'vuetify'
 import { useRouter } from 'vue-router'
 import type { Person, PersonType } from '@/interfaces/user'
 import type { Generation } from '@/interfaces/generation'
@@ -257,11 +260,27 @@ const filterChipColor = computed<string>(() => {
 
 const showTypeColumn = computed(() => singleSelectedType.value === null)
 
+const NO_GENERATION_LABEL = 'Sin generación'
+
+// `props.generations` already covers every generation the user may see
+// (active and inactive), so a Map keyed by id is enough to resolve the name.
+const generationNameById = computed(
+  () => new Map<number, string>(props.generations.map((gen) => [Number(gen.id), gen.generation_name])),
+)
+
+const resolveGenerationName = (person: Person): string => {
+  if (person.generation_id === null || person.generation_id === undefined || person.generation_id === '') {
+    return NO_GENERATION_LABEL
+  }
+  return generationNameById.value.get(Number(person.generation_id)) ?? NO_GENERATION_LABEL
+}
+
 const baseHeaders = [
   { title: 'ID', key: 'id' },
   { title: 'Matrícula', key: 'enrollment' },
   { title: 'Nombre(s)', key: 'first_name' },
   { title: 'Apellido(s)', key: 'last_name' },
+  { title: 'Generación', key: 'generation', value: (person: Person) => resolveGenerationName(person) },
   { title: 'Activo', key: 'active' },
   { title: '', key: 'actions' },
 ]
@@ -270,9 +289,41 @@ const typeHeader = { title: 'Tipo', key: 'user_type' }
 
 const tableHeaders = computed(() =>
   showTypeColumn.value
-    ? [baseHeaders[0], baseHeaders[1], baseHeaders[2], baseHeaders[3], typeHeader, baseHeaders[4], baseHeaders[5]]
+    ? [...baseHeaders.slice(0, 5), typeHeader, ...baseHeaders.slice(5)]
     : baseHeaders,
 )
+
+// Default order: last name, then first name. Kept in a ref so header clicks
+// can still re-sort the table.
+const sortBy = ref<{ key: string; order: 'asc' | 'desc' }[]>([
+  { key: 'last_name', order: 'asc' },
+  { key: 'first_name', order: 'asc' },
+])
+
+const isEmptyValue = (value: unknown): boolean => value === null || value === undefined || value === ''
+
+// Empty values sort last when ascending (Vuetify swaps a/b for descending).
+const compareText =
+  (options: Intl.CollatorOptions): DataTableCompareFunction =>
+  (a, b) => {
+    const aEmpty = isEmptyValue(a)
+    const bEmpty = isEmptyValue(b)
+    if (aEmpty || bEmpty) return aEmpty === bEmpty ? 0 : aEmpty ? 1 : -1
+    return String(a).localeCompare(String(b), 'es', options)
+  }
+
+const compareGeneration: DataTableCompareFunction = (a, b) => {
+  const aMissing = isEmptyValue(a) || a === NO_GENERATION_LABEL
+  const bMissing = isEmptyValue(b) || b === NO_GENERATION_LABEL
+  if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1
+  return String(a).localeCompare(String(b), 'es', { numeric: true })
+}
+
+const customKeySort: Record<string, DataTableCompareFunction> = {
+  last_name: compareText({ sensitivity: 'base' }),
+  first_name: compareText({ sensitivity: 'base' }),
+  generation: compareGeneration,
+}
 
 const filteredGenerations = computed(() => props.generations.filter((gen) => gen.campus === campus.value))
 
