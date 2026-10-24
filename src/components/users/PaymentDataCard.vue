@@ -117,7 +117,7 @@
       Editar
     </v-btn>
 
-    <PaymentDataDialog v-model="dialogOpen" :user-id="props.userId" @saved="onSaved" />
+    <PaymentDataDialog v-model="dialogOpen" :user-id="props.userId" :person="props.person" @saved="onSaved" />
   </div>
 </template>
 
@@ -130,11 +130,13 @@ import { useAuthStore } from '@/stores/api/authStore'
 import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
 import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
 import { resolutionMeta } from '@/utils/resolutionMeta'
+import type { Person } from '@/interfaces/user'
 import type { PaymentData } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig } from '@/interfaces/scholarshipProfile'
 
 interface Props {
   userId: number
+  person?: Pick<Person, 'first_name' | 'last_name'> & Partial<Pick<Person, 'enrollment'>> | null
 }
 
 const props = defineProps<Props>()

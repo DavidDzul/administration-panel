@@ -32,6 +32,7 @@ import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import PaymentDataCard from '@/components/users/PaymentDataCard.vue'
+import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
 
 const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => ({
   id: 1,
@@ -481,6 +482,21 @@ describe('PaymentDataCard', () => {
       await flushPromises()
 
       expect(wrapper.text()).not.toContain('Ciclo cerrado')
+    })
+  })
+
+  describe('person forwarding', () => {
+    it('forwards the person prop to PaymentDataDialog', async () => {
+      stubDefaults()
+      const person = { first_name: 'Ada', last_name: 'Lovelace', enrollment: 'A0001' }
+
+      const wrapper = mount(PaymentDataCard, {
+        props: { userId: 5, person },
+        global: { plugins: [vuetify] },
+      })
+      await flushPromises()
+
+      expect(wrapper.findComponent(PaymentDataDialog).props('person')).toEqual(person)
     })
   })
 })

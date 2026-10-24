@@ -21,7 +21,7 @@
     </v-col>
   </v-row>
 
-  <PaymentDataDialog v-model="editDialogOpen" :user-id="editingPersonId" @saved="onSaved" />
+  <PaymentDataDialog v-model="editDialogOpen" :user-id="editingPerson?.id ?? null" :person="editingPerson" @saved="onSaved" />
 </template>
 
 <script setup lang="ts">
@@ -49,10 +49,10 @@ const links: LinkInterface[] = [
 // refresh after a save; the dialog's own `savePaymentData` call + alert is
 // the only side effect needed here.
 const editDialogOpen = ref(false)
-const editingPersonId = ref<number | null>(null)
+const editingPerson = ref<Person | null>(null)
 
 const onEdit = (person: Person): void => {
-  editingPersonId.value = person.id
+  editingPerson.value = person
   editDialogOpen.value = true
 }
 
