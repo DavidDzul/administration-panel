@@ -160,3 +160,12 @@ export function finalAdjustments(row: PaymentBreakdownRowFields): FinalAdjustmen
 
   return adjustments
 }
+
+/**
+ * UI label for a refrend's base_amount, by scholarship type: it is the
+ * monthly Beca for IU and TELMEX, and the IU payment for TELMEX_IU. Falls
+ * back to "Beca" when the type is missing or unknown.
+ */
+export function baseAmountLabel(scholarshipType: string | null | undefined): string {
+  return scholarshipType === 'TELMEX_IU' ? 'Pago IU' : 'Beca'
+}

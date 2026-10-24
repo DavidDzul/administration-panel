@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   amountOrDash,
   baseAmount,
+  baseAmountLabel,
   baseDiscountNote,
   discountPercent,
   finalAdjustments,
@@ -250,5 +251,21 @@ describe('finalAdjustments (Final column, extra lines)', () => {
       { label: 'ret.', amount: '$50.00' },
       { label: 'adelanto', amount: '$125.00' },
     ])
+  })
+})
+
+describe('baseAmountLabel', () => {
+  it.each([
+    ['IU', 'Beca'],
+    ['TELMEX_IU', 'Pago IU'],
+    ['TELMEX', 'Beca'],
+  ])('labels %s base amount as %s', (type, label) => {
+    expect(baseAmountLabel(type)).toBe(label)
+  })
+
+  it('falls back to Beca when the type is missing or unknown', () => {
+    expect(baseAmountLabel(null)).toBe('Beca')
+    expect(baseAmountLabel(undefined)).toBe('Beca')
+    expect(baseAmountLabel('OTHER')).toBe('Beca')
   })
 })
