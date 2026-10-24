@@ -396,3 +396,163 @@ describe('UsersTable — pending amounts chip inside the Activo column', () => {
     expect(tooltip).toBeTruthy()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Default sort (last name, then first name) + Generación column
+// ---------------------------------------------------------------------------
+type CompareFn = (a: unknown, b: unknown) => number
+
+const colIndex = (wrapper: ReturnType<typeof mountTable>, title: string) =>
+  wrapper.findAll('th').findIndex((th) => th.text().includes(title))
+
+const columnValues = (wrapper: ReturnType<typeof mountTable>, title: string) => {
+  const idx = colIndex(wrapper, title)
+  return wrapper.findAll('tbody tr').map((tr) => tr.findAll('td')[idx].text())
+}
+
+const headerTexts = (wrapper: ReturnType<typeof mountTable>) => wrapper.findAll('th').map((th) => th.text())
+
+describe('UsersTable — default sort by last name then first name', () => {
+  it('sorts accent-insensitively and case-insensitively, with first-name tiebreak', () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: 'Bravo', first_name: 'Zoe' }),
+      buildPerson({ id: 2, last_name: 'Álvarez', first_name: 'Luis' }),
+      buildPerson({ id: 3, last_name: 'alvarez', first_name: 'Ana' }),
+      buildPerson({ id: 4, last_name: 'Alvarez', first_name: 'Beto' }),
+    ])
+    expect(columnValues(wrapper, 'Nombre(s)')).toEqual(['Ana', 'Beto', 'Luis', 'Zoe'])
+  })
+
+  it('places null or empty last names after the rest', () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: '', first_name: 'Vacio' }),
+      buildPerson({ id: 2, last_name: 'Zuñiga', first_name: 'Zeta' }),
+      buildPerson({ id: 3, last_name: null as unknown as string, first_name: 'Nulo' }),
+      buildPerson({ id: 4, last_name: 'Acosta', first_name: 'Alfa' }),
+    ])
+    const names = columnValues(wrapper, 'Nombre(s)')
+    expect(names.slice(0, 2)).toEqual(['Alfa', 'Zeta'])
+    expect(names.slice(2).sort()).toEqual(['Nulo', 'Vacio'])
+  })
+
+  it('sorts only the rows left by the filters', async () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: 'Zeta', first_name: 'A', user_type: 'BEC_INACTIVE' }),
+      buildPerson({ id: 2, last_name: 'Beta', first_name: 'B', user_type: 'BEC_ACTIVE' }),
+      buildPerson({ id: 3, last_name: 'Alfa', first_name: 'C', user_type: 'BEC_INACTIVE' }),
+    ])
+    await setTipo(wrapper, ['BEC_INACTIVE'])
+    expect(columnValues(wrapper, 'Apellido(s)')).toEqual(['Alfa', 'Zeta'])
+  })
+
+  it('wires sort-by and custom-key-sort on the data table', () => {
+    const wrapper = mountTable()
+    const table = wrapper.findComponent({ name: 'VDataTable' })
+    expect(table.props('sortBy')).toEqual([
+      { key: 'last_name', order: 'asc' },
+      { key: 'first_name', order: 'asc' },
+    ])
+    const custom = table.props('customKeySort') as Record<string, CompareFn>
+    expect(Object.keys(custom).sort()).toEqual(['first_name', 'generation', 'last_name'])
+    expect(custom.last_name('Álvarez', 'Alvarez')).toBe(0)
+    expect(custom.last_name('Alvarez', 'Bravo')).toBeLessThan(0)
+    expect(custom.last_name(null, 'Bravo')).toBeGreaterThan(0)
+    expect(custom.last_name('', 'Bravo')).toBeGreaterThan(0)
+  })
+
+  it('lets the user toggle the order by clicking the Apellido(s) header', async () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: 'Alfa', first_name: 'A' }),
+      buildPerson({ id: 2, last_name: 'Beta', first_name: 'B' }),
+    ])
+    expect(columnValues(wrapper, 'Apellido(s)')).toEqual(['Alfa', 'Beta'])
+
+    await wrapper.findAll('th')[colIndex(wrapper, 'Apellido(s)')].trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(columnValues(wrapper, 'Apellido(s)')).toEqual(['Beta', 'Alfa'])
+  })
+})
+
+describe('UsersTable — Generación column', () => {
+  it('sits right after Apellido(s) and before Tipo when Tipo is shown', () => {
+    expect(headerTexts(mountTable())).toEqual([
+      'ID',
+      'Matrícula',
+      'Nombre(s)',
+      'Apellido(s)',
+      'Generación',
+      'Tipo',
+      'Activo',
+      '',
+    ])
+  })
+
+  it('sits right after Apellido(s) when Tipo is hidden', async () => {
+    const wrapper = mountTable()
+    await setTipo(wrapper, ['BEC_ACTIVE'])
+    expect(headerTexts(wrapper)).toEqual([
+      'ID',
+      'Matrícula',
+      'Nombre(s)',
+      'Apellido(s)',
+      'Generación',
+      'Activo',
+      '',
+    ])
+  })
+
+  it('resolves generation_id to generation_name, including string ids', () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: 'A', generation_id: 1 }),
+      buildPerson({ id: 2, last_name: 'B', generation_id: '2' }),
+    ])
+    expect(columnValues(wrapper, 'Generación')).toEqual(['Gen Mérida', 'Gen Valladolid'])
+  })
+
+  it('shows "Sin generación" for null or unknown generation ids', () => {
+    const wrapper = mountTable([
+      buildPerson({ id: 1, last_name: 'A', generation_id: null }),
+      buildPerson({ id: 2, last_name: 'B', generation_id: 999 }),
+    ])
+    expect(columnValues(wrapper, 'Generación')).toEqual(['Sin generación', 'Sin generación'])
+  })
+
+  it('compares generation names numerically with "Sin generación" last', () => {
+    const custom = mountTable().findComponent({ name: 'VDataTable' }).props('customKeySort') as Record<
+      string,
+      CompareFn
+    >
+    const sorted = ['Generación 19', 'Sin generación', 'Generación 2', 'Generación 10'].sort(custom.generation)
+    expect(sorted).toEqual(['Generación 2', 'Generación 10', 'Generación 19', 'Sin generación'])
+  })
+
+  it('sorts rows by generation numerically when the Generación header is clicked', async () => {
+    const gens: Generation[] = [
+      { id: 1, campus: 'MERIDA', generation_active: true, generation_name: 'Generación 19' },
+      { id: 2, campus: 'MERIDA', generation_active: true, generation_name: 'Generación 2' },
+      { id: 3, campus: 'MERIDA', generation_active: false, generation_name: 'Generación 10' },
+    ]
+    const wrapper = mount(UsersTable, {
+      props: {
+        persons: [
+          buildPerson({ id: 1, last_name: 'A', generation_id: 1 }),
+          buildPerson({ id: 2, last_name: 'B', generation_id: null }),
+          buildPerson({ id: 3, last_name: 'C', generation_id: 2 }),
+          buildPerson({ id: 4, last_name: 'D', generation_id: 3 }),
+        ],
+        generations: gens,
+        campusOptions: campusArray,
+      },
+      global: { plugins: [vuetify] },
+    })
+    await wrapper.findAll('th')[colIndex(wrapper, 'Generación')].trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(columnValues(wrapper, 'Generación')).toEqual([
+      'Generación 2',
+      'Generación 10',
+      'Generación 19',
+      'Sin generación',
+    ])
+  })
+})
