@@ -341,20 +341,17 @@ describe('UsersTable — Tipo multi-select (default: becarios + egresados)', () 
   })
 })
 
-describe('UsersTable — Montos column (pending scholarship amounts)', () => {
+describe('UsersTable — pending amounts chip inside the Activo column', () => {
   const pendingChip = (wrapper: ReturnType<typeof mountTable>) =>
-    wrapper.findAllComponents(VChip).filter((c) => c.text() === 'Pendientes')
+    wrapper.findAllComponents(VChip).filter((c) => c.text() === 'Montos pendientes')
 
-  it('renders the Montos header between Activo and the actions column', () => {
-    const wrapper = mountTable([buildPerson()])
+  it('does not add a dedicated Montos column', () => {
+    const wrapper = mountTable([buildPerson({ amounts_configured: false })])
     const headers = wrapper.findAll('th').map((th) => th.text())
-    const activo = headers.findIndex((h) => h.includes('Activo'))
-    const montos = headers.findIndex((h) => h.includes('Montos'))
-    expect(montos).toBe(activo + 1)
-    expect(montos).toBe(headers.length - 2)
+    expect(headers.some((h) => h.includes('Montos'))).toBe(false)
   })
 
-  it('shows the warning "Pendientes" chip when amounts_configured is false', () => {
+  it('renders the warning chip in the Activo cell when amounts_configured is false', () => {
     const wrapper = mountTable([buildPerson({ amounts_configured: false })])
     const chips = pendingChip(wrapper)
     expect(chips).toHaveLength(1)
@@ -362,6 +359,11 @@ describe('UsersTable — Montos column (pending scholarship amounts)', () => {
     expect(chips[0].props('variant')).toBe('tonal')
     expect(chips[0].props('size')).toBe('small')
     expect(chips[0].props('prependIcon')).toBe('mdi-alert-circle-outline')
+
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    const activoIdx = headers.findIndex((h) => h.includes('Activo'))
+    const cells = wrapper.findAll('tbody tr')[0].findAll('td')
+    expect(cells[activoIdx].text()).toContain('Montos pendientes')
   })
 
   it('shows the chip when amounts_configured is undefined', () => {
@@ -372,6 +374,18 @@ describe('UsersTable — Montos column (pending scholarship amounts)', () => {
   it('does not show the chip when amounts_configured is true', () => {
     const wrapper = mountTable([buildPerson({ amounts_configured: true })])
     expect(pendingChip(wrapper)).toHaveLength(0)
+  })
+
+  it('coexists with the check icon for an active person', () => {
+    const wrapper = mountTable([buildPerson({ active: true, amounts_configured: false })])
+    expect(pendingChip(wrapper)).toHaveLength(1)
+    expect(wrapper.find('.mdi-check').exists()).toBe(true)
+  })
+
+  it('coexists with the Baja chip for an inactive person', () => {
+    const wrapper = mountTable([buildPerson({ active: false, amounts_configured: false })])
+    expect(pendingChip(wrapper)).toHaveLength(1)
+    expect(wrapper.findAllComponents(VChip).some((c) => c.text() === 'Baja')).toBe(true)
   })
 
   it('wraps the chip in a tooltip saying "Montos de beca sin configurar"', () => {

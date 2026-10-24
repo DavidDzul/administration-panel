@@ -96,22 +96,6 @@
       </v-chip>
     </template>
 
-    <template #[`item.amounts`]="{ item }">
-      <v-tooltip v-if="item.amounts_configured !== true" text="Montos de beca sin configurar" location="top">
-        <template v-slot:activator="{ props: tooltipProps }">
-          <v-chip
-            v-bind="tooltipProps"
-            size="small"
-            variant="tonal"
-            color="warning"
-            prepend-icon="mdi-alert-circle-outline"
-          >
-            Pendientes
-          </v-chip>
-        </template>
-      </v-tooltip>
-    </template>
-
     <!--
       sdd/egresado-baja-definitiva (PR4, task 4.6, amendment #1991): a
       becario with active=false now reads as a distinct "Baja" chip instead
@@ -120,8 +104,23 @@
       column). Active rows keep the existing check icon unchanged.
     -->
     <template #[`item.active`]="{ item }">
-      <v-icon v-if="item.active" color="success">mdi-check</v-icon>
-      <v-chip v-else color="error" size="small" variant="tonal">Baja</v-chip>
+      <div class="d-flex align-center ga-2">
+        <v-icon v-if="item.active" color="success">mdi-check</v-icon>
+        <v-chip v-else color="error" size="small" variant="tonal">Baja</v-chip>
+        <v-tooltip v-if="item.amounts_configured !== true" text="Montos de beca sin configurar" location="top">
+          <template v-slot:activator="{ props: tooltipProps }">
+            <v-chip
+              v-bind="tooltipProps"
+              size="small"
+              variant="tonal"
+              color="warning"
+              prepend-icon="mdi-alert-circle-outline"
+            >
+              Montos pendientes
+            </v-chip>
+          </template>
+        </v-tooltip>
+      </div>
     </template>
 
     <!--
@@ -264,8 +263,6 @@ const baseHeaders = [
   { title: 'Nombre(s)', key: 'first_name' },
   { title: 'Apellido(s)', key: 'last_name' },
   { title: 'Activo', key: 'active' },
-  // Sortable so rows with pending amounts can be grouped together.
-  { title: 'Montos', key: 'amounts', value: (item: Person) => item.amounts_configured === true },
   { title: '', key: 'actions' },
 ]
 
@@ -273,16 +270,7 @@ const typeHeader = { title: 'Tipo', key: 'user_type' }
 
 const tableHeaders = computed(() =>
   showTypeColumn.value
-    ? [
-        baseHeaders[0],
-        baseHeaders[1],
-        baseHeaders[2],
-        baseHeaders[3],
-        typeHeader,
-        baseHeaders[4],
-        baseHeaders[5],
-        baseHeaders[6],
-      ]
+    ? [baseHeaders[0], baseHeaders[1], baseHeaders[2], baseHeaders[3], typeHeader, baseHeaders[4], baseHeaders[5]]
     : baseHeaders,
 )
 
