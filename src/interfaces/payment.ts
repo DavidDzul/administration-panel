@@ -182,8 +182,9 @@ export interface PaymentBatchSummary {
 // computed over paid+pending rows only: paid_amount/pending_amount split
 // what PaymentBatchSummary folds into a single total_amount, and
 // total_amount here = paid_amount + pending_amount. difference_amount MAY
-// be negative (rendered sign-aware, never a '-' prefix on an
-// already-formatted string — same convention as PaymentBatchSummary).
+// be negative only when a manual override raised an amount (rendered
+// sign-aware, never a '-' prefix on an already-formatted string — same
+// convention as PaymentBatchSummary).
 export interface GenerationPaymentSummary {
   total: number
   paid: number
@@ -195,7 +196,20 @@ export interface GenerationPaymentSummary {
   paid_amount: string
   pending_amount: string
   total_amount: string
+  // True "descuentos y retenciones" (sdd/tabla-montos-por-generacion): every
+  // nominal component minus total_amount. Equals the sum of the rows'
+  // `discounts` over PAID + PENDING rows.
   difference_amount: string
+  // Sum of temporary increases / (pending-from-previous + advance) over
+  // paid + pending rows (sdd/tabla-montos-por-generacion).
+  temporary_increase_amount: string
+  pending_and_advance_amount: string
+  // Pure TELMEX becarios IU does not pay this month (listed as
+  // NO_IU_PAYMENT rows, excluded from every other figure).
+  telmex_without_iu_payment: number
+  // Pending/advance money on those NO_IU_PAYMENT rows (kept out of every other
+  // figure; surfaced so an unpaid balance is not hidden).
+  telmex_without_iu_payment_pending_amount: string
   // Telmex coverage total (sdd/telmex-cobertura-iu PR5, mirrors
   // impulsou-api PR2's PaymentBatchService::generationSummary() addition).
   // Same OPTIONAL rationale as PaymentBatchSummary.telmex_coverage_amount
@@ -448,4 +462,31 @@ export interface GenerationSummaryGeneration {
   id: number
   generation_name: string
   campus: string
+}
+
+// Row state of the per-becario amounts table. PAID/PENDING/BLOCKED follow the
+// summary partition; NO_IU_PAYMENT marks pure TELMEX becarios IU does not pay
+// this month (excluded from the summary).
+export type GenerationPaymentRowState = 'PAID' | 'PENDING' | 'BLOCKED' | 'NO_IU_PAYMENT'
+
+// One entry of `rows` in GET /scholarship-payments/by-generation
+// (sdd/tabla-montos-por-generacion). Money fields are 2-decimal strings.
+// Per row: beca + apoyo + pago_iu + temporary_increase + telmex_coverage
+// - discounts + pending_and_advance = total_to_pay. `discounts` is a
+// POSITIVE number that subtracts and already folds in manual adjustments.
+export interface GenerationPaymentRow {
+  refrend_id: number
+  user_id: number
+  enrollment: string | null
+  full_name: string
+  scholarship_type: 'IU' | 'TELMEX_IU' | 'TELMEX'
+  beca: string
+  apoyo: string
+  pago_iu: string
+  temporary_increase: string
+  telmex_coverage: string
+  discounts: string
+  pending_and_advance: string
+  total_to_pay: string
+  state: GenerationPaymentRowState
 }

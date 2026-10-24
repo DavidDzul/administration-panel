@@ -18,7 +18,7 @@ export interface GenerationOption {
 // usePersonsPage's onBeforeMount generation fetch.
 export function usePaymentsByGenerationPage() {
   const paymentsByGenerationStore = usePaymentsByGenerationStore()
-  const { summary, generation } = storeToRefs(paymentsByGenerationStore)
+  const { summary, rows, generation } = storeToRefs(paymentsByGenerationStore)
   const { fetchSummary } = paymentsByGenerationStore
 
   const generationStore = useGenerationStore()
@@ -106,6 +106,7 @@ export function usePaymentsByGenerationPage() {
     loading,
     loadError,
     summary,
+    rows,
     generation,
     canRead: readPayments,
   }

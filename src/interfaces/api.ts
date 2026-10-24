@@ -14,6 +14,7 @@ import type {
 } from './telmexCoverage'
 import type {
   ExportSummary,
+  GenerationPaymentRow,
   GenerationPaymentSummary,
   GenerationSummaryGeneration,
   PaymentBatchBlock,
@@ -181,8 +182,8 @@ export interface PaymentDocumentResponse {
 }
 
 // Matches ScholarshipPaymentController::byGeneration()'s real envelope
-// (sdd/pagos-por-generacion-estado-pago, spec: "Response is summary-only"
-// requirement) — deliberately NO `rows` key (read-only summary slice).
+// (sdd/pagos-por-generacion-estado-pago). Originally summary-only; now also
+// carries per-becario `rows` (sdd/tabla-montos-por-generacion).
 // `summary` now equals `generationSummary(rows(campus, year, month,
 // generationId))` (paid/pending/blocked partition), NOT `summary()`'s
 // ready/blocking partition (that type is Lotes de pago's only, unchanged).
@@ -191,6 +192,7 @@ export interface PaymentsByGenerationResponse {
   res: boolean
   data: {
     summary: GenerationPaymentSummary
+    rows: GenerationPaymentRow[]
     generation: GenerationSummaryGeneration
   }
 }

@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { GenerationPaymentSummary, GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
+import type {
+  GenerationPaymentRow,
+  GenerationPaymentSummary,
+  GenerationSummaryGeneration,
+  GenerationSummaryKey,
+} from '@/interfaces/payment'
 
 const { mockAxiosGet } = vi.hoisted(() => ({
   mockAxiosGet: vi.fn(),
@@ -34,6 +39,28 @@ const buildSummary = (overrides: Partial<GenerationPaymentSummary> = {}): Genera
   pending_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
+  temporary_increase_amount: '0.00',
+  pending_and_advance_amount: '0.00',
+  telmex_without_iu_payment: 0,
+  telmex_without_iu_payment_pending_amount: '0.00',
+  ...overrides,
+})
+
+const buildRow = (overrides: Partial<GenerationPaymentRow> = {}): GenerationPaymentRow => ({
+  refrend_id: 1,
+  user_id: 1,
+  enrollment: 'MAT-1',
+  full_name: 'Ana Álvarez',
+  scholarship_type: 'IU',
+  beca: '1000.00',
+  apoyo: '0.00',
+  pago_iu: '0.00',
+  temporary_increase: '0.00',
+  telmex_coverage: '0.00',
+  discounts: '0.00',
+  pending_and_advance: '0.00',
+  total_to_pay: '1000.00',
+  state: 'PAID',
   ...overrides,
 })
 
@@ -69,6 +96,44 @@ describe('paymentsByGenerationStore', () => {
       expect(result).toBe(true)
       expect(store.summary).toEqual(summary)
       expect(store.generation).toEqual(generation)
+    })
+
+    it('stores the per-becario rows from the response', async () => {
+      const rows = [buildRow(), buildRow({ refrend_id: 2, full_name: 'Beto Bravo', state: 'NO_IU_PAYMENT' })]
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { summary: buildSummary(), rows, generation: buildGeneration() } },
+      })
+
+      const store = usePaymentsByGenerationStore()
+      await store.fetchSummary(buildKey())
+
+      expect(store.rows).toEqual(rows)
+    })
+
+    it('defaults rows to [] before any fetch and when the response carries none', async () => {
+      const store = usePaymentsByGenerationStore()
+      expect(store.rows).toEqual([])
+
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { summary: buildSummary(), generation: buildGeneration() } },
+      })
+      await store.fetchSummary(buildKey())
+
+      expect(store.rows).toEqual([])
+    })
+
+    it('replaces previous rows on a later successful fetch', async () => {
+      const store = usePaymentsByGenerationStore()
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { summary: buildSummary(), rows: [buildRow()], generation: buildGeneration() } },
+      })
+      await store.fetchSummary(buildKey())
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { summary: buildSummary(), rows: [], generation: buildGeneration() } },
+      })
+      await store.fetchSummary(buildKey({ period_month: 10 }))
+
+      expect(store.rows).toEqual([])
     })
 
     it('returns false (not a thrown error) when the fetch fails, without mutating prior state', async () => {

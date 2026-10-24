@@ -9,7 +9,7 @@ import { useGenerationStore } from '@/stores/api/generationStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import type { Generation } from '@/interfaces/generation'
 import type { GenerationSummaryGeneration, GenerationSummaryKey } from '@/interfaces/payment'
-import type { GenerationPaymentSummary } from '@/interfaces/payment'
+import type { GenerationPaymentRow, GenerationPaymentSummary } from '@/interfaces/payment'
 
 // Same rationale as usePersonsPage.test.ts's withSetup: onBeforeMount only
 // registers against a real active component instance.
@@ -53,6 +53,10 @@ const buildSummary = (overrides: Partial<GenerationPaymentSummary> = {}): Genera
   pending_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
+  temporary_increase_amount: '0.00',
+  pending_and_advance_amount: '0.00',
+  telmex_without_iu_payment: 0,
+  telmex_without_iu_payment_pending_amount: '0.00',
   ...overrides,
 })
 
@@ -175,6 +179,47 @@ describe('usePaymentsByGenerationPage', () => {
 
     expect(result.summary.value).toEqual(summary)
     expect(result.generation.value).toEqual(generation)
+  })
+
+  it('exposes the per-becario rows from the store, [] by default', async () => {
+    const generationStore = useGenerationStore()
+    vi.spyOn(generationStore, 'fetchGenerations').mockResolvedValue(undefined)
+
+    const rows: GenerationPaymentRow[] = [
+      {
+      refrend_id: 1,
+      user_id: 1,
+      enrollment: 'MAT-1',
+      full_name: 'Ana Álvarez',
+      scholarship_type: 'IU',
+      beca: '1000.00',
+      apoyo: '0.00',
+      pago_iu: '0.00',
+      temporary_increase: '0.00',
+      telmex_coverage: '0.00',
+      discounts: '0.00',
+      pending_and_advance: '0.00',
+      total_to_pay: '1000.00',
+        state: 'PENDING',
+      },
+    ]
+    const byGenerationStore = usePaymentsByGenerationStore()
+    vi.spyOn(byGenerationStore, 'fetchSummary').mockImplementation(async () => {
+      byGenerationStore.summary = buildSummary()
+      byGenerationStore.rows = rows
+      return true
+    })
+    setRootProfile(useAuthStore())
+
+    const result = withSetup(() => usePaymentsByGenerationPage())
+    expect(result.rows.value).toEqual([])
+
+    result.generationId.value = 1
+    result.periodYear.value = 2026
+    result.periodMonth.value = 9
+    await flushPromises()
+
+    expect(result.rows.value).toEqual(rows)
   })
 
   // Sede → Generación cascade (user decision 2026-10-08, supersedes design

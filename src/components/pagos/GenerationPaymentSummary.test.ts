@@ -34,6 +34,10 @@ const buildSummary = (overrides: Partial<GenerationPaymentSummaryModel> = {}): G
   pending_amount: '1500.00',
   total_amount: '6000.00',
   difference_amount: '0.00',
+  temporary_increase_amount: '0.00',
+  pending_and_advance_amount: '0.00',
+  telmex_without_iu_payment: 0,
+  telmex_without_iu_payment_pending_amount: '0.00',
   ...overrides,
 })
 
@@ -44,15 +48,15 @@ const mountSummary = (summary: GenerationPaymentSummaryModel | null) =>
   })
 
 describe('GenerationPaymentSummary', () => {
-  it('renders 10 cards across 3 rows: 4 counts, 3 nominal components, 3 payment-state totals', () => {
+  it('renders 12 cards across 3 rows: 4 counts, 5 nominal components, 3 payment-state totals', () => {
     const wrapper = mountSummary(buildSummary())
 
     const rows = wrapper.findAll('.v-row')
     expect(rows).toHaveLength(3)
     expect(rows[0].findAll('.payment-summary-card')).toHaveLength(4)
-    expect(rows[1].findAll('.payment-summary-card')).toHaveLength(3)
+    expect(rows[1].findAll('.payment-summary-card')).toHaveLength(5)
     expect(rows[2].findAll('.payment-summary-card')).toHaveLength(3)
-    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
+    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(12)
   })
 
   it('renders the row 1 count labels with their values', () => {
@@ -72,6 +76,20 @@ describe('GenerationPaymentSummary', () => {
     expect(text).toContain('Monto total de beca')
     expect(text).toContain('Monto total de apoyo')
     expect(text).toContain('Monto total Pago IU')
+    expect(text).toContain('Aumentos temporales')
+    expect(text).toContain('Pendientes y adelantos')
+  })
+
+  it('renders the formatted temporary increase and pending/advance amounts', () => {
+    const wrapper = mountSummary(
+      buildSummary({ temporary_increase_amount: '800.00', pending_and_advance_amount: '250.00' }),
+    )
+    const cards = wrapper.findAll('.v-row')[1].findAll('.payment-summary-card')
+
+    expect(cards[3].text()).toContain('Aumentos temporales')
+    expect(cards[3].text()).toContain('$800.00')
+    expect(cards[4].text()).toContain('Pendientes y adelantos')
+    expect(cards[4].text()).toContain('$250.00')
   })
 
   it('renders the row 3 payment-state money labels, including the difference card', () => {
@@ -104,9 +122,7 @@ describe('GenerationPaymentSummary', () => {
     const tooltip = wrapper.findComponent(VTooltip)
 
     expect(tooltip.exists()).toBe(true)
-    expect(tooltip.props('text')).toBe(
-      'Diferencia entre lo que corresponde por beca y apoyo, y lo que se paga. Positiva: descuentos y retenciones aplicadas. Negativa: se pagó de más este mes por aumentos temporales, meses retenidos liberados o adelantos.',
-    )
+    expect(tooltip.props('text')).toBe('Descuentos académicos, penalizaciones y retenciones aplicadas')
   })
 
   it('renders nothing when summary is null', () => {
@@ -121,6 +137,25 @@ describe('GenerationPaymentSummary', () => {
     expect(wrapper.text()).toContain('$12,345.67')
   })
 
+  describe('Telmex sin pago IU card', () => {
+    it('is hidden when telmex_without_iu_payment is 0', () => {
+      const wrapper = mountSummary(buildSummary({ telmex_without_iu_payment: 0 }))
+
+      expect(wrapper.text()).not.toContain('Telmex sin pago IU')
+    })
+
+    it('shows the count with its help tooltip in the counts row when > 0', () => {
+      const wrapper = mountSummary(buildSummary({ telmex_without_iu_payment: 3 }))
+
+      const countsRow = wrapper.findAll('.v-row')[0]
+      expect(countsRow.findAll('.payment-summary-card')).toHaveLength(5)
+      expect(countsRow.text()).toContain('Telmex sin pago IU')
+      expect(countsRow.text()).toContain('3')
+      const tooltips = wrapper.findAllComponents(VTooltip).map((t) => t.props('text'))
+      expect(tooltips).toContain('Becarios Telmex a quienes IU no realiza pago este mes')
+    })
+  })
+
   // sdd/telmex-cobertura-iu PR5, task 5.6: "Adelanto Telmex" card, shown
   // only when telmex_coverage_amount is present AND > 0 — optional field, so
   // the pre-existing "10 cards / 3 rows" assertion above must keep passing
@@ -130,22 +165,22 @@ describe('GenerationPaymentSummary', () => {
       const wrapper = mountSummary(buildSummary())
 
       expect(wrapper.text()).not.toContain('Adelanto Telmex')
-      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(12)
     })
 
     it('renders no extra card when telmex_coverage_amount is "0.00"', () => {
       const wrapper = mountSummary(buildSummary({ telmex_coverage_amount: '0.00' }))
 
       expect(wrapper.text()).not.toContain('Adelanto Telmex')
-      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(12)
     })
 
-    it('renders an 11th card with the formatted amount when telmex_coverage_amount > 0', () => {
+    it('renders a 13th card with the formatted amount when telmex_coverage_amount > 0', () => {
       const wrapper = mountSummary(buildSummary({ telmex_coverage_amount: '900.00' }))
 
       expect(wrapper.text()).toContain('Adelanto Telmex')
       expect(wrapper.text()).toContain('$900.00')
-      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(11)
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(13)
       expect(wrapper.findAll('.v-row')).toHaveLength(4)
     })
   })
