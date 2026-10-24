@@ -15,6 +15,18 @@
           </v-toolbar-items>
         </v-toolbar>
         <v-card-text>
+          <!-- Identifies the becario being edited so admins never save data on
+               the wrong person. Rendered only when the caller passes `person`. -->
+          <template v-if="person">
+            <div data-testid="payment-dialog-person">
+              <div class="text-h6">{{ person.first_name }} {{ person.last_name }}</div>
+              <div v-if="person.enrollment" class="text-body-2 text-medium-emphasis">
+                Matrícula: {{ person.enrollment }}
+              </div>
+            </div>
+            <v-divider class="my-4" />
+          </template>
+
           <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3" />
 
           <!-- Configuración de beca — visually separate section (design's
@@ -150,6 +162,9 @@ import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
 import type { PaymentDataForm } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig, ScholarshipProfileConfigForm } from '@/interfaces/scholarshipProfile'
 import type { SelectOption } from '@/constants'
+import type { Person } from '@/interfaces/user'
+
+type PaymentDialogPerson = Pick<Person, 'first_name' | 'last_name'> & Partial<Pick<Person, 'enrollment'>>
 
 interface Props {
   modelValue: boolean
@@ -157,6 +172,9 @@ interface Props {
   // asynchronously (route param / row click), so the dialog must tolerate a
   // transient `null` before either caller sets it.
   userId: number | null
+  // Optional: identifies who is being edited. Passed in by the caller (no
+  // extra fetch); when absent the header is simply not rendered.
+  person?: PaymentDialogPerson | null
 }
 
 const props = defineProps<Props>()

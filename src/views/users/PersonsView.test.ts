@@ -76,10 +76,10 @@ const mountView = () =>
       stubs: {
         PaymentDataDialog: {
           name: 'PaymentDataDialog',
-          props: ['modelValue', 'userId'],
+          props: ['modelValue', 'userId', 'person'],
           emits: ['update:modelValue', 'saved'],
           template:
-            '<div class="payment-data-dialog-stub" v-if="modelValue">{{ userId }}<button @click="$emit(\'saved\')">save</button></div>',
+            '<div class="payment-data-dialog-stub" v-if="modelValue">{{ userId }}<span class="stub-person">{{ person?.first_name }} {{ person?.last_name }}</span><button @click="$emit(\'saved\')">save</button></div>',
         },
       },
     },
@@ -156,6 +156,16 @@ describe('PersonsView — PaymentDataDialog wiring (PR3b)', () => {
     const dialogStub = wrapper.find('.payment-data-dialog-stub')
     expect(dialogStub.exists()).toBe(true)
     expect(dialogStub.text()).toContain('8')
+  })
+
+  it('passes the clicked person to PaymentDataDialog', async () => {
+    const wrapper = mountView()
+    const table = wrapper.findComponent(UsersTable)
+
+    table.vm.$emit('edit', buildPerson({ id: 8, first_name: 'Grace', last_name: 'Hopper' }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.stub-person').text()).toBe('Grace Hopper')
   })
 
   it('closes the dialog when it emits "saved"', async () => {

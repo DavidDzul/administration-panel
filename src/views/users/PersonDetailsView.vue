@@ -62,7 +62,7 @@
         <v-expansion-panels model-value="0">
           <v-expansion-panel title="Datos de pago">
             <v-expansion-panel-text>
-              <PaymentDataCard :user-id="selectedPerson.id" />
+              <PaymentDataCard :user-id="selectedPerson.id" :person="selectedPerson" />
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>

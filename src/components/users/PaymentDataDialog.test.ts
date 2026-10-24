@@ -60,7 +60,11 @@ const buildSetting = (overrides: Partial<ScholarshipSetting> = {}): ScholarshipS
   ...overrides,
 })
 
-const mountDialog = (props: { modelValue: boolean; userId: number | null }) =>
+const mountDialog = (props: {
+  modelValue: boolean
+  userId: number | null
+  person?: { first_name: string; last_name: string; enrollment?: string | null } | null
+}) =>
   mount(PaymentDataDialog, {
     props,
     global: { plugins: [vuetify] },
@@ -667,6 +671,52 @@ describe('PaymentDataDialog', () => {
       await flushPromises()
 
       expect(body().text()).not.toContain('Aumento temporal')
+    })
+  })
+
+  describe('person header', () => {
+    it('renders the full name and matricula when person is passed', async () => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+      stubProfileConfigDefaults()
+
+      mountDialog({
+        modelValue: true,
+        userId: 5,
+        person: { first_name: 'Ada', last_name: 'Lovelace', enrollment: 'A0001' },
+      })
+      await flushPromises()
+
+      expect(body().text()).toContain('Ada Lovelace')
+      expect(body().text()).toContain('Matrícula: A0001')
+    })
+
+    it('renders neither name nor matricula when person is not passed', async () => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+      stubProfileConfigDefaults()
+
+      mountDialog({ modelValue: true, userId: 5 })
+      await flushPromises()
+
+      expect(body().text()).not.toContain('Matrícula')
+      expect(body().find('[data-testid="payment-dialog-person"]').exists()).toBe(false)
+    })
+
+    it('omits the matricula line when enrollment is empty', async () => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(null)
+      stubProfileConfigDefaults()
+
+      mountDialog({
+        modelValue: true,
+        userId: 5,
+        person: { first_name: 'Ada', last_name: 'Lovelace', enrollment: null },
+      })
+      await flushPromises()
+
+      expect(body().text()).toContain('Ada Lovelace')
+      expect(body().text()).not.toContain('Matrícula')
     })
   })
 })
