@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   amountOrDash,
   baseAmount,
+  baseAmountLabel,
   baseDiscountNote,
   discountPercent,
   finalAdjustments,
@@ -13,7 +14,7 @@ import {
 } from '@/utils/paymentBreakdownMeta'
 
 // sdd/lotes-pago-generacion-desglose PR2: pure per-column display helpers for
-// Lotes de pago's breakdown columns (Monto mensual, Apoyo, Pago IU, Base,
+// Lotes de pago's breakdown columns (Beca, Apoyo, Pago IU, Base,
 // Desc.%, Final). Mirrors advancePaymentMeta.ts/temporaryIncreaseMeta.ts's
 // "self-contained formatAmount, no shared formatter" convention — these
 // functions are pure computations over a row's own fields, they never read
@@ -58,7 +59,7 @@ describe('amountOrDash', () => {
   })
 })
 
-describe('monthlyAmount (Monto mensual column)', () => {
+describe('monthlyAmount (Beca column)', () => {
   it('IU row: gross − apoyo − aumento temporal', () => {
     const row = buildRow({
       snapshot_scholarship_type: 'IU',
@@ -250,5 +251,21 @@ describe('finalAdjustments (Final column, extra lines)', () => {
       { label: 'ret.', amount: '$50.00' },
       { label: 'adelanto', amount: '$125.00' },
     ])
+  })
+})
+
+describe('baseAmountLabel', () => {
+  it.each([
+    ['IU', 'Beca'],
+    ['TELMEX_IU', 'Pago IU'],
+    ['TELMEX', 'Beca'],
+  ])('labels %s base amount as %s', (type, label) => {
+    expect(baseAmountLabel(type)).toBe(label)
+  })
+
+  it('falls back to Beca when the type is missing or unknown', () => {
+    expect(baseAmountLabel(null)).toBe('Beca')
+    expect(baseAmountLabel(undefined)).toBe('Beca')
+    expect(baseAmountLabel('OTHER')).toBe('Beca')
   })
 })

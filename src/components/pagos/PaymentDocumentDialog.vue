@@ -145,6 +145,7 @@ import { computed, ref, toRef, watch } from 'vue'
 import { usePaymentDocumentPage } from '@/composables/usePaymentDocumentPage'
 import RetentionBreakdownPanel from '@/components/pagos/RetentionBreakdownPanel.vue'
 import AdvancePaymentPanel from '@/components/pagos/AdvancePaymentPanel.vue'
+import { baseAmountLabel } from '@/utils/paymentBreakdownMeta'
 import { TEMPORARY_INCREASE_META } from '@/utils/temporaryIncreaseMeta'
 
 interface Props {
@@ -229,7 +230,7 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
   return [
     {
       key: 'base',
-      label: 'Monto base',
+      label: baseAmountLabel(b.scholarship_type),
       amount: isPresent(b.base_amount) ? money(b.base_amount) : money(null),
       zero: !isPresent(b.base_amount),
     },

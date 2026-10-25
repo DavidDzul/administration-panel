@@ -346,7 +346,7 @@ const emit = defineEmits<Emits>()
 
 // "Total a pagar" stays the last money column, key/behavior unchanged
 // (spec) — only its title changed from the old bare "Monto" now that it
-// sits alongside five other money columns (Monto mensual/Apoyo/Pago IU/
+// sits alongside five other money columns (Beca/Apoyo/Pago IU/
 // Base/Final) instead of being the only one.
 const headers = [
   // Declared explicitly (title '') so Vuetify doesn't auto-prepend its own
@@ -354,7 +354,7 @@ const headers = [
   { title: '', key: 'data-table-group' },
   { title: 'Nombre', key: 'snapshot_name' },
   { title: 'Cuenta', key: 'account_number' },
-  { title: 'Monto mensual', key: 'monthly_amount', width: 110, align: 'end' as const },
+  { title: 'Beca', key: 'monthly_amount', width: 110, align: 'end' as const },
   { title: 'Apoyo', key: 'support_amount', width: 90, align: 'end' as const },
   { title: 'Pago IU', key: 'iu_payment_amount', width: 100, align: 'end' as const },
   { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },

@@ -367,7 +367,7 @@ describe('PaymentDocumentDialog', () => {
     }
   })
 
-  it('shows pure Telmex "Monto base" as a muted $0.00 instead of hiding it', async () => {
+  it('shows pure Telmex base amount as a muted $0.00 instead of hiding it', async () => {
     await openDesglose(
       breakdownWith({
         scholarship_type: 'TELMEX',
@@ -383,6 +383,23 @@ describe('PaymentDocumentDialog', () => {
     expect(row('base').text()).toContain('$0.00')
     expect(row('base').classes()).toContain('text-disabled')
     expect(row('final').text()).toContain('$1950.00')
+  })
+
+  it.each([
+    ['IU', 'Beca'],
+    ['TELMEX_IU', 'Pago IU'],
+    ['TELMEX', 'Beca'],
+  ] as const)('labels the base row of a %s breakdown as "%s"', async (type, label) => {
+    await openDesglose(breakdownWith({ scholarship_type: type }))
+
+    expect(row('base').text()).toContain(label)
+    expect(row('base').text()).not.toContain('Monto base')
+  })
+
+  it('falls back to "Beca" when the scholarship type is missing', async () => {
+    await openDesglose(breakdownWith({ scholarship_type: null }))
+
+    expect(row('base').text()).toContain('Beca')
   })
 
   it('never prints "(0%)" for zero-valued discount rows', async () => {
