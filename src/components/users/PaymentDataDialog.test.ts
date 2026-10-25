@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
-import { VSelect, VSwitch, VTextField } from 'vuetify/components'
+import { VRadioGroup, VSelect, VSwitch, VTextField } from 'vuetify/components'
 import type { PaymentData } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig } from '@/interfaces/scholarshipProfile'
 
@@ -35,6 +35,8 @@ const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => 
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
+  payment_method: 'TRANSFER',
+  cheque_beneficiary: null,
   ...overrides,
 })
 
@@ -80,6 +82,9 @@ const fieldByLabelPrefix = (wrapper: ReturnType<typeof mountDialog>, label: stri
 
 const selectByLabelPrefix = (wrapper: ReturnType<typeof mountDialog>, label: string) =>
   wrapper.findAllComponents(VSelect).find((f) => (f.props('label') as string | undefined)?.startsWith(label))
+
+const methodGroup = (wrapper: ReturnType<typeof mountDialog>) =>
+  wrapper.findAllComponents(VRadioGroup).find((g) => g.props('label') === 'Medio de pago')
 
 const switchByLabel = (wrapper: ReturnType<typeof mountDialog>, label: string) =>
   wrapper.findAllComponents(VSwitch).find((f) => f.props('label') === label)
@@ -215,6 +220,8 @@ describe('PaymentDataDialog', () => {
       account_number: '012180001234567895',
       curp: 'AAAA000101HDFRRR01',
       rfc: null,
+      payment_method: 'TRANSFER',
+      cheque_beneficiary: null,
     })
   })
 
@@ -240,6 +247,8 @@ describe('PaymentDataDialog', () => {
       account_number: '012180001234567895',
       curp: 'AAAA000101HDFRRR01',
       rfc: 'AAAA000101AAA',
+      payment_method: 'TRANSFER',
+      cheque_beneficiary: null,
     })
     expect(wrapper.emitted('saved')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
@@ -717,6 +726,149 @@ describe('PaymentDataDialog', () => {
 
       expect(body().text()).toContain('Ada Lovelace')
       expect(body().text()).not.toContain('Matrícula')
+    })
+  })
+
+  describe('Medio de pago (sdd/pago-cheque)', () => {
+    const openDialog = async (existing: PaymentData | null = null, userId = 5) => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(existing)
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+      stubProfileConfigDefaults()
+      const wrapper = mountDialog({ modelValue: true, userId })
+      await flushPromises()
+      return { wrapper, paymentDataStore }
+    }
+
+    it('defaults to Transferencia and shows the bank inputs', async () => {
+      const { wrapper } = await openDialog()
+
+      expect(methodGroup(wrapper)?.props('modelValue')).toBe('TRANSFER')
+      expect(body().text()).toContain('Transferencia')
+      expect(body().text()).toContain('Cheque')
+      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeDefined()
+      expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeDefined()
+      expect(fieldByLabelPrefix(wrapper, 'A nombre de')).toBeUndefined()
+    })
+
+    it('hides the bank inputs and shows the optional "A nombre de" field with its hint for Cheque', async () => {
+      const { wrapper } = await openDialog()
+
+      await methodGroup(wrapper)?.setValue('CHEQUE')
+      await flushPromises()
+
+      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
+      expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeUndefined()
+      const beneficiary = fieldByLabelPrefix(wrapper, 'A nombre de')
+      expect(beneficiary).toBeDefined()
+      expect(body().find('input[maxlength="150"]').exists()).toBe(true)
+      expect(beneficiary?.props('hint')).toBe(
+        'Padre, madre o tutor. Si se deja vacío, el cheque se emite a nombre del becario.',
+      )
+      expect(fieldByLabelPrefix(wrapper, 'CURP')).toBeDefined()
+      expect(fieldByLabelPrefix(wrapper, 'RFC')).toBeDefined()
+    })
+
+    it('submits Cheque without bank values and without applying the bank rules', async () => {
+      const { wrapper, paymentDataStore } = await openDialog()
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+
+      await methodGroup(wrapper)?.setValue('CHEQUE')
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'A nombre de')?.setValue('Maria Lopez')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(5, {
+        bank_name: null,
+        account_number: null,
+        curp: 'AAAA000101HDFRRR01',
+        rfc: null,
+        payment_method: 'CHEQUE',
+        cheque_beneficiary: 'Maria Lopez',
+      })
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
+
+    it('submits Cheque with a blank beneficiary as null', async () => {
+      const { wrapper, paymentDataStore } = await openDialog()
+      await methodGroup(wrapper)?.setValue('CHEQUE')
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ payment_method: 'CHEQUE', cheque_beneficiary: null, bank_name: null }),
+      )
+    })
+
+    it('still requires CURP for Cheque', async () => {
+      const { wrapper, paymentDataStore } = await openDialog()
+      await methodGroup(wrapper)?.setValue('CHEQUE')
+      await flushPromises()
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+    })
+
+    it('still requires the bank fields for Transferencia', async () => {
+      const { wrapper, paymentDataStore } = await openDialog()
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+    })
+
+    it('does not send a beneficiary typed before switching back to Transferencia', async () => {
+      const { wrapper, paymentDataStore } = await openDialog()
+      await methodGroup(wrapper)?.setValue('CHEQUE')
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'A nombre de')?.setValue('Maria Lopez')
+      await methodGroup(wrapper)?.setValue('TRANSFER')
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ payment_method: 'TRANSFER', cheque_beneficiary: null, bank_name: 'BBVA' }),
+      )
+    })
+
+    it('pre-fills the method and beneficiary when editing a Cheque record', async () => {
+      const { wrapper } = await openDialog(
+        buildPaymentData({
+          payment_method: 'CHEQUE',
+          bank_name: null,
+          account_number: null,
+          cheque_beneficiary: 'Maria Lopez',
+        }),
+      )
+
+      expect(methodGroup(wrapper)?.props('modelValue')).toBe('CHEQUE')
+      expect(fieldByLabelPrefix(wrapper, 'A nombre de')?.props('modelValue')).toBe('Maria Lopez')
+      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
+    })
+
+    it('pre-fills Transferencia when editing a Transfer record', async () => {
+      const { wrapper } = await openDialog(buildPaymentData())
+
+      expect(methodGroup(wrapper)?.props('modelValue')).toBe('TRANSFER')
+      expect(fieldByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe('BBVA')
     })
   })
 })
