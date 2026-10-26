@@ -16,6 +16,15 @@ function getStatus(error: unknown): number | undefined {
   return undefined
 }
 
+// Mirrors the server's authority: CHEQUE carries no bank data, TRANSFER carries
+// no cheque beneficiary. Sending clean values keeps stale data off the wire.
+function normalizeForm(form: PaymentDataForm): PaymentDataForm {
+  if (form.payment_method === 'CHEQUE') {
+    return { ...form, bank_name: null, account_number: null }
+  }
+  return { ...form, cheque_beneficiary: null }
+}
+
 export const usePaymentDataStore = defineStore('paymentDataStore', () => {
   // Tracks, per user id, whether the most recent fetchPaymentData call found
   // an existing row. savePaymentData reads this to decide POST (create) vs
@@ -44,15 +53,16 @@ export const usePaymentDataStore = defineStore('paymentDataStore', () => {
 
   const savePaymentData = async (userId: number, form: PaymentDataForm): Promise<PaymentData> => {
     const rowExists = existsByUser.value.get(userId) ?? false
+    const payload = normalizeForm(form)
 
     if (rowExists) {
-      const res = await axios.put<PaymentDataResponse>(`api/admin/scholarship-payment-data/${userId}`, form)
+      const res = await axios.put<PaymentDataResponse>(`api/admin/scholarship-payment-data/${userId}`, payload)
       return res.data.data as PaymentData
     }
 
     const res = await axios.post<PaymentDataResponse>('api/admin/scholarship-payment-data', {
       user_id: userId,
-      ...form,
+      ...payload,
     })
     existsByUser.value.set(userId, true)
     return res.data.data as PaymentData

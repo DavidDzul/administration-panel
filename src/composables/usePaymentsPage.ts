@@ -1,9 +1,20 @@
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
-import type { ProcessBatchResult } from '@/stores/api/paymentsStore'
+import type { ChequeActionResult, ProcessBatchResult } from '@/stores/api/paymentsStore'
 import { useAuthStore } from '@/stores/api/authStore'
-import type { BatchKey, ExportSummary, InvalidBankRow, PaymentBatchRow, PaymentBatchType } from '@/interfaces/payment'
+import { useAlertStore } from '@/stores/alert'
+import type {
+  BatchKey,
+  ExportSummary,
+  InvalidBankRow,
+  MarkChequePayload,
+  PaymentBatchRow,
+  PaymentBatchType,
+} from '@/interfaces/payment'
+
+const EMPTY_BATCH_MESSAGE = 'No hay becarios con pago por transferencia en este lote.'
+const CHEQUE_ERROR_MESSAGE = 'No se pudo completar la operación con el cheque, intenta nuevamente.'
 
 // Distinct from ProcessBatchResult's states — 'blocked' is the export-time
 // all-or-nothing bank-data-validation gate (design D4), 'error' is
@@ -21,8 +32,10 @@ export type ExportErrorState = 'blocked' | 'error' | null
 // purely presentational (rows as props, no internal fetching).
 export function usePaymentsPage() {
   const paymentsStore = usePaymentsStore()
-  const { rows, summary, batchId, isPaid } = storeToRefs(paymentsStore)
-  const { fetchBatch, processBatch, fetchExportSummary, downloadExportFile } = paymentsStore
+  const { rows, summary, chequeRows, chequeSummary, batchId, isPaid } = storeToRefs(paymentsStore)
+  const { fetchBatch, processBatch, fetchExportSummary, downloadExportFile, markChequePaid, revertChequePayment } =
+    paymentsStore
+  const { showAlert } = useAlertStore()
 
   const { filteredCampus, readPayments, processPayments, exportPayments } = storeToRefs(useAuthStore())
 
@@ -121,7 +134,58 @@ export function usePaymentsPage() {
     if (result.status === 'success' || result.status === 'stale' || result.status === 'already_processed') {
       await loadBatch()
     }
+    // EMPTY_BATCH (pago-cheque): nothing to reload — the batch really has no
+    // transfer rows; just tell the admin why "Pagar todos" did nothing.
+    if (result.status === 'empty_batch') {
+      showAlert({ title: result.msg ?? EMPTY_BATCH_MESSAGE, status: 'error' })
+    }
     return result
+  }
+
+  // pago-cheque: cheque actions. Alerts always prefer the server `msg`.
+  // Statuses where the server state differs from what the UI showed
+  // (already paid, cycle closed, Telmex repayment, not a cheque row) reload
+  // the batch; pure input problems (validation, number taken, not payable,
+  // generic error) keep the current data so the dialog can be corrected.
+  const savingCheque = ref<boolean>(false)
+
+  const RELOAD_STATUSES: ReadonlySet<ChequeActionResult['status']> = new Set([
+    'success',
+    'already_paid',
+    'not_cheque',
+    'cycle_closed',
+    'telmex_repayment_exists',
+  ])
+
+  const finishChequeAction = async (
+    result: ChequeActionResult,
+    successMessage: string,
+  ): Promise<ChequeActionResult> => {
+    if (result.status === 'success') {
+      showAlert({ title: successMessage, status: 'success' })
+    } else {
+      showAlert({ title: result.msg ?? CHEQUE_ERROR_MESSAGE, status: 'error' })
+    }
+    if (RELOAD_STATUSES.has(result.status)) await loadBatch()
+    return result
+  }
+
+  const markCheque = async (refrendId: number, payload: MarkChequePayload): Promise<ChequeActionResult> => {
+    savingCheque.value = true
+    try {
+      return await finishChequeAction(await markChequePaid(refrendId, payload), 'Pago por cheque registrado.')
+    } finally {
+      savingCheque.value = false
+    }
+  }
+
+  const revertCheque = async (refrendId: number, reason: string): Promise<ChequeActionResult> => {
+    savingCheque.value = true
+    try {
+      return await finishChequeAction(await revertChequePayment(refrendId, reason), 'Pago por cheque revertido.')
+    } finally {
+      savingCheque.value = false
+    }
   }
 
   // Bank-file export (sdd/becario-payment-bank-file-export). `batchId`/
@@ -179,6 +243,11 @@ export function usePaymentsPage() {
     visibleRows,
     showOnlyPending,
     summary,
+    chequeRows,
+    chequeSummary,
+    savingCheque,
+    markCheque,
+    revertCheque,
     loadingBatch,
     loadError,
     canProcess,

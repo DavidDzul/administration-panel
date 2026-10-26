@@ -3,7 +3,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type {
   BatchKey,
+  BlockingReason,
+  ChequePaymentData,
+  ChequeRow,
+  ChequeSummary,
   ExportSummary,
+  MarkChequePayload,
   InvalidBankRow,
   PaymentBatchRow,
   PaymentBatchSummary,
@@ -46,7 +51,70 @@ export type ProcessBatchResult =
   | { status: 'blocking'; blockingRows: PaymentBatchRow[] }
   | { status: 'stale'; count: number; totalAmount: string }
   | { status: 'already_processed'; batchId: number }
+  // 422 EMPTY_BATCH (pago-cheque): the sede has no transfer rows (e.g. only
+  // cheques) — distinct from 'blocking', which carries blocking rows.
+  | { status: 'empty_batch'; msg: string | null }
   | { status: 'error' }
+
+// Discriminated result shared by markChequePaid / revertChequePayment. Every
+// failure carries the server `msg` (null only when the server sent none, e.g.
+// a network failure) so the caller can show it verbatim.
+export type ChequeActionResult =
+  | { status: 'success'; data: ChequePaymentData }
+  | { status: 'already_paid'; msg: string | null }
+  | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
+  | { status: 'not_cheque'; msg: string | null }
+  | { status: 'cheque_number_taken'; msg: string | null }
+  | { status: 'cycle_closed'; msg: string | null }
+  | { status: 'telmex_repayment_exists'; msg: string | null }
+  | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
+  | { status: 'error'; msg: string | null }
+
+// Maps the envelope `code` of a failed cheque action to its result status.
+// Unknown/absent codes (404 NOT_FOUND, 403, CHEQUE_LOG_MISSING, 500) fall
+// through to 'error' with the server msg.
+const CHEQUE_CODE_STATUS: Record<string, 'already_paid' | 'not_cheque' | 'cheque_number_taken' | 'cycle_closed' | 'telmex_repayment_exists'> = {
+  ALREADY_PAID: 'already_paid',
+  NOT_CHEQUE_METHOD: 'not_cheque',
+  NOT_CHEQUE_PAID: 'not_cheque',
+  CHEQUE_NUMBER_TAKEN: 'cheque_number_taken',
+  CYCLE_CLOSED: 'cycle_closed',
+  TELMEX_REPAYMENT_EXISTS: 'telmex_repayment_exists',
+}
+
+interface ErrorBody {
+  msg?: string
+  message?: string
+  code?: string
+  errors?: Record<string, string[]>
+  data?: { reasons?: BlockingReason[] } | null
+}
+
+function getErrorBody(error: unknown): ErrorBody | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    return (error as { response?: { data?: ErrorBody } }).response?.data
+  }
+  return undefined
+}
+
+function mapChequeError(error: unknown): ChequeActionResult {
+  const body = getErrorBody(error)
+  const msg = body?.msg ?? body?.message ?? null
+
+  if (body?.code === 'NOT_PAYABLE') {
+    return { status: 'not_payable', msg, reasons: body.data?.reasons ?? [] }
+  }
+
+  const mapped = body?.code ? CHEQUE_CODE_STATUS[body.code] : undefined
+  if (mapped) return { status: mapped, msg }
+
+  // Laravel validation body: no envelope code, has field `errors`.
+  if (getStatus(error) === 422 && body?.errors) {
+    return { status: 'validation', msg, errors: body.errors }
+  }
+
+  return { status: 'error', msg }
+}
 
 // Discriminated result for downloadExportFile — same "never collapse into
 // one generic error" convention as ProcessBatchResult. 'blocked' is the
@@ -85,6 +153,8 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
 export const usePaymentsStore = defineStore('paymentsStore', () => {
   const rows = ref<PaymentBatchRow[]>([])
   const summary = ref<PaymentBatchSummary | null>(null)
+  const chequeRows = ref<ChequeRow[]>([])
+  const chequeSummary = ref<ChequeSummary | null>(null)
   const batchId = ref<number | null>(null)
   const isPaid = ref<boolean>(false)
   const document = ref<PaymentDocument | null>(null)
@@ -100,6 +170,8 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       })
       rows.value = res.data.data.rows
       summary.value = res.data.data.summary
+      chequeRows.value = res.data.data.cheque_rows ?? []
+      chequeSummary.value = res.data.data.cheque_summary ?? null
       // D3 — this is what lets the SPA reach the export action after a page
       // reload; `batchId` is no longer only set transiently by processBatch.
       batchId.value = res.data.data.batch?.batch_id ?? null
@@ -195,6 +267,10 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       const data = getErrorData(error)
 
       if (status === 422) {
+        const body = getErrorBody(error)
+        if (body?.code === 'EMPTY_BATCH') {
+          return { status: 'empty_batch', msg: body.msg ?? null }
+        }
         return { status: 'blocking', blockingRows: (data?.blocking_rows as PaymentBatchRow[] | undefined) ?? [] }
       }
 
@@ -217,12 +293,40 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
     }
   }
 
+  const markChequePaid = async (refrendId: number, payload: MarkChequePayload): Promise<ChequeActionResult> => {
+    try {
+      const res = await axios.post<{ res: boolean; data: ChequePaymentData }>(
+        `api/admin/scholarship-payments/${refrendId}/cheque-payment`,
+        payload,
+      )
+      return { status: 'success', data: res.data.data }
+    } catch (error: unknown) {
+      return mapChequeError(error)
+    }
+  }
+
+  const revertChequePayment = async (refrendId: number, reason: string): Promise<ChequeActionResult> => {
+    try {
+      const res = await axios.post<{ res: boolean; data: ChequePaymentData }>(
+        `api/admin/scholarship-payments/${refrendId}/cheque-payment/revert`,
+        { reason },
+      )
+      return { status: 'success', data: res.data.data }
+    } catch (error: unknown) {
+      return mapChequeError(error)
+    }
+  }
+
   return {
     rows,
     summary,
+    chequeRows,
+    chequeSummary,
     batchId,
     isPaid,
     document,
+    markChequePaid,
+    revertChequePayment,
     fetchBatch,
     fetchDocument,
     processBatch,

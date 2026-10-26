@@ -123,15 +123,35 @@
           <div class="text-subtitle-2 mb-2">Datos bancarios</div>
           <v-row>
             <v-col cols="12">
-              <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
+              <v-radio-group v-model="form.payment_method" label="Medio de pago" inline hide-details>
+                <v-radio label="Transferencia" value="TRANSFER"></v-radio>
+                <v-radio label="Cheque" value="CHEQUE"></v-radio>
+              </v-radio-group>
             </v-col>
-            <v-col cols="12">
-              <v-text-field
-                v-model="form.account_number"
-                label="Número de cuenta / CLABE *"
-                :rules="[requiredRule]"
-              ></v-text-field>
-            </v-col>
+            <template v-if="isCheque">
+              <v-col cols="12">
+                <v-text-field
+                  v-model="form.cheque_beneficiary"
+                  label="A nombre de"
+                  :maxlength="CHEQUE_BENEFICIARY_MAX_LENGTH"
+                  hint="Padre, madre o tutor. Si se deja vacío, el cheque se emite a nombre del becario."
+                  persistent-hint
+                  clearable
+                ></v-text-field>
+              </v-col>
+            </template>
+            <template v-else>
+              <v-col cols="12">
+                <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="form.account_number"
+                  label="Número de cuenta / CLABE *"
+                  :rules="[requiredRule]"
+                ></v-text-field>
+              </v-col>
+            </template>
             <v-col cols="12" md="6">
               <v-text-field v-model="form.curp" label="CURP *" :rules="[requiredRule, curpRule]"></v-text-field>
             </v-col>
@@ -214,11 +234,15 @@ const scholarshipTypeOptions: SelectOption[] = [
   { value: 'TELMEX_IU', text: 'Telmex - IU' },
 ]
 
+const CHEQUE_BENEFICIARY_MAX_LENGTH = 150
+
 const emptyForm = (): PaymentDataForm => ({
   bank_name: '',
   account_number: '',
   curp: '',
   rfc: '',
+  payment_method: 'TRANSFER',
+  cheque_beneficiary: '',
 })
 
 const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
@@ -230,6 +254,7 @@ const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
 })
 
 const form = reactive<PaymentDataForm>(emptyForm())
+const isCheque = computed(() => form.payment_method === 'CHEQUE')
 const configForm = reactive<ScholarshipProfileConfigForm>(emptyConfigForm())
 
 // Mirrors impulsou-api's App\Rules\Curp / App\Rules\Rfc bounded
@@ -274,8 +299,10 @@ const loadExisting = async (userId: number): Promise<void> => {
     ])
 
     if (existing) {
-      form.bank_name = existing.bank_name
-      form.account_number = existing.account_number
+      form.payment_method = existing.payment_method ?? 'TRANSFER'
+      form.bank_name = existing.bank_name ?? ''
+      form.account_number = existing.account_number ?? ''
+      form.cheque_beneficiary = existing.cheque_beneficiary ?? ''
       form.curp = existing.curp
       form.rfc = existing.rfc ?? ''
     } else {
@@ -369,11 +396,15 @@ const onSubmit = async (): Promise<void> => {
 
   let paymentDataOk = true
   try {
+    // Only the fields of the selected method are sent; the other method's
+    // values (possibly typed before switching) are dropped.
     await paymentDataStore.savePaymentData(props.userId, {
-      bank_name: form.bank_name,
-      account_number: form.account_number,
+      bank_name: isCheque.value ? null : form.bank_name,
+      account_number: isCheque.value ? null : form.account_number,
       curp: form.curp,
       rfc: form.rfc || null,
+      payment_method: form.payment_method,
+      cheque_beneficiary: isCheque.value ? form.cheque_beneficiary?.trim() || null : null,
     })
   } catch (error: unknown) {
     paymentDataOk = false

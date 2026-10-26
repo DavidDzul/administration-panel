@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import type {
   BatchKey,
+  ChequePaymentData,
+  ChequeRowFields,
+  ChequeSummary,
   ExportSummary,
   InvalidBankRow,
   PaymentBatchRow,
@@ -82,6 +85,38 @@ const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatc
   pago_iu_amount: '0.00',
   total_amount: '1000.00',
   difference_amount: '0.00',
+  ...overrides,
+})
+
+const buildChequeFields = (overrides: Partial<ChequeRowFields> = {}): ChequeRowFields => ({
+  payment_method: 'CHEQUE',
+  paid_payment_method: null,
+  cheque_number: null,
+  cheque_delivered_at: null,
+  cheque_notes: null,
+  cheque_beneficiary: null,
+  ...overrides,
+})
+
+const buildChequeSummary = (overrides: Partial<ChequeSummary> = {}): ChequeSummary => ({
+  total: 1,
+  ready: 1,
+  paid: 0,
+  blocking: 0,
+  ready_amount: '1000.00',
+  paid_amount: '0.00',
+  ...overrides,
+})
+
+const buildChequePaymentData = (overrides: Partial<ChequePaymentData> = {}): ChequePaymentData => ({
+  refrend_id: 7,
+  status: 'PAID',
+  workflow_status: 'CLOSED',
+  paid_payment_method: 'CHEQUE',
+  cheque_number: '000123',
+  cheque_delivered_at: '2026-10-20',
+  cheque_notes: null,
+  locked_at: '2026-10-20T10:00:00Z',
   ...overrides,
 })
 
@@ -316,6 +351,187 @@ describe('paymentsStore', () => {
       const result = await store.processBatch(buildKey(), 1, '1000.00')
 
       expect(result).toEqual({ status: 'error' })
+    })
+  })
+
+  describe('processBatch EMPTY_BATCH', () => {
+    it('returns a distinct "empty_batch" result (with the server msg) on 422 EMPTY_BATCH, not "blocking"', async () => {
+      mockAxiosPost.mockRejectedValueOnce({
+        response: {
+          status: 422,
+          data: {
+            res: false,
+            msg: 'No hay becarios con pago por transferencia en este lote.',
+            code: 'EMPTY_BATCH',
+            data: {},
+          },
+        },
+      })
+
+      const store = usePaymentsStore()
+      const result = await store.processBatch(buildKey(), 0, '0.00')
+
+      expect(result).toEqual({
+        status: 'empty_batch',
+        msg: 'No hay becarios con pago por transferencia en este lote.',
+      })
+    })
+  })
+
+  describe('fetchBatch cheque state', () => {
+    it('stores cheque_rows and cheque_summary from the index response', async () => {
+      const chequeRow = { ...buildRow({ refrend_id: 7 }), ...buildChequeFields() }
+      const chequeSummary = buildChequeSummary()
+      mockAxiosGet.mockResolvedValueOnce({
+        data: {
+          res: true,
+          data: {
+            rows: [buildRow()],
+            summary: buildSummary(),
+            cheque_rows: [chequeRow],
+            cheque_summary: chequeSummary,
+            batch: { batch_id: null, is_paid: false },
+          },
+        },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.chequeRows).toEqual([chequeRow])
+      expect(store.chequeSummary).toEqual(chequeSummary)
+    })
+
+    it('defaults chequeRows to [] and chequeSummary to null when the response omits them', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { rows: [], summary: buildSummary(), batch: { batch_id: null, is_paid: false } } },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.chequeRows).toEqual([])
+      expect(store.chequeSummary).toBeNull()
+    })
+  })
+
+  describe('markChequePaid', () => {
+    const payload = { cheque_number: '000123', cheque_delivered_at: '2026-10-20', cheque_notes: 'Entregado en sede' }
+    const reject = (status: number, data: Record<string, unknown>): void => {
+      mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
+    }
+
+    it('POSTs the payload to cheque-payment and returns success with the data on 200', async () => {
+      const data = buildChequePaymentData()
+      mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/7/cheque-payment', payload)
+      expect(result).toEqual({ status: 'success', data })
+    })
+
+    it.each([
+      [409, 'ALREADY_PAID', 'already_paid'],
+      [422, 'NOT_CHEQUE_METHOD', 'not_cheque'],
+      [422, 'CHEQUE_NUMBER_TAKEN', 'cheque_number_taken'],
+    ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
+      reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it('maps 422 NOT_PAYABLE to not_payable with the reasons', async () => {
+      const reasons = [{ code: 'MISSING_ENROLLMENT', message: 'Sin matrícula registrada' }]
+      reject(422, { res: false, msg: 'No es pagable', code: 'NOT_PAYABLE', data: { reasons } })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'not_payable', msg: 'No es pagable', reasons })
+    })
+
+    it('maps a Laravel 422 validation body to validation with field errors', async () => {
+      const errors = { cheque_number: ['El número de cheque es obligatorio.'] }
+      reject(422, { message: 'The given data was invalid.', errors })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'validation', msg: 'The given data was invalid.', errors })
+    })
+
+    it('maps 404 and 403 to error carrying the server msg', async () => {
+      reject(404, { res: false, msg: 'Pago no encontrado', code: 'NOT_FOUND', data: null })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'error', msg: 'Pago no encontrado' })
+    })
+
+    it('maps a network failure to error with a null msg', async () => {
+      mockAxiosPost.mockRejectedValueOnce(new Error('network error'))
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'error', msg: null })
+    })
+  })
+
+  describe('revertChequePayment', () => {
+    const reject = (status: number, data: Record<string, unknown>): void => {
+      mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
+    }
+
+    it('POSTs the reason to cheque-payment/revert and returns success on 200', async () => {
+      const data = buildChequePaymentData({ status: 'AUTHORIZED', cheque_number: null })
+      mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
+
+      const store = usePaymentsStore()
+      const result = await store.revertChequePayment(7, 'Cheque devuelto por el banco')
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/7/cheque-payment/revert', {
+        reason: 'Cheque devuelto por el banco',
+      })
+      expect(result).toEqual({ status: 'success', data })
+    })
+
+    it.each([
+      [422, 'NOT_CHEQUE_PAID', 'not_cheque'],
+      [409, 'CYCLE_CLOSED', 'cycle_closed'],
+      [409, 'TELMEX_REPAYMENT_EXISTS', 'telmex_repayment_exists'],
+    ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
+      reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.revertChequePayment(7, 'Motivo suficientemente largo')
+
+      expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it('maps CHEQUE_LOG_MISSING to error with the server msg', async () => {
+      reject(422, { res: false, msg: 'Falta el registro', code: 'CHEQUE_LOG_MISSING', data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.revertChequePayment(7, 'Motivo suficientemente largo')
+
+      expect(result).toEqual({ status: 'error', msg: 'Falta el registro' })
+    })
+
+    it('maps a Laravel 422 validation body to validation', async () => {
+      const errors = { reason: ['El motivo debe tener al menos 10 caracteres.'] }
+      reject(422, { message: 'The given data was invalid.', errors })
+
+      const store = usePaymentsStore()
+      const result = await store.revertChequePayment(7, 'corto')
+
+      expect(result).toEqual({ status: 'validation', msg: 'The given data was invalid.', errors })
     })
   })
 

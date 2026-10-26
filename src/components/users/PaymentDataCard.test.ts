@@ -41,6 +41,8 @@ const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => 
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
+  payment_method: 'TRANSFER',
+  cheque_beneficiary: null,
   ...overrides,
 })
 
@@ -122,6 +124,56 @@ describe('PaymentDataCard', () => {
     expect(wrapper.text()).toContain('AAAA000101HDFRRR01')
     expect(wrapper.text()).toContain('AAAA000101AAA')
     expect(wrapper.text()).not.toContain('Sin datos de pago configurados')
+  })
+
+  describe('Medio de pago (sdd/pago-cheque)', () => {
+    it('shows "Transferencia" and the bank rows for a transfer record', async () => {
+      const { paymentDataStore } = stubDefaults()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(buildPaymentData())
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Medio de pago')
+      expect(wrapper.text()).toContain('Transferencia')
+      expect(wrapper.text()).toContain('Banco')
+      expect(wrapper.text()).not.toContain('A nombre de')
+    })
+
+    it('shows "Cheque" with the beneficiary and hides the bank rows for a cheque record', async () => {
+      const { paymentDataStore } = stubDefaults()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(
+        buildPaymentData({
+          payment_method: 'CHEQUE',
+          bank_name: null,
+          account_number: null,
+          cheque_beneficiary: 'Maria Lopez',
+        }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Medio de pago')
+      expect(wrapper.text()).toContain('Cheque')
+      expect(wrapper.text()).toContain('A nombre de')
+      expect(wrapper.text()).toContain('Maria Lopez')
+      expect(wrapper.text()).not.toContain('Banco')
+      expect(wrapper.text()).not.toContain('Número de cuenta')
+      expect(wrapper.text()).toContain('AAAA000101HDFRRR01')
+    })
+
+    it('shows "A nombre del becario" when a cheque record has no beneficiary', async () => {
+      const { paymentDataStore } = stubDefaults()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(
+        buildPaymentData({ payment_method: 'CHEQUE', bank_name: null, account_number: null }),
+      )
+
+      const wrapper = mountCard(5)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('A nombre del becario')
+    })
   })
 
   it('disables the "Editar" button when both editPaymentData and editScholarshipProfile are false', async () => {

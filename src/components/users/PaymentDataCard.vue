@@ -83,13 +83,23 @@
     <template v-else-if="paymentData">
       <v-row dense>
         <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Banco</div>
-          <div class="font-weight-medium">{{ paymentData.bank_name }}</div>
+          <div class="text-caption text-medium-emphasis mb-1">Medio de pago</div>
+          <div class="font-weight-medium">{{ isCheque ? 'Cheque' : 'Transferencia' }}</div>
         </v-col>
-        <v-col cols="12" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Número de cuenta / CLABE</div>
-          <div class="font-weight-medium">{{ paymentData.account_number }}</div>
+        <v-col v-if="isCheque" cols="12" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">A nombre de</div>
+          <div class="font-weight-medium">{{ paymentData.cheque_beneficiary || 'A nombre del becario' }}</div>
         </v-col>
+        <template v-else>
+          <v-col cols="12" sm="6">
+            <div class="text-caption text-medium-emphasis mb-1">Banco</div>
+            <div class="font-weight-medium">{{ paymentData.bank_name ?? 'N/A' }}</div>
+          </v-col>
+          <v-col cols="12" sm="6">
+            <div class="text-caption text-medium-emphasis mb-1">Número de cuenta / CLABE</div>
+            <div class="font-weight-medium">{{ paymentData.account_number ?? 'N/A' }}</div>
+          </v-col>
+        </template>
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">CURP</div>
           <div class="font-weight-medium">{{ paymentData.curp }}</div>
@@ -154,6 +164,7 @@ const paymentData = ref<PaymentData | null>(null)
 const loadingProfileConfig = ref(false)
 const profileConfig = ref<ScholarshipProfileConfig | null>(null)
 const dialogOpen = ref(false)
+const isCheque = computed(() => paymentData.value?.payment_method === 'CHEQUE')
 
 // Label map (design's Interfaces/Contracts section, sdd/scholarship-telmex-iu-split):
 // both panels render the raw scholarship_type value today, so without this

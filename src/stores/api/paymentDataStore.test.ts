@@ -26,6 +26,8 @@ const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => 
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
+  payment_method: 'TRANSFER',
+  cheque_beneficiary: null,
   ...overrides,
 })
 
@@ -34,6 +36,8 @@ const buildForm = (overrides: Partial<PaymentDataForm> = {}): PaymentDataForm =>
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
+  payment_method: 'TRANSFER',
+  cheque_beneficiary: null,
   ...overrides,
 })
 
@@ -142,6 +146,65 @@ describe('paymentDataStore', () => {
 
       expect(mockAxiosPost).toHaveBeenCalledTimes(1)
       expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/9', buildForm({ bank_name: 'Santander' }))
+    })
+
+    describe('payment method payload', () => {
+      it('sends payment_method and a null cheque_beneficiary for TRANSFER', async () => {
+        mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data: buildPaymentData() } })
+
+        const store = usePaymentDataStore()
+        await store.savePaymentData(5, buildForm({ cheque_beneficiary: 'Maria Lopez' }))
+
+        expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payment-data', {
+          user_id: 5,
+          bank_name: 'BBVA',
+          account_number: '012180001234567895',
+          curp: 'AAAA000101HDFRRR01',
+          rfc: 'AAAA000101AAA',
+          payment_method: 'TRANSFER',
+          cheque_beneficiary: null,
+        })
+      })
+
+      it('sends CHEQUE with the beneficiary and null bank fields', async () => {
+        mockAxiosPost.mockResolvedValueOnce({
+          data: { res: true, data: buildPaymentData({ payment_method: 'CHEQUE', bank_name: null, account_number: null }) },
+        })
+
+        const store = usePaymentDataStore()
+        await store.savePaymentData(
+          5,
+          buildForm({ payment_method: 'CHEQUE', cheque_beneficiary: 'Maria Lopez', bank_name: 'BBVA', account_number: '123' }),
+        )
+
+        expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payment-data', {
+          user_id: 5,
+          bank_name: null,
+          account_number: null,
+          curp: 'AAAA000101HDFRRR01',
+          rfc: 'AAAA000101AAA',
+          payment_method: 'CHEQUE',
+          cheque_beneficiary: 'Maria Lopez',
+        })
+      })
+
+      it('PUTs CHEQUE data with null bank fields too', async () => {
+        mockAxiosGet.mockResolvedValueOnce({ data: { res: true, data: buildPaymentData() } })
+        mockAxiosPut.mockResolvedValueOnce({ data: { res: true, data: buildPaymentData({ payment_method: 'CHEQUE' }) } })
+
+        const store = usePaymentDataStore()
+        await store.fetchPaymentData(5)
+        await store.savePaymentData(5, buildForm({ payment_method: 'CHEQUE', cheque_beneficiary: null }))
+
+        expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/5', {
+          bank_name: null,
+          account_number: null,
+          curp: 'AAAA000101HDFRRR01',
+          rfc: 'AAAA000101AAA',
+          payment_method: 'CHEQUE',
+          cheque_beneficiary: null,
+        })
+      })
     })
   })
 })

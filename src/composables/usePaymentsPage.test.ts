@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -7,6 +8,7 @@ import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
 import type { DownloadExportResult } from '@/stores/api/paymentsStore'
 import { useAuthStore } from '@/stores/api/authStore'
+import { useAlertStore } from '@/stores/alert'
 import type { ExportSummary, InvalidBankRow, PaymentBatchRow, PaymentBatchSummary } from '@/interfaces/payment'
 
 // `onBeforeMount`/`watch` inside a plain composable only register against a
@@ -524,6 +526,183 @@ describe('usePaymentsPage', () => {
       expect(result.visibleRows.value).toEqual([resolvedRow])
       expect(result.canProcess.value).toBe(true)
       expect(result.summary.value?.blocking).toBe(0)
+    })
+  })
+
+  // pago-cheque PR6: the server keeps rows/summary TRANSFER-only and sends
+  // cheques separately, so canProcess must ignore cheque state entirely.
+  describe('cheque batch state (pago-cheque)', () => {
+    const chequeFields = {
+      payment_method: 'CHEQUE' as const,
+      paid_payment_method: null,
+      cheque_number: null,
+      cheque_delivered_at: null,
+      cheque_notes: null,
+      cheque_beneficiary: null,
+    }
+    const chequeSummary = { total: 1, ready: 1, paid: 0, blocking: 1, ready_amount: '500.00', paid_amount: '0.00' }
+    const paymentData = {
+      refrend_id: 7,
+      status: 'PAID',
+      workflow_status: 'CLOSED',
+      paid_payment_method: 'CHEQUE' as const,
+      cheque_number: '000123',
+      cheque_delivered_at: '2026-10-20',
+      cheque_notes: null,
+      locked_at: '2026-10-20T10:00:00Z',
+    }
+
+    // Store actions are destructured at composable setup, so any spy on them
+    // must be installed BEFORE the composable mounts (via `arrange`).
+    const setupLoaded = async (arrange: (store: ReturnType<typeof usePaymentsStore>) => void = () => {}) => {
+      const paymentsStore = usePaymentsStore()
+      arrange(paymentsStore)
+      const fetchBatchSpy = vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
+        paymentsStore.rows = [buildRow()]
+        paymentsStore.summary = buildSummary({ total: 1, ready: 1, blocking: 0 })
+        paymentsStore.chequeRows = [{ ...buildRow({ refrend_id: 7 }), ...chequeFields }]
+        paymentsStore.chequeSummary = chequeSummary
+        return true
+      })
+      const result = withSetup(() => usePaymentsPage())
+      result.campus.value = 'MERIDA'
+      result.periodYear.value = 2026
+      result.periodMonth.value = 9
+      result.batchType.value = 'NORMAL'
+      await flushPromises()
+      return { paymentsStore, fetchBatchSpy, result }
+    }
+
+    it('exposes chequeRows/chequeSummary and keeps canProcess true with a blocking cheque summary', async () => {
+      const { result } = await setupLoaded()
+
+      expect(result.chequeRows.value).toHaveLength(1)
+      expect(result.chequeSummary.value).toEqual(chequeSummary)
+      expect(result.rows.value.length).toBe(result.summary.value?.total)
+      expect(result.canProcess.value).toBe(true)
+    })
+
+    it('markCheque reloads the batch and shows a success alert on success', async () => {
+      let markSpy!: MockInstance
+      const { fetchBatchSpy, result } = await setupLoaded((store) => {
+        markSpy = vi.spyOn(store, 'markChequePaid').mockResolvedValue({ status: 'success', data: paymentData })
+      })
+      const calls = fetchBatchSpy.mock.calls.length
+
+      const outcome = await result.markCheque(7, { cheque_number: '000123' })
+      await flushPromises()
+
+      expect(markSpy).toHaveBeenCalledWith(7, { cheque_number: '000123' })
+      expect(outcome.status).toBe('success')
+      expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
+      expect(useAlertStore().config.status).toBe('success')
+    })
+
+    it.each([['already_paid'], ['not_cheque']] as const)(
+      'markCheque reloads and alerts the server msg on %s',
+      async (status) => {
+        const { fetchBatchSpy, result } = await setupLoaded((store) => {
+          vi.spyOn(store, 'markChequePaid').mockResolvedValue({ status, msg: 'Server says no' })
+        })
+        const calls = fetchBatchSpy.mock.calls.length
+
+        await result.markCheque(7, { cheque_number: '1' })
+        await flushPromises()
+
+        expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
+        expect(useAlertStore().config).toEqual({ title: 'Server says no', status: 'error' })
+      },
+    )
+
+    it('markCheque alerts but does not reload on cheque_number_taken', async () => {
+      const { fetchBatchSpy, result } = await setupLoaded((store) => {
+        vi.spyOn(store, 'markChequePaid').mockResolvedValue({
+          status: 'cheque_number_taken',
+          msg: 'Ese número de cheque ya fue registrado.',
+        })
+      })
+      const calls = fetchBatchSpy.mock.calls.length
+
+      const outcome = await result.markCheque(7, { cheque_number: '1' })
+      await flushPromises()
+
+      expect(outcome.status).toBe('cheque_number_taken')
+      expect(fetchBatchSpy.mock.calls.length).toBe(calls)
+      expect(useAlertStore().config.title).toBe('Ese número de cheque ya fue registrado.')
+    })
+
+    it('markCheque falls back to a generic alert when the server sent no msg', async () => {
+      const { result } = await setupLoaded((store) => {
+        vi.spyOn(store, 'markChequePaid').mockResolvedValue({ status: 'error', msg: null })
+      })
+
+      await result.markCheque(7, { cheque_number: '1' })
+      await flushPromises()
+
+      expect(useAlertStore().config.status).toBe('error')
+      expect(useAlertStore().config.title).not.toBe('')
+    })
+
+    it('revertCheque reloads and shows a success alert on success', async () => {
+      let revertSpy!: MockInstance
+      const { fetchBatchSpy, result } = await setupLoaded((store) => {
+        revertSpy = vi.spyOn(store, 'revertChequePayment').mockResolvedValue({ status: 'success', data: { ...paymentData, status: 'AUTHORIZED' } })
+      })
+      const calls = fetchBatchSpy.mock.calls.length
+
+      await result.revertCheque(7, 'Cheque devuelto por el banco')
+      await flushPromises()
+
+      expect(revertSpy).toHaveBeenCalledWith(7, 'Cheque devuelto por el banco')
+      expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
+      expect(useAlertStore().config.status).toBe('success')
+    })
+
+    it.each([['cycle_closed'], ['telmex_repayment_exists'], ['not_cheque']] as const)(
+      'revertCheque reloads and alerts the server msg on %s',
+      async (status) => {
+        const { fetchBatchSpy, result } = await setupLoaded((store) => {
+          vi.spyOn(store, 'revertChequePayment').mockResolvedValue({ status, msg: 'Server says no' })
+        })
+        const calls = fetchBatchSpy.mock.calls.length
+
+        await result.revertCheque(7, 'Motivo suficientemente largo')
+        await flushPromises()
+
+        expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
+        expect(useAlertStore().config).toEqual({ title: 'Server says no', status: 'error' })
+      },
+    )
+
+    it('confirmProcess alerts the server msg on empty_batch and does not reload', async () => {
+      const { fetchBatchSpy, result } = await setupLoaded((store) => {
+        vi.spyOn(store, 'processBatch').mockResolvedValue({
+          status: 'empty_batch',
+          msg: 'No hay becarios con pago por transferencia en este lote.',
+        })
+      })
+      const calls = fetchBatchSpy.mock.calls.length
+
+      const outcome = await result.confirmProcess()
+      await flushPromises()
+
+      expect(outcome?.status).toBe('empty_batch')
+      expect(fetchBatchSpy.mock.calls.length).toBe(calls)
+      expect(useAlertStore().config).toEqual({
+        title: 'No hay becarios con pago por transferencia en este lote.',
+        status: 'error',
+      })
+    })
+
+    it('confirmProcess falls back to a clear empty-batch text when the server sent no msg', async () => {
+      const { result } = await setupLoaded((store) => {
+        vi.spyOn(store, 'processBatch').mockResolvedValue({ status: 'empty_batch', msg: null })
+      })
+
+      await result.confirmProcess()
+      await flushPromises()
+
+      expect(useAlertStore().config.title).toBe('No hay becarios con pago por transferencia en este lote.')
     })
   })
 })

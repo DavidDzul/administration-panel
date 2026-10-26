@@ -706,4 +706,269 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).toContain('Número de cuenta inválido: debe ser numérico de 9 o 10 dígitos')
     })
   })
+
+  // pago-cheque PR7: cheque section + dialogs wired to the composable.
+  describe('cheque payments', () => {
+    const transferSummary = {
+      total: 1,
+      ready: 1,
+      blocking: 0,
+      beca_amount: '1000.00',
+      apoyo_amount: '0.00',
+      pago_iu_amount: '0.00',
+      total_amount: '1000.00',
+      difference_amount: '0.00',
+    }
+    const emptySummary = { ...transferSummary, total: 0, ready: 0, total_amount: '0.00', beca_amount: '0.00' }
+    const chequeSummary = { total: 2, ready: 1, paid: 1, blocking: 0, ready_amount: '1500.00', paid_amount: '800.00' }
+
+    const chequeRow = (overrides: Record<string, unknown> = {}) =>
+      buildRow({
+        refrend_id: 10,
+        snapshot_name: 'Grace Hopper',
+        total_to_pay: '1500.00',
+        payment_method: 'CHEQUE',
+        paid_payment_method: null,
+        cheque_number: null,
+        cheque_delivered_at: null,
+        cheque_notes: null,
+        cheque_beneficiary: null,
+        ...overrides,
+      } as Partial<PaymentBatchRow>)
+
+    const paidChequeRow = () =>
+      chequeRow({
+        refrend_id: 11,
+        snapshot_name: 'Alan Turing',
+        status: 'PAID',
+        is_payable: false,
+        paid_payment_method: 'CHEQUE',
+        cheque_number: 'CH-77',
+        cheque_delivered_at: '2026-10-05',
+      })
+
+    const mockWithCheques = (
+      chequeRows: PaymentBatchRow[],
+      options: { rows?: PaymentBatchRow[]; summary?: Record<string, unknown>; batch?: Record<string, unknown> } = {},
+    ): void => {
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: {
+                rows: options.rows ?? [buildRow()],
+                summary: options.summary ?? transferSummary,
+                batch: options.batch ?? { batch_id: null, is_paid: false },
+                cheque_rows: chequeRows,
+                cheque_summary: chequeSummary,
+              },
+            },
+          })
+        }
+        if (url.includes('/export/summary')) {
+          return Promise.resolve({
+            data: { res: true, data: { count: 1, total_amount: '1000.00', filename: 'X.TXT' } },
+          })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+    }
+
+    const apiError = (status: number, data: Record<string, unknown>) => ({ response: { status, data } })
+
+    const buttonByText = (wrapper: ReturnType<typeof mountView>, text: string) =>
+      wrapper.findAllComponents(VBtn).find((b) => b.text() === text)
+
+    const dialogButton = (text: string) =>
+      body()
+        .findAll('button')
+        .find((b) => b.text() === text)
+
+    const openMarkDialog = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
+      await buttonByText(wrapper, 'Marcar como pagado')?.trigger('click')
+      await flushPromises()
+    }
+
+    const fillChequeNumber = async (wrapper: ReturnType<typeof mountView>, value: string): Promise<void> => {
+      const input = wrapper
+        .findAllComponents({ name: 'VTextField' })
+        .find((f) => String(f.props('label')).startsWith('Número de cheque'))
+      await input?.setValue(value)
+    }
+
+    const markDialogOpen = (wrapper: ReturnType<typeof mountView>): boolean =>
+      wrapper.findComponent({ name: 'ChequePaymentDialog' }).props('modelValue') as boolean
+
+    const revertDialogOpen = (wrapper: ReturnType<typeof mountView>): boolean =>
+      wrapper.findComponent({ name: 'RevertChequePaymentDialog' }).props('modelValue') as boolean
+
+    const submitMark = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
+      await openMarkDialog(wrapper)
+      await fillChequeNumber(wrapper, 'CH-100')
+      await dialogButton('Registrar pago')?.trigger('click')
+      await flushPromises()
+    }
+
+    const submitRevert = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
+      await buttonByText(wrapper, 'Revertir')?.trigger('click')
+      await flushPromises()
+      const reason = wrapper.findAllComponents({ name: 'VTextarea' }).find((f) => f.props('label') === 'Motivo *')
+      await reason?.setValue('Cheque emitido por error')
+      await dialogButton('Revertir pago')?.trigger('click')
+      await flushPromises()
+    }
+
+    const mounted = async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+      return wrapper
+    }
+
+    it('does not render the cheque section when there are no cheque rows', async () => {
+      mockWithCheques([])
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(false)
+    })
+
+    it('renders the cheque section below the transfer table for an unpaid batch', async () => {
+      mockWithCheques([chequeRow()])
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Grace Hopper')
+    })
+
+    it('renders the cheque section when the transfer batch is already paid', async () => {
+      mockWithCheques([chequeRow()], { batch: { batch_id: 42, is_paid: true } })
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
+    })
+
+    it('shows a transfer-less message and hides "Pagar todos" when the batch only has cheques', async () => {
+      mockWithCheques([chequeRow()], { rows: [], summary: emptySummary })
+      const wrapper = await mounted()
+      expect(wrapper.text()).toContain('No hay becarios con pago por transferencia en este lote.')
+      expect(buttonByText(wrapper, 'Pagar todos')).toBeUndefined()
+      expect(wrapper.text()).not.toContain('No hay becarios en este lote')
+      expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
+    })
+
+    it('does not show the transfer-less message when there are transfer rows', async () => {
+      mockWithCheques([chequeRow()])
+      const wrapper = await mounted()
+      expect(wrapper.text()).not.toContain('No hay becarios con pago por transferencia en este lote.')
+    })
+
+    it('hides cheque actions without ADM_PROCESS_PAYMENTS', async () => {
+      grantPermissions(false)
+      mockWithCheques([chequeRow(), paidChequeRow()])
+      const wrapper = await mounted()
+      expect(buttonByText(wrapper, 'Marcar como pagado')).toBeUndefined()
+      expect(buttonByText(wrapper, 'Revertir')).toBeUndefined()
+    })
+
+    it('opens the register dialog with the selected row', async () => {
+      mockWithCheques([chequeRow()])
+      const wrapper = await mounted()
+      await openMarkDialog(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(true)
+      expect(body().text()).toContain('Registrar pago con cheque')
+    })
+
+    it('posts the mark payload, closes the dialog and reloads on success', async () => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockResolvedValue({ data: { res: true, data: { refrend_id: 10 } } })
+      const wrapper = await mounted()
+      const getsBefore = mockAxiosGet.mock.calls.length
+      await submitMark(wrapper)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'api/admin/scholarship-payments/10/cheque-payment',
+        expect.objectContaining({ cheque_number: 'CH-100' }),
+      )
+      expect(markDialogOpen(wrapper)).toBe(false)
+      expect(mockAxiosGet.mock.calls.length).toBeGreaterThan(getsBefore)
+    })
+
+    it.each([
+      ['already_paid', 409, 'ALREADY_PAID'],
+      ['cycle_closed', 409, 'CYCLE_CLOSED'],
+      ['telmex_repayment_exists', 409, 'TELMEX_REPAYMENT_EXISTS'],
+      ['not_cheque', 422, 'NOT_CHEQUE_METHOD'],
+    ])('closes the register dialog on %s', async (_name, status, code) => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockRejectedValue(apiError(status, { res: false, msg: 'Mensaje del servidor', code }))
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(false)
+    })
+
+    it('keeps the register dialog open and shows the taken-number error inline', async () => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, { res: false, msg: 'Ese número de cheque ya fue registrado.', code: 'CHEQUE_NUMBER_TAKEN' }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(true)
+      expect(body().text()).toContain('Ese número de cheque ya fue registrado.')
+    })
+
+    it('keeps the register dialog open and shows validation errors inline', async () => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, { message: 'invalid', errors: { cheque_notes: ['Las notas son demasiado largas'] } }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(true)
+      expect(body().text()).toContain('Las notas son demasiado largas')
+    })
+
+    it.each([
+      ['not_payable', 422, 'NOT_PAYABLE'],
+      ['error', 500, 'SERVER_ERROR'],
+    ])('keeps the register dialog open on %s', async (_name, status, code) => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(status, { res: false, msg: 'Mensaje del servidor', code, data: { reasons: [] } }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(true)
+    })
+
+    it('posts the revert reason and closes the dialog on success', async () => {
+      mockWithCheques([paidChequeRow()])
+      mockAxiosPost.mockResolvedValue({ data: { res: true, data: { refrend_id: 11 } } })
+      const wrapper = await mounted()
+      await submitRevert(wrapper)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/11/cheque-payment/revert', {
+        reason: 'Cheque emitido por error',
+      })
+      expect(revertDialogOpen(wrapper)).toBe(false)
+    })
+
+    it.each([
+      ['cycle_closed', 409, 'CYCLE_CLOSED'],
+      ['telmex_repayment_exists', 409, 'TELMEX_REPAYMENT_EXISTS'],
+      ['not_cheque', 422, 'NOT_CHEQUE_PAID'],
+    ])('closes the revert dialog on %s', async (_name, status, code) => {
+      mockWithCheques([paidChequeRow()])
+      mockAxiosPost.mockRejectedValue(apiError(status, { res: false, msg: 'Mensaje del servidor', code }))
+      const wrapper = await mounted()
+      await submitRevert(wrapper)
+      expect(revertDialogOpen(wrapper)).toBe(false)
+    })
+
+    it('keeps the revert dialog open on a generic error', async () => {
+      mockWithCheques([paidChequeRow()])
+      mockAxiosPost.mockRejectedValue(apiError(422, { res: false, msg: 'Falta el registro', code: 'CHEQUE_LOG_MISSING' }))
+      const wrapper = await mounted()
+      await submitRevert(wrapper)
+      expect(revertDialogOpen(wrapper)).toBe(true)
+    })
+  })
 })

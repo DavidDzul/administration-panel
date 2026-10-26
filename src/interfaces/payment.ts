@@ -1,3 +1,5 @@
+import type { PaymentMethod } from '@/interfaces/paymentData'
+
 // Matches PaymentReadinessEvaluator/PaymentBatchService's PaymentBatchRow
 // shape (design's "one shared row shape" interface, verified against
 // ScholarshipPaymentController@index/process directly) — server-owned copy,
@@ -236,6 +238,48 @@ export interface BatchKey {
   period_year: number
   period_month: number
   batch_type: PaymentBatchType
+}
+
+// pago-cheque: cheque_rows share the transfer row shape plus these fields
+// (verified against the final API contract). `payment_method` is the
+// EFFECTIVE method; `paid_payment_method` is the snapshot set once paid.
+export interface ChequeRowFields {
+  payment_method: PaymentMethod
+  paid_payment_method: PaymentMethod | null
+  cheque_number: string | null
+  cheque_delivered_at: string | null
+  cheque_notes: string | null
+  cheque_beneficiary: string | null
+}
+
+export type ChequeRow = PaymentBatchRow & ChequeRowFields
+
+export interface ChequeSummary {
+  total: number
+  ready: number
+  paid: number
+  blocking: number
+  ready_amount: string
+  paid_amount: string
+}
+
+export interface MarkChequePayload {
+  cheque_number: string
+  cheque_delivered_at?: string
+  cheque_notes?: string
+}
+
+// 200 body of both cheque-payment and cheque-payment/revert (after revert the
+// status is AUTHORIZED|WITHHELD and every cheque field/locked_at is null).
+export interface ChequePaymentData {
+  refrend_id: number
+  status: string
+  workflow_status: string
+  paid_payment_method: PaymentMethod | null
+  cheque_number: string | null
+  cheque_delivered_at: string | null
+  cheque_notes: string | null
+  locked_at: string | null
 }
 
 // Matches ScholarshipPaymentController::index()'s new `data.batch` block

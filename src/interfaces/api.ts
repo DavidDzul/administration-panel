@@ -18,6 +18,8 @@ import type {
   GenerationPaymentSummary,
   GenerationSummaryGeneration,
   PaymentBatchBlock,
+  ChequeRow,
+  ChequeSummary,
   PaymentBatchRow,
   PaymentBatchSummary,
   PaymentBatchType,
@@ -142,6 +144,10 @@ export interface PaymentBatchIndexResponse {
   data: {
     rows: PaymentBatchRow[]
     summary: PaymentBatchSummary
+    // pago-cheque: rows/summary are TRANSFER-only; cheques come separately.
+    // Optional so older server builds (and fixtures) keep type-checking.
+    cheque_rows?: ChequeRow[]
+    cheque_summary?: ChequeSummary
     batch: PaymentBatchBlock
     // Echoes the resolved batch_type (sdd/pagos-lote-pago-adelantado,
     // amendment #1942) — always present since index() now requires
