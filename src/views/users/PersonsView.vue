@@ -27,6 +27,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { usePersonsStore } from '@/stores/api/personsStore'
 import { usePersonsPage } from '@/composables/usePersonsPage'
 import { useAuthStore } from '@/stores/api/authStore'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
@@ -37,6 +38,7 @@ import type { Person } from '@/interfaces/user'
 
 const { persons, generations, filteredCampus, loadingTable, loadError } = usePersonsPage()
 const { editPaymentData } = storeToRefs(useAuthStore())
+const { markAmountsConfigured } = usePersonsStore()
 
 const links: LinkInterface[] = [
   { title: 'Inicio', disabled: false, href: '/' },
@@ -45,9 +47,10 @@ const links: LinkInterface[] = [
 
 // D7 (sdd/becarios-payment-config): hosts the SAME PaymentDataDialog used by
 // PaymentDataCard on /becarios/:id — one dialog, two entry points. The table
-// itself never shows payment data, so there is nothing in `persons` to
-// refresh after a save; the dialog's own `savePaymentData` call + alert is
-// the only side effect needed here.
+// itself never shows payment data, but it does show the "Montos pendientes"
+// chip (amounts_configured). When the dialog also saved the scholarship
+// config, the API stamped config_set_at, so we patch that person locally
+// instead of refetching the whole list.
 const editDialogOpen = ref(false)
 const editingPerson = ref<Person | null>(null)
 
@@ -56,7 +59,10 @@ const onEdit = (person: Person): void => {
   editDialogOpen.value = true
 }
 
-const onSaved = (): void => {
+const onSaved = (payload?: { configSaved: boolean }): void => {
+  if (payload?.configSaved && editingPerson.value) {
+    markAmountsConfigured(editingPerson.value.id)
+  }
   editDialogOpen.value = false
 }
 </script>

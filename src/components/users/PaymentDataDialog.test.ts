@@ -436,6 +436,26 @@ describe('PaymentDataDialog', () => {
       expect(saveConfigSpy).not.toHaveBeenCalled()
       expect(paymentDataStore.savePaymentData).toHaveBeenCalled()
       expect(wrapper.emitted('saved')).toHaveLength(1)
+      expect(wrapper.emitted('saved')?.[0]).toEqual([{ configSaved: false }])
+    })
+
+    it('emits saved with configSaved true when the scholarship config was saved', async () => {
+      const authStore = useAuthStore()
+      authStore.permissions = ['ADM_EDIT_SCHOLARSHIP_PROFILE']
+      const { wrapper, scholarshipProfileStore, paymentDataStore } = await openWithConfig(buildProfileConfig())
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+      vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig())
+
+      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+      await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
+      await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
+
+      await submitForm()
+      await flushPromises()
+
+      expect(wrapper.emitted('saved')?.[0]).toEqual([{ configSaved: true }])
     })
 
     it('reports the config save error independently without masking a successful bank-data save', async () => {
