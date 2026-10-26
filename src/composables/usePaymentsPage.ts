@@ -7,6 +7,7 @@ import { useAlertStore } from '@/stores/alert'
 import type {
   BatchKey,
   ExportSummary,
+  ChequeRow,
   InvalidBankRow,
   MarkChequePayload,
   PaymentBatchRow,
@@ -59,7 +60,10 @@ export function usePaymentsPage() {
   // `summary` (the full-batch server aggregate), never from `visibleRows` —
   // hiding rows here must never mask a still-blocking row from the
   // all-or-nothing "Pagar todos" gate.
-  const showOnlyPending = ref<boolean>(false)
+  // ON by default: a batch opens showing only what needs a second look; the
+  // reviewer turns it off to see everyone. It applies to BOTH the transfer
+  // and the cheque tables.
+  const showOnlyPending = ref<boolean>(true)
 
   // sdd/resolution-status-visibility: a non-null resolution_type joins the
   // same "pendiente de revisar" class as has_incident. Same isolation
@@ -72,6 +76,12 @@ export function usePaymentsPage() {
 
   const visibleRows = computed<PaymentBatchRow[]>(() =>
     showOnlyPending.value ? rows.value.filter(isPendingReview) : rows.value,
+  )
+
+  // Same rule for the cheque table. `chequeRows`/`chequeSummary` stay the full
+  // data (summary cards and generación group headers never follow the filter).
+  const visibleChequeRows = computed<ChequeRow[]>(() =>
+    showOnlyPending.value ? chequeRows.value.filter(isPendingReview) : chequeRows.value,
   )
 
   const filtersComplete = computed<boolean>(
@@ -244,6 +254,7 @@ export function usePaymentsPage() {
     showOnlyPending,
     summary,
     chequeRows,
+    visibleChequeRows,
     chequeSummary,
     savingCheque,
     markCheque,

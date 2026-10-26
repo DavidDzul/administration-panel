@@ -92,6 +92,10 @@
       {{ maskAccountNumber(item.account_number) }}
     </template>
 
+    <template #[`item.beneficiary`]="{ item }">
+      {{ asCheque(item).cheque_beneficiary || 'Becario' }}
+    </template>
+
     <template #[`item.flags`]="{ item }">
       <div class="py-2">
         <v-chip
@@ -236,19 +240,57 @@
     </template>
 
     <template #[`item.status`]="{ item }">
-      <v-chip :color="item.is_payable ? 'success' : 'error'" size="small" variant="tonal">
+      <v-chip v-if="isChequePaid(item)" color="success" size="small" variant="tonal">Pagado (cheque)</v-chip>
+      <v-chip v-else :color="item.is_payable ? 'success' : 'error'" size="small" variant="tonal">
         {{ item.is_payable ? 'Listo' : 'Bloqueado' }}
       </v-chip>
     </template>
 
     <template #[`item.reason`]="{ item }">
-      <span v-if="!item.is_payable" class="text-caption" :class="isOnlyAlreadyPaid(item) ? 'text-medium-emphasis' : 'text-error'">
+      <span v-if="!item.is_payable && !isChequePaid(item)" class="text-caption" :class="isOnlyAlreadyPaid(item) ? 'text-medium-emphasis' : 'text-error'">
         {{ item.blocking_reasons.map((reason) => reason.message).join(', ') }}
       </span>
       <span v-else>—</span>
     </template>
 
-    <template #no-data>No hay becarios en este lote</template>
+    <template #[`item.cheque`]="{ item }">
+      <template v-if="isChequePaid(item)">
+        <v-tooltip v-if="asCheque(item).cheque_notes" :text="asCheque(item).cheque_notes ?? ''">
+          <template #activator="{ props: tooltipProps }">
+            <span v-bind="tooltipProps" data-testid="cheque-info">{{ chequeInfo(item) }}</span>
+          </template>
+        </v-tooltip>
+        <span v-else data-testid="cheque-info">{{ chequeInfo(item) }}</span>
+      </template>
+      <span v-else>—</span>
+    </template>
+
+    <template #[`item.actions`]="{ item }">
+      <template v-if="canManage">
+        <v-btn
+          v-if="isChequePaid(item)"
+          size="small"
+          variant="text"
+          color="error"
+          :aria-label="`Revertir pago con cheque de ${item.snapshot_name}`"
+          @click="emit('revert', sourceRow(item))"
+        >
+          Revertir
+        </v-btn>
+        <v-btn
+          v-else-if="item.is_payable"
+          size="small"
+          variant="text"
+          color="primary"
+          :aria-label="`Marcar como pagado con cheque a ${item.snapshot_name}`"
+          @click="emit('mark', sourceRow(item))"
+        >
+          Marcar como pagado
+        </v-btn>
+      </template>
+    </template>
+
+    <template #no-data>{{ emptyText }}</template>
 
     <template #bottom></template>
   </v-data-table>
@@ -296,6 +338,7 @@
 // Estado/Motivo end-of-row indexing used throughout this file's tests
 // stays unaffected.
 import { computed } from 'vue'
+import { formatChequeDate } from '@/utils/chequeFormat'
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
 import {
@@ -318,7 +361,7 @@ import {
   telmexCoverageAmount,
 } from '@/utils/paymentBreakdownMeta'
 import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
-import type { PaymentBatchRow } from '@/interfaces/payment'
+import type { ChequeRow, PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
   rows?: PaymentBatchRow[]
@@ -329,17 +372,31 @@ interface Props {
   groupSourceRows?: PaymentBatchRow[]
   isPaid?: boolean
   loading?: boolean
+  // 'cheque' (pago-cheque follow-up): same columns/chips/"Ver" as transfers,
+  // but "Cuenta" becomes "A nombre de" and Cheque/Acciones columns are added.
+  // Default 'transfer' keeps the original output untouched.
+  mode?: 'transfer' | 'cheque'
+  // Gates the mark/revert buttons (cheque mode only).
+  canManage?: boolean
+  // Shown when there are no rows to render. The parent overrides it when the
+  // "Solo pendientes de revisar" filter is what emptied the table.
+  emptyText?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  emptyText: 'No hay becarios en este lote',
   rows: () => [],
   groupSourceRows: () => [],
   isPaid: false,
   loading: false,
+  mode: 'transfer',
+  canManage: false,
 })
 
 interface Emits {
   (e: 'view', refrendId: number): void
+  (e: 'mark', row: ChequeRow): void
+  (e: 'revert', row: ChequeRow): void
 }
 
 const emit = defineEmits<Emits>()
@@ -348,7 +405,7 @@ const emit = defineEmits<Emits>()
 // (spec) — only its title changed from the old bare "Monto" now that it
 // sits alongside five other money columns (Beca/Apoyo/Pago IU/
 // Base/Final) instead of being the only one.
-const headers = [
+const baseHeaders = [
   // Declared explicitly (title '') so Vuetify doesn't auto-prepend its own
   // "Group" column header once group-by is active.
   { title: '', key: 'data-table-group' },
@@ -366,6 +423,33 @@ const headers = [
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },
 ]
+
+const headers = computed(() => {
+  if (props.mode !== 'cheque') return baseHeaders
+  const chequeHeaders = baseHeaders.map((header) =>
+    header.key === 'account_number' ? { ...header, title: 'A nombre de', key: 'beneficiary' } : header,
+  )
+  return [
+    ...chequeHeaders,
+    { title: 'Cheque', key: 'cheque' },
+    { title: 'Acciones', key: 'actions', align: 'end' as const },
+  ]
+})
+
+// Cheque-mode rows are ChequeRow (the server adds the cheque fields); the
+// table is typed on the common PaymentBatchRow so transfer callers are
+// unaffected. A row counts as paid by cheque only in cheque mode with the
+// server status PAID.
+const asCheque = (row: PaymentBatchRow): ChequeRow => row as ChequeRow
+// Grouped items carry an extra `generation_group` key; emit the caller's
+// original row object instead so listeners receive exactly what they passed.
+const sourceRow = (item: PaymentBatchRow): ChequeRow =>
+  asCheque(props.rows.find((row) => row.refrend_id === item.refrend_id) ?? item)
+const isChequePaid = (row: PaymentBatchRow): boolean => props.mode === 'cheque' && row.status === 'PAID'
+const chequeInfo = (row: PaymentBatchRow): string => {
+  const cheque = asCheque(row)
+  return `${cheque.cheque_number} · ${formatChequeDate(cheque.cheque_delivered_at)}`
+}
 
 // Rows grouped by generación (spec "Rows grouped by generación with paid/
 // unpaid header", design D1/D3) — `toGroupedItems` maps each row to a
