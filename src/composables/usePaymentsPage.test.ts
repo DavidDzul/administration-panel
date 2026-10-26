@@ -458,11 +458,22 @@ describe('usePaymentsPage', () => {
       return result
     }
 
-    it('defaults showOnlyPending to false and visibleRows equals rows', async () => {
+    it('defaults showOnlyPending to true so only rows pending review are visible', async () => {
+      const readyRow = buildRow({ refrend_id: 1 })
+      const blockedRow = buildRow({ refrend_id: 2, is_payable: false })
+      const result = await loadRows([readyRow, blockedRow])
+
+      expect(result.showOnlyPending.value).toBe(true)
+      expect(result.visibleRows.value).toEqual([blockedRow])
+    })
+
+    it('shows every row once showOnlyPending is turned off', async () => {
       const rows = [buildRow({ refrend_id: 1 }), buildRow({ refrend_id: 2, is_payable: false })]
       const result = await loadRows(rows)
 
-      expect(result.showOnlyPending.value).toBe(false)
+      result.showOnlyPending.value = false
+      await flushPromises()
+
       expect(result.visibleRows.value).toEqual(rows)
     })
 
@@ -580,6 +591,24 @@ describe('usePaymentsPage', () => {
       expect(result.chequeSummary.value).toEqual(chequeSummary)
       expect(result.rows.value.length).toBe(result.summary.value?.total)
       expect(result.canProcess.value).toBe(true)
+    })
+
+    it('filters visibleChequeRows by the same pending-review rule, keeping the full chequeRows and chequeSummary', async () => {
+      const readyCheque = { ...buildRow({ refrend_id: 20 }), ...chequeFields }
+      const blockedCheque = { ...buildRow({ refrend_id: 21, is_payable: false }), ...chequeFields }
+      const incidentCheque = { ...buildRow({ refrend_id: 22, has_incident: true }), ...chequeFields }
+      const { paymentsStore, result } = await setupLoaded()
+      paymentsStore.chequeRows = [readyCheque, blockedCheque, incidentCheque]
+
+      expect(result.showOnlyPending.value).toBe(true)
+      expect(result.visibleChequeRows.value).toEqual([blockedCheque, incidentCheque])
+      expect(result.chequeRows.value).toHaveLength(3)
+      expect(result.chequeSummary.value).toEqual(chequeSummary)
+
+      result.showOnlyPending.value = false
+      await flushPromises()
+
+      expect(result.visibleChequeRows.value).toEqual([readyCheque, blockedCheque, incidentCheque])
     })
 
     it('markCheque reloads the batch and shows a success alert on success', async () => {

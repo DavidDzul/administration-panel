@@ -1109,3 +1109,19 @@ describe('PaymentBatchTable cheque mode', () => {
     expect(btns(wrapper, 'Revertir')).toHaveLength(0)
   })
 })
+
+describe('PaymentBatchTable empty state', () => {
+  it('shows the default empty message when there are no rows', () => {
+    const wrapper = mountTable([])
+    expect(wrapper.text()).toContain('No hay becarios en este lote')
+  })
+
+  it('shows the custom emptyText when provided', () => {
+    const wrapper = mount(PaymentBatchTable, {
+      props: { rows: [], emptyText: 'No hay becarios pendientes de revisar.' },
+      global: { plugins: [vuetify] },
+    })
+    expect(wrapper.text()).toContain('No hay becarios pendientes de revisar.')
+    expect(wrapper.text()).not.toContain('No hay becarios en este lote')
+  })
+})

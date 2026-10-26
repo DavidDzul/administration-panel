@@ -290,7 +290,7 @@
       </template>
     </template>
 
-    <template #no-data>No hay becarios en este lote</template>
+    <template #no-data>{{ emptyText }}</template>
 
     <template #bottom></template>
   </v-data-table>
@@ -378,9 +378,13 @@ interface Props {
   mode?: 'transfer' | 'cheque'
   // Gates the mark/revert buttons (cheque mode only).
   canManage?: boolean
+  // Shown when there are no rows to render. The parent overrides it when the
+  // "Solo pendientes de revisar" filter is what emptied the table.
+  emptyText?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  emptyText: 'No hay becarios en este lote',
   rows: () => [],
   groupSourceRows: () => [],
   isPaid: false,

@@ -83,6 +83,37 @@ describe('ChequePaymentSection', () => {
     expect(wrapper.text()).not.toContain('Cheques')
   })
 
+  it('keeps rendering when the visible rows are empty but the full group source is not', () => {
+    const wrapper = mount(ChequePaymentSection, {
+      props: { rows: [], groupSourceRows: [buildRow(), paidRow], summary, canManage: true },
+      global: { plugins: [vuetify] },
+    })
+    expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Monto por emitir')
+    expect(wrapper.text()).toContain('No hay becarios en este lote')
+  })
+
+  it('forwards emptyText to the table', () => {
+    const wrapper = mount(ChequePaymentSection, {
+      props: {
+        rows: [],
+        groupSourceRows: [buildRow()],
+        summary,
+        emptyText: 'No hay becarios pendientes de revisar.',
+      },
+      global: { plugins: [vuetify] },
+    })
+    expect(wrapper.text()).toContain('No hay becarios pendientes de revisar.')
+  })
+
+  it('builds group headers from groupSourceRows, not from the visible rows', () => {
+    const wrapper = mount(ChequePaymentSection, {
+      props: { rows: [blockedRow], groupSourceRows: [buildRow(), paidRow, blockedRow], summary, canManage: true },
+      global: { plugins: [vuetify] },
+    })
+    expect(wrapper.find('[data-testid="payment-group-header"]').text()).toContain('3 becarios')
+  })
+
   it('composes heading, summary cards and the batch table in cheque mode', () => {
     const wrapper = mountSection([buildRow(), paidRow, blockedRow])
     expect(wrapper.find('[data-testid="cheque-heading"]').text()).toContain('Cheques')

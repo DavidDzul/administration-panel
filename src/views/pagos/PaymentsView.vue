@@ -39,6 +39,19 @@
       </v-col>
     </v-row>
 
+    <!-- Global filter: applies to the transfer AND the cheque table. -->
+    <v-row v-if="rows.length > 0 || chequeRows.length > 0">
+      <v-col cols="12" sm="6" md="4">
+        <v-switch
+          v-model="showOnlyPending"
+          label="Solo pendientes de revisar"
+          color="primary"
+          density="compact"
+          hide-details
+        />
+      </v-col>
+    </v-row>
+
     <v-row v-if="onlyCheques">
       <v-col cols="12">
         <v-alert type="info" variant="tonal" density="compact" data-testid="only-cheques-alert">
@@ -98,23 +111,12 @@
     />
 
     <v-row v-if="!onlyCheques">
-      <v-col cols="12" sm="6" md="4">
-        <v-switch
-          v-model="showOnlyPending"
-          label="Solo pendientes de revisar"
-          color="primary"
-          density="compact"
-          hide-details
-        />
-      </v-col>
-    </v-row>
-
-    <v-row v-if="!onlyCheques">
       <v-col cols="12">
         <PaymentBatchTable
           :rows="visibleRows"
           :group-source-rows="rows"
           :is-paid="isPaid"
+          :empty-text="emptyTextFor(rows.length)"
           @view="onViewDocument"
         />
       </v-col>
@@ -123,7 +125,9 @@
     <v-divider v-if="!onlyCheques && chequeRows.length > 0" data-testid="section-divider" class="mt-10 mb-8" />
 
     <ChequePaymentSection
-      :rows="chequeRows"
+      :rows="visibleChequeRows"
+      :group-source-rows="chequeRows"
+      :empty-text="emptyTextFor(chequeRows.length)"
       :summary="chequeSummary"
       :can-manage="hasProcessPermission"
       @view="onViewDocument"
@@ -188,6 +192,7 @@ const {
   filteredCampus,
   rows,
   visibleRows,
+  visibleChequeRows,
   showOnlyPending,
   summary,
   chequeRows,
@@ -245,6 +250,13 @@ const onViewDocument = (refrendId: number): void => {
 // case the transfer widgets (summary cards, "Pagar todos", filter, table)
 // are replaced by an explanatory note; the cheque section is the whole page.
 const onlyCheques = computed<boolean>(() => (summary.value?.total ?? 0) === 0 && chequeRows.value.length > 0)
+
+// A table emptied by the "Solo pendientes de revisar" filter says so; a table
+// that is genuinely empty (no rows at all, or filter off) keeps the default
+// message.
+const PENDING_EMPTY_TEXT = 'No hay becarios pendientes de revisar.'
+const emptyTextFor = (totalRows: number): string | undefined =>
+  showOnlyPending.value && totalRows > 0 ? PENDING_EMPTY_TEXT : undefined
 
 // Cheque dialogs. Both close on every outcome where the composable reloaded
 // the batch (the row may no longer be in the state the dialog assumed) and
