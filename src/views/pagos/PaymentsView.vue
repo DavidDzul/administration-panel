@@ -39,9 +39,17 @@
       </v-col>
     </v-row>
 
-    <PaymentBatchSummary v-if="!isPaid" :summary="summary" />
+    <v-row v-if="onlyCheques">
+      <v-col cols="12">
+        <v-alert type="info" variant="tonal" density="compact" data-testid="only-cheques-alert">
+          No hay becarios con pago por transferencia en este lote.
+        </v-alert>
+      </v-col>
+    </v-row>
 
-    <v-row v-if="hasProcessPermission" justify="end">
+    <PaymentBatchSummary v-if="!isPaid && !onlyCheques" :summary="summary" />
+
+    <v-row v-if="hasProcessPermission && !onlyCheques" justify="end">
       <v-col cols="auto">
         <v-btn color="primary" :disabled="!canProcess" @click="dialogOpen = true">Pagar todos</v-btn>
       </v-col>
@@ -84,7 +92,7 @@
       @download="confirmExport"
     />
 
-    <v-row>
+    <v-row v-if="!onlyCheques">
       <v-col cols="12" sm="6" md="4">
         <v-switch
           v-model="showOnlyPending"
@@ -96,7 +104,7 @@
       </v-col>
     </v-row>
 
-    <v-row>
+    <v-row v-if="!onlyCheques">
       <v-col cols="12">
         <PaymentBatchTable
           :rows="visibleRows"
@@ -106,6 +114,14 @@
         />
       </v-col>
     </v-row>
+
+    <ChequePaymentSection
+      :rows="chequeRows"
+      :summary="chequeSummary"
+      :can-manage="hasProcessPermission"
+      @mark="onMarkCheque"
+      @revert="onRevertCheque"
+    />
   </template>
 
   <ProcessPaymentDialog
@@ -117,6 +133,21 @@
   />
 
   <PaymentDocumentDialog v-model="documentDialogOpen" :refrend-id="viewingRefrendId" />
+
+  <ChequePaymentDialog
+    v-model="markDialogOpen"
+    :row="chequeTarget"
+    :saving="savingCheque"
+    :server-errors="markServerErrors"
+    @submit="onSubmitMark"
+  />
+
+  <RevertChequePaymentDialog
+    v-model="revertDialogOpen"
+    :row="chequeTarget"
+    :saving="savingCheque"
+    @submit="onSubmitRevert"
+  />
 </template>
 
 <script setup lang="ts">
@@ -133,6 +164,11 @@ import PaymentBatchTable from '@/components/pagos/PaymentBatchTable.vue'
 import ProcessPaymentDialog from '@/components/pagos/ProcessPaymentDialog.vue'
 import PaymentDocumentDialog from '@/components/pagos/PaymentDocumentDialog.vue'
 import BankFileExportCard from '@/components/pagos/BankFileExportCard.vue'
+import ChequePaymentSection from '@/components/pagos/ChequePaymentSection.vue'
+import ChequePaymentDialog from '@/components/pagos/ChequePaymentDialog.vue'
+import RevertChequePaymentDialog from '@/components/pagos/RevertChequePaymentDialog.vue'
+import type { ChequeActionResult } from '@/stores/api/paymentsStore'
+import type { ChequeRow, MarkChequePayload } from '@/interfaces/payment'
 import type { LinkInterface } from '@/interfaces/link'
 import { batchTypeMap } from '@/constants'
 
@@ -146,6 +182,11 @@ const {
   visibleRows,
   showOnlyPending,
   summary,
+  chequeRows,
+  chequeSummary,
+  savingCheque,
+  markCheque,
+  revertCheque,
   loadingBatch,
   loadError,
   canProcess,
@@ -189,6 +230,59 @@ const viewingRefrendId = ref<number | null>(null)
 const onViewDocument = (refrendId: number): void => {
   viewingRefrendId.value = refrendId
   documentDialogOpen.value = true
+}
+
+// pago-cheque: the server already limits `rows`/`summary` to transfer
+// becarios, so a batch with cheques only has an empty transfer side. In that
+// case the transfer widgets (summary cards, "Pagar todos", filter, table)
+// are replaced by an explanatory note; the cheque section is the whole page.
+const onlyCheques = computed<boolean>(() => (summary.value?.total ?? 0) === 0 && chequeRows.value.length > 0)
+
+// Cheque dialogs. Both close on every outcome where the composable reloaded
+// the batch (the row may no longer be in the state the dialog assumed) and
+// stay open — with inline errors for the register dialog — on pure input
+// problems so the admin can correct and retry.
+const CLOSING_STATUSES: ReadonlySet<ChequeActionResult['status']> = new Set([
+  'success',
+  'already_paid',
+  'not_cheque',
+  'cycle_closed',
+  'telmex_repayment_exists',
+])
+
+const chequeTarget = ref<ChequeRow | null>(null)
+const markDialogOpen = ref(false)
+const revertDialogOpen = ref(false)
+const markServerErrors = ref<Record<string, string[]>>({})
+
+const onMarkCheque = (row: ChequeRow): void => {
+  chequeTarget.value = row
+  markServerErrors.value = {}
+  markDialogOpen.value = true
+}
+
+const onRevertCheque = (row: ChequeRow): void => {
+  chequeTarget.value = row
+  revertDialogOpen.value = true
+}
+
+const onSubmitMark = async (payload: MarkChequePayload): Promise<void> => {
+  if (!chequeTarget.value) return
+  markServerErrors.value = {}
+  const result = await markCheque(chequeTarget.value.refrend_id, payload)
+  if (CLOSING_STATUSES.has(result.status)) {
+    markDialogOpen.value = false
+  } else if (result.status === 'validation') {
+    markServerErrors.value = result.errors
+  } else if (result.status === 'cheque_number_taken' && result.msg) {
+    markServerErrors.value = { cheque_number: [result.msg] }
+  }
+}
+
+const onSubmitRevert = async (reason: string): Promise<void> => {
+  if (!chequeTarget.value) return
+  const result = await revertCheque(chequeTarget.value.refrend_id, reason)
+  if (CLOSING_STATUSES.has(result.status)) revertDialogOpen.value = false
 }
 
 // "Solo pendientes de revisar" (sdd/becario-payment-review-filter) is a
