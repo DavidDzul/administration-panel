@@ -201,7 +201,7 @@ const props = defineProps<Props>()
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
-  (e: 'saved'): void
+  (e: 'saved', payload: { configSaved: boolean }): void
 }
 
 const emit = defineEmits<Emits>()
@@ -413,6 +413,7 @@ const onSubmit = async (): Promise<void> => {
   }
 
   let configOk = true
+  let configSaved = false
   if (editScholarshipProfile.value) {
     try {
       await scholarshipProfileStore.saveProfileConfig(props.userId, {
@@ -422,6 +423,7 @@ const onSubmit = async (): Promise<void> => {
         advance_payment_eligible: configForm.advance_payment_eligible,
         iu_payment_amount: configForm.iu_payment_amount,
       })
+      configSaved = true
     } catch (error: unknown) {
       configOk = false
       console.error('Error al guardar la configuración de beca:', error)
@@ -433,7 +435,7 @@ const onSubmit = async (): Promise<void> => {
 
   if (paymentDataOk && configOk) {
     showAlert({ title: 'Datos de pago guardados exitosamente.', status: 'success' })
-    emit('saved')
+    emit('saved', { configSaved })
     close()
   }
 }

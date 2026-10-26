@@ -59,9 +59,21 @@ export const usePersonsStore = defineStore('personsStore', () => {
     }
   }
 
+  // Local patch after PaymentDataDialog stamps config_set_at server-side, so
+  // the list's "Montos pendientes" chip clears without a refetch. Replaces
+  // both the entry and the Map (immutable) so dependents re-render.
+  const markAmountsConfigured = (id: number): void => {
+    const current = allPersons.value.get(id)
+    if (!current) return
+    const next = new Map(allPersons.value)
+    next.set(id, { ...current, amounts_configured: true })
+    allPersons.value = next
+  }
+
   return {
     allPersons,
     fetchPersons,
     showPerson,
+    markAmountsConfigured,
   }
 })

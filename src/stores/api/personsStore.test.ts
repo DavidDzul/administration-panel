@@ -118,4 +118,46 @@ describe('personsStore', () => {
 
     expect(result).toBeNull()
   })
+
+  describe('markAmountsConfigured', () => {
+    const seed = (store: ReturnType<typeof usePersonsStore>, people: Person[]) => {
+      store.allPersons = new Map(people.map((p) => [p.id, p]))
+    }
+
+    it('sets amounts_configured to true only on the targeted person', () => {
+      const store = usePersonsStore()
+      seed(store, [
+        buildPerson({ id: 1, amounts_configured: false }),
+        buildPerson({ id: 2, amounts_configured: false }),
+      ])
+
+      store.markAmountsConfigured(1)
+
+      expect(store.allPersons.get(1)?.amounts_configured).toBe(true)
+      expect(store.allPersons.get(2)?.amounts_configured).toBe(false)
+    })
+
+    it('replaces the entry and the Map immutably so reactivity fires', () => {
+      const store = usePersonsStore()
+      const original = buildPerson({ id: 1, amounts_configured: false })
+      seed(store, [original])
+      const mapBefore = store.allPersons
+
+      store.markAmountsConfigured(1)
+
+      expect(original.amounts_configured).toBe(false)
+      expect(store.allPersons.get(1)).not.toBe(original)
+      expect(store.allPersons).not.toBe(mapBefore)
+    })
+
+    it('is a no-op for an unknown id', () => {
+      const store = usePersonsStore()
+      seed(store, [buildPerson({ id: 1 })])
+      const mapBefore = store.allPersons
+
+      store.markAmountsConfigured(99)
+
+      expect(store.allPersons).toBe(mapBefore)
+    })
+  })
 })
