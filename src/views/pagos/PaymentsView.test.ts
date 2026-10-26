@@ -664,7 +664,7 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).toContain('Grace Hopper')
     })
 
-    it('also filters the cheque table by default, while cheque summary cards and group headers use full data', async () => {
+    it('never filters the cheque table: a payable cheque without incident stays visible and markable by default', async () => {
       mockMixed(
         [buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace', is_payable: false })],
         [
@@ -672,49 +672,62 @@ describe('PaymentsView', () => {
           cheque({ refrend_id: 11, snapshot_name: 'Cheque Incidencia', has_incident: true }),
         ],
       )
+      grantPermissions(true)
       const wrapper = await mountedDefault()
       const section = wrapper.find('[data-testid="cheque-section"]')
 
-      expect(section.text()).not.toContain('Cheque Listo')
+      expect(wrapper.findComponent(VSwitch).props('modelValue')).toBe(true)
+      expect(section.text()).toContain('Cheque Listo')
       expect(section.text()).toContain('Cheque Incidencia')
+      expect(section.text()).toContain('Marcar como pagado')
       expect(section.text()).toContain('$1,500.00')
       expect(section.find('[data-testid="payment-group-header"]').text()).toContain('2 becarios')
     })
 
-    it('shows everyone in both tables when the switch is turned off', async () => {
+    it('toggling the switch never changes the cheque table rows', async () => {
       mockMixed(
-        [
-          buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace' }),
-          buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false }),
-        ],
+        [buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace' })],
         [
           cheque({ refrend_id: 10, snapshot_name: 'Cheque Listo' }),
           cheque({ refrend_id: 11, snapshot_name: 'Cheque Bloqueado', is_payable: false }),
         ],
       )
       const wrapper = await mountedDefault()
+      const chequeText = () => wrapper.find('[data-testid="cheque-section"]').text()
+      const before = chequeText()
+
+      await toggle(wrapper, false)
+
+      expect(chequeText()).toBe(before)
+      expect(chequeText()).toContain('Cheque Listo')
+      expect(chequeText()).toContain('Cheque Bloqueado')
+    })
+
+    it('shows every transfer row when the switch is turned off', async () => {
+      mockMixed(
+        [
+          buildRow({ refrend_id: 1, snapshot_name: 'Ada Lovelace' }),
+          buildRow({ refrend_id: 2, snapshot_name: 'Grace Hopper', is_payable: false }),
+        ],
+        [cheque({ refrend_id: 10, snapshot_name: 'Cheque Listo' })],
+      )
+      const wrapper = await mountedDefault()
       expect(wrapper.text()).not.toContain('Ada Lovelace')
-      expect(wrapper.text()).not.toContain('Cheque Listo')
 
       await toggle(wrapper, false)
 
       expect(wrapper.text()).toContain('Ada Lovelace')
       expect(wrapper.text()).toContain('Grace Hopper')
       expect(wrapper.text()).toContain('Cheque Listo')
-      expect(wrapper.text()).toContain('Cheque Bloqueado')
     })
 
-    it('keeps the cheque section rendered and shows the pending-review empty text when the filter hides every cheque', async () => {
-      mockMixed(
-        [buildRow({ refrend_id: 1, is_payable: false })],
-        [cheque({ refrend_id: 10, snapshot_name: 'Cheque Listo' })],
-      )
+    it('keeps the default cheque empty text and never the pending-review one', async () => {
+      mockMixed([buildRow({ refrend_id: 1, is_payable: false })], [])
       const wrapper = await mountedDefault()
       const section = wrapper.find('[data-testid="cheque-section"]')
 
-      expect(section.exists()).toBe(true)
-      expect(section.text()).not.toContain('Cheque Listo')
-      expect(section.text()).toContain('No hay becarios pendientes de revisar.')
+      if (section.exists()) expect(section.text()).not.toContain('No hay becarios pendientes de revisar.')
+      expect(wrapper.text()).not.toContain('No hay becarios pendientes de revisar.')
     })
 
     it('shows the pending-review empty text on the transfer table when the filter hides every transfer row', async () => {
@@ -725,10 +738,9 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).toContain('No hay becarios pendientes de revisar.')
     })
 
-    it('keeps the original empty text when the filter is off and the table is genuinely empty', async () => {
+    it('does not show the pending-review empty text when the batch only has cheques', async () => {
       mockMixed([], [cheque({ refrend_id: 10 })], batchSummary(0, 0))
       const wrapper = await mountedDefault()
-      await toggle(wrapper, false)
 
       expect(wrapper.text()).not.toContain('No hay becarios pendientes de revisar.')
     })
@@ -740,21 +752,22 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).not.toContain('No hay becarios pendientes de revisar.')
     })
 
-    it('shows the switch when the batch only has cheques', async () => {
+    it('does not render the switch when the batch only has cheques', async () => {
       mockMixed([], [cheque({ refrend_id: 10, is_payable: false })], batchSummary(0, 0))
       const wrapper = await mountedDefault()
 
-      expect(wrapper.findComponent(VSwitch).exists()).toBe(true)
-      expect(wrapper.text()).toContain('Solo pendientes de revisar')
+      expect(wrapper.findComponent(VSwitch).exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Solo pendientes de revisar')
     })
 
-    it('places the switch above the Transferencias heading', async () => {
-      mockMixed([buildRow({ refrend_id: 1, is_payable: false })], [])
+    it('places the switch inside the transfer section, below the Transferencias heading', async () => {
+      mockMixed([buildRow({ refrend_id: 1, is_payable: false })], [cheque({ refrend_id: 10 })])
       const wrapper = await mountedDefault()
       const html = wrapper.html()
+      const switchAt = html.indexOf('Solo pendientes de revisar')
 
-      expect(html.indexOf('Solo pendientes de revisar')).toBeGreaterThan(-1)
-      expect(html.indexOf('Solo pendientes de revisar')).toBeLessThan(html.indexOf('data-testid="transfers-heading"'))
+      expect(switchAt).toBeGreaterThan(html.indexOf('data-testid="transfers-heading"'))
+      expect(switchAt).toBeLessThan(html.indexOf('data-testid="cheque-section"'))
     })
 
     it('does not show the switch when the batch has neither transfer nor cheque rows', async () => {
