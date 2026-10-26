@@ -61,8 +61,8 @@ export function usePaymentsPage() {
   // hiding rows here must never mask a still-blocking row from the
   // all-or-nothing "Pagar todos" gate.
   // ON by default: a batch opens showing only what needs a second look; the
-  // reviewer turns it off to see everyone. It applies to BOTH the transfer
-  // and the cheque tables.
+  // reviewer turns it off to see everyone. It applies to the transfer table ONLY:
+  // payable cheques must stay visible so the admin can mark them as paid.
   const showOnlyPending = ref<boolean>(true)
 
   // sdd/resolution-status-visibility: a non-null resolution_type joins the
@@ -76,12 +76,6 @@ export function usePaymentsPage() {
 
   const visibleRows = computed<PaymentBatchRow[]>(() =>
     showOnlyPending.value ? rows.value.filter(isPendingReview) : rows.value,
-  )
-
-  // Same rule for the cheque table. `chequeRows`/`chequeSummary` stay the full
-  // data (summary cards and generación group headers never follow the filter).
-  const visibleChequeRows = computed<ChequeRow[]>(() =>
-    showOnlyPending.value ? chequeRows.value.filter(isPendingReview) : chequeRows.value,
   )
 
   const filtersComplete = computed<boolean>(
@@ -254,7 +248,6 @@ export function usePaymentsPage() {
     showOnlyPending,
     summary,
     chequeRows,
-    visibleChequeRows,
     chequeSummary,
     savingCheque,
     markCheque,
