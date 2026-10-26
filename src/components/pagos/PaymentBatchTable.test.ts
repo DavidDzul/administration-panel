@@ -994,3 +994,118 @@ describe('PaymentBatchTable', () => {
     })
   })
 })
+
+describe('PaymentBatchTable cheque mode', () => {
+  const chequeRow = (overrides: Record<string, unknown> = {}): PaymentBatchRow =>
+    buildRow({
+      payment_method: 'CHEQUE',
+      paid_payment_method: null,
+      cheque_number: null,
+      cheque_delivered_at: null,
+      cheque_notes: null,
+      cheque_beneficiary: null,
+      ...overrides,
+    } as Partial<PaymentBatchRow>)
+
+  const paid = chequeRow({
+    refrend_id: 2,
+    snapshot_name: 'Grace Hopper',
+    status: 'PAID',
+    is_payable: false,
+    paid_payment_method: 'CHEQUE',
+    cheque_number: 'CH-77',
+    cheque_delivered_at: '2026-10-05',
+    cheque_notes: 'Entregado a la madre',
+    cheque_beneficiary: 'María Hopper',
+  })
+  const blocked = chequeRow({
+    refrend_id: 3,
+    snapshot_name: 'Alan Turing',
+    is_payable: false,
+    blocking_reasons: [{ code: 'MISSING_PAYMENT_DATA', message: 'Faltan datos de pago' }],
+  })
+
+  const mountCheque = (rows: PaymentBatchRow[], canManage = true) =>
+    mount(PaymentBatchTable, {
+      props: { rows, groupSourceRows: rows, mode: 'cheque', canManage },
+      global: { plugins: [vuetify] },
+    })
+
+  const btns = (wrapper: ReturnType<typeof mountCheque>, text: string) =>
+    wrapper.findAll('button').filter((b) => b.text() === text)
+
+  it('swaps Cuenta for A nombre de and adds Cheque and Acciones columns', () => {
+    const headers = mountCheque([chequeRow()])
+      .findAll('th')
+      .map((th) => th.text())
+    expect(headers).not.toContain('Cuenta')
+    expect(headers).toEqual(
+      expect.arrayContaining(['A nombre de', 'Cheque', 'Acciones', 'Base', 'Final', 'Total a pagar']),
+    )
+  })
+
+  it('transfer mode keeps Cuenta and has no cheque columns', () => {
+    const headers = mountTable([buildRow()])
+      .findAll('th')
+      .map((th) => th.text())
+    expect(headers).toContain('Cuenta')
+    expect(headers).not.toContain('A nombre de')
+    expect(headers).not.toContain('Acciones')
+  })
+
+  it('shows Becario when the beneficiary is empty, and the beneficiary otherwise', () => {
+    const text = mountCheque([chequeRow(), paid]).text()
+    expect(text).toContain('Becario')
+    expect(text).toContain('María Hopper')
+  })
+
+  it('renders flag chips for cheque rows', () => {
+    const wrapper = mountCheque([chequeRow({ has_incident: true })])
+    expect(wrapper.text()).toContain('Incidencia registrada')
+  })
+
+  it('emits view(refrendId) from the name link', async () => {
+    const wrapper = mountCheque([chequeRow({ refrend_id: 9 })])
+    await wrapper.find('.payment-name-link').trigger('click')
+    expect(wrapper.emitted('view')?.[0]).toEqual([9])
+  })
+
+  it('shows Pagado (cheque) for paid rows and Listo/Bloqueado otherwise', () => {
+    const text = mountCheque([chequeRow(), paid, blocked]).text()
+    expect(text).toContain('Pagado (cheque)')
+    expect(text).toContain('Listo')
+    expect(text).toContain('Bloqueado')
+    expect(text).toContain('Faltan datos de pago')
+  })
+
+  it('shows cheque number and DD/MM/YYYY date for paid rows', () => {
+    const text = mountCheque([paid]).text()
+    expect(text).toContain('CH-77')
+    expect(text).toContain('05/10/2026')
+  })
+
+  it('shows Marcar como pagado only for payable unpaid rows and emits mark(row)', async () => {
+    const row = chequeRow()
+    const wrapper = mountCheque([row, paid, blocked])
+    const buttons = btns(wrapper, 'Marcar como pagado')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].attributes('aria-label')).toBe('Marcar como pagado con cheque a Ada Lovelace')
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('mark')?.[0]).toEqual([row])
+  })
+
+  it('shows Revertir only for paid cheque rows and emits revert(row)', async () => {
+    const wrapper = mountCheque([chequeRow(), paid])
+    const buttons = btns(wrapper, 'Revertir')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0].attributes('aria-label')).toBe('Revertir pago con cheque de Grace Hopper')
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('revert')?.[0]).toEqual([paid])
+  })
+
+  it('hides every action button without permission', () => {
+    const wrapper = mountCheque([chequeRow(), paid], false)
+    expect(btns(wrapper, 'Marcar como pagado')).toHaveLength(0)
+    expect(btns(wrapper, 'Revertir')).toHaveLength(0)
+  })
+})

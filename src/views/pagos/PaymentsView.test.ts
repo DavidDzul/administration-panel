@@ -860,6 +860,47 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).not.toContain('No hay becarios con pago por transferencia en este lote.')
     })
 
+    it('shows the "Transferencias" and "Cheques" headings and a divider between the two areas', async () => {
+      mockWithCheques([chequeRow()])
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="transfers-heading"]').text()).toBe('Transferencias')
+      expect(wrapper.find('[data-testid="cheque-heading"]').text()).toContain('Cheques')
+      const divider = wrapper.find('[data-testid="section-divider"]')
+      expect(divider.exists()).toBe(true)
+      expect(divider.classes()).toContain('mt-10')
+    })
+
+    it('renders summary cards and the full batch table (A nombre de, no Cuenta) inside the cheque section', async () => {
+      mockWithCheques([chequeRow({ has_incident: true }), paidChequeRow()])
+      const wrapper = await mounted()
+      const section = wrapper.find('[data-testid="cheque-section"]')
+      expect(section.text()).toContain('Monto por emitir')
+      expect(section.text()).toContain('$1,500.00')
+      expect(section.text()).toContain('Incidencia registrada')
+      expect(section.text()).toContain('Pagado (cheque)')
+      const headers = section.findAll('th').map((th) => th.text())
+      expect(headers).toContain('A nombre de')
+      expect(headers).not.toContain('Cuenta')
+    })
+
+    it('opens the document dialog when "Ver" is clicked on a cheque row', async () => {
+      mockWithCheques([chequeRow({ refrend_id: 10 })])
+      const wrapper = await mounted()
+      await wrapper.find('[data-testid="cheque-section"] button.payment-name-link').trigger('click')
+      await flushPromises()
+      const dialog = wrapper.findComponent({ name: 'PaymentDocumentDialog' })
+      expect(dialog.props('modelValue')).toBe(true)
+      expect(dialog.props('refrendId')).toBe(10)
+    })
+
+    it('shows the cheque heading without the transfer heading or divider when the batch only has cheques', async () => {
+      mockWithCheques([chequeRow()], { rows: [], summary: emptySummary })
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="cheque-heading"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="transfers-heading"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="section-divider"]').exists()).toBe(false)
+    })
+
     it('hides cheque actions without ADM_PROCESS_PAYMENTS', async () => {
       grantPermissions(false)
       mockWithCheques([chequeRow(), paidChequeRow()])

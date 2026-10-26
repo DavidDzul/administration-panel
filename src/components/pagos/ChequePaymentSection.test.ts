@@ -83,59 +83,29 @@ describe('ChequePaymentSection', () => {
     expect(wrapper.text()).not.toContain('Cheques')
   })
 
-  it('shows the title, summary line and amounts', () => {
+  it('composes heading, summary cards and the batch table in cheque mode', () => {
     const wrapper = mountSection([buildRow(), paidRow, blockedRow])
-    const text = wrapper.text()
-    expect(text).toContain('Cheques')
-    expect(text).toContain('3 becarios · 1 por emitir · 1 pagados')
-    expect(text).toContain('Por emitir:')
-    expect(text).toContain('$1,000.00')
-    expect(text).toContain('Pagado:')
-    expect(text).toContain('$2,500.50')
+    expect(wrapper.find('[data-testid="cheque-heading"]').text()).toContain('Cheques')
+    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(6)
+    const headers = wrapper.findAll('th').map((th) => th.text())
+    expect(headers).toContain('A nombre de')
+    expect(headers).not.toContain('Cuenta')
+    expect(wrapper.text()).toContain('Monto por emitir')
+    expect(wrapper.text()).toContain('$2,500.50')
   })
 
-  it('shows Becario when the beneficiary is empty and the beneficiary otherwise', () => {
-    const wrapper = mountSection([buildRow(), paidRow])
-    const text = wrapper.text()
-    expect(text).toContain('Becario')
-    expect(text).toContain('María Hopper')
-  })
-
-  it('renders the status chips per row state', () => {
-    const text = mountSection([buildRow(), paidRow, blockedRow]).text()
-    expect(text).toContain('Por emitir')
-    expect(text).toContain('Pagado (cheque)')
-    expect(text).toContain('Bloqueado')
-  })
-
-  it('shows blocking reason messages for blocked rows', () => {
-    expect(mountSection([blockedRow]).text()).toContain('Faltan datos de pago')
-  })
-
-  it('shows cheque number and DD/MM/YYYY delivery date for paid rows', () => {
-    const text = mountSection([paidRow]).text()
-    expect(text).toContain('CH-77')
-    expect(text).toContain('05/10/2026')
-  })
-
-  it('shows "Marcar como pagado" only for payable unpaid rows and emits mark(row)', async () => {
+  it('re-emits mark, revert and view from the table', async () => {
     const row = buildRow()
-    const wrapper = mountSection([row, paidRow, blockedRow])
-    const buttons = buttonsByText(wrapper, 'Marcar como pagado')
-    expect(buttons).toHaveLength(1)
-    await buttons[0].trigger('click')
+    const wrapper = mountSection([row, paidRow])
+    await buttonsByText(wrapper, 'Marcar como pagado')[0].trigger('click')
+    await buttonsByText(wrapper, 'Revertir')[0].trigger('click')
+    await wrapper.find('.payment-name-link').trigger('click')
     expect(wrapper.emitted('mark')?.[0]).toEqual([row])
-  })
-
-  it('shows "Revertir" only for paid cheque rows and emits revert(row)', async () => {
-    const wrapper = mountSection([buildRow(), paidRow])
-    const buttons = buttonsByText(wrapper, 'Revertir')
-    expect(buttons).toHaveLength(1)
-    await buttons[0].trigger('click')
     expect(wrapper.emitted('revert')?.[0]).toEqual([paidRow])
+    expect(wrapper.emitted('view')?.[0]).toEqual([row.refrend_id])
   })
 
-  it('hides every action button without permission', () => {
+  it('hides action buttons without permission', () => {
     const wrapper = mountSection([buildRow(), paidRow], false)
     expect(buttonsByText(wrapper, 'Marcar como pagado')).toHaveLength(0)
     expect(buttonsByText(wrapper, 'Revertir')).toHaveLength(0)

@@ -47,6 +47,11 @@
       </v-col>
     </v-row>
 
+    <h2 v-if="!onlyCheques" data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
+      <v-icon icon="mdi-bank-transfer" />
+      Transferencias
+    </h2>
+
     <PaymentBatchSummary v-if="!isPaid && !onlyCheques" :summary="summary" />
 
     <v-row v-if="hasProcessPermission && !onlyCheques" justify="end">
@@ -115,10 +120,13 @@
       </v-col>
     </v-row>
 
+    <v-divider v-if="!onlyCheques && chequeRows.length > 0" data-testid="section-divider" class="mt-10 mb-8" />
+
     <ChequePaymentSection
       :rows="chequeRows"
       :summary="chequeSummary"
       :can-manage="hasProcessPermission"
+      @view="onViewDocument"
       @mark="onMarkCheque"
       @revert="onRevertCheque"
     />
