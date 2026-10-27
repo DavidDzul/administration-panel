@@ -490,7 +490,7 @@ describe('paymentsStore', () => {
     }
 
     it('POSTs the reason to cheque-payment/revert and returns success on 200', async () => {
-      const data = buildChequePaymentData({ status: 'AUTHORIZED', cheque_number: null })
+      const data = buildChequePaymentData({ status: 'DRAFT', cheque_number: null })
       mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
 
       const store = usePaymentsStore()

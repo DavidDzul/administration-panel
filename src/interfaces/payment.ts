@@ -270,7 +270,7 @@ export interface MarkChequePayload {
 }
 
 // 200 body of both cheque-payment and cheque-payment/revert (after revert the
-// status is AUTHORIZED|WITHHELD and every cheque field/locked_at is null).
+// status is DRAFT|WITHHELD and every cheque field/locked_at is null).
 export interface ChequePaymentData {
   refrend_id: number
   status: string

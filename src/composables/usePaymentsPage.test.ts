@@ -663,7 +663,7 @@ describe('usePaymentsPage', () => {
     it('revertCheque reloads and shows a success alert on success', async () => {
       let revertSpy!: MockInstance
       const { fetchBatchSpy, result } = await setupLoaded((store) => {
-        revertSpy = vi.spyOn(store, 'revertChequePayment').mockResolvedValue({ status: 'success', data: { ...paymentData, status: 'AUTHORIZED' } })
+        revertSpy = vi.spyOn(store, 'revertChequePayment').mockResolvedValue({ status: 'success', data: { ...paymentData, status: 'DRAFT' } })
       })
       const calls = fetchBatchSpy.mock.calls.length
 

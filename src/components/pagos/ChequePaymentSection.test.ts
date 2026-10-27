@@ -30,7 +30,7 @@ const buildRow = (overrides: Partial<ChequeRow> = {}): ChequeRow =>
     total_to_pay: '1000.00',
     is_payable: true,
     blocking_reasons: [],
-    status: 'AUTHORIZED',
+    status: 'DRAFT',
     payment_method: 'CHEQUE',
     paid_payment_method: null,
     cheque_number: null,
