@@ -1,14 +1,5 @@
 <template>
   <div class="mt-4" data-testid="generation-rows-table">
-    <v-alert
-      v-if="hasPendingNoIu"
-      data-testid="no-iu-pending-alert"
-      type="warning"
-      variant="tonal"
-      density="compact"
-      class="mb-3"
-      text="Hay becarios Telmex sin pago IU con montos pendientes de meses anteriores. Revisa su situación antes de cerrar el periodo."
-    ></v-alert>
     <v-data-table
       v-model:sort-by="sortBy"
       :headers="headers"
@@ -117,7 +108,6 @@ type MoneyKey =
   | 'total_to_pay'
 
 const NO_IU_PAYMENT_HELP = 'Telmex paga directamente su beca; IU no realiza pago este mes'
-const NO_IU_PENDING_HELP = 'Telmex sin pago IU con monto pendiente de meses anteriores'
 
 const TYPE_LABELS: Record<GenerationPaymentRow['scholarship_type'], string> = {
   IU: 'IU',
@@ -134,16 +124,7 @@ const stateMeta: Record<GenerationPaymentRowState, { label: string; color: strin
   NO_IU_PAYMENT: { label: 'Sin pago IU', color: 'grey' },
 }
 
-// A pure Telmex refrend IU does not pay this month can still carry money
-// pending/advanced from other months. Such a row needs a human look, so it is
-// neither muted nor labelled as a plain "Sin pago IU".
-const isPendingNoIu = (row: GenerationPaymentRow): boolean =>
-  row.state === 'NO_IU_PAYMENT' && toCents(row.total_to_pay) > 0
-
-const hasPendingNoIu = computed(() => props.rows.some(isPendingNoIu))
-
 const chipFor = (row: GenerationPaymentRow): { label: string; color: string; help?: string } => {
-  if (isPendingNoIu(row)) return { label: 'Revisar pendiente', color: 'warning', help: NO_IU_PENDING_HELP }
   if (row.state === 'NO_IU_PAYMENT') return { ...stateMeta.NO_IU_PAYMENT, help: NO_IU_PAYMENT_HELP }
   return stateMeta[row.state]
 }
@@ -209,7 +190,7 @@ const discountText = (amount: string): string => {
 }
 
 const rowProps = ({ item }: { item: GenerationPaymentRow }) =>
-  item.state === 'NO_IU_PAYMENT' && !isPendingNoIu(item) ? { class: 'generation-row-muted text-disabled' } : {}
+  item.state === 'NO_IU_PAYMENT' ? { class: 'generation-row-muted text-disabled' } : {}
 
 const totalColumns = computed(() => {
   const counted = props.rows.filter((row) => row.state === 'PAID' || row.state === 'PENDING')

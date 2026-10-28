@@ -209,9 +209,6 @@ export interface GenerationPaymentSummary {
   // Pure TELMEX becarios IU does not pay this month (listed as
   // NO_IU_PAYMENT rows, excluded from every other figure).
   telmex_without_iu_payment: number
-  // Pending/advance money on those NO_IU_PAYMENT rows (kept out of every other
-  // figure; surfaced so an unpaid balance is not hidden).
-  telmex_without_iu_payment_pending_amount: string
   // Telmex coverage total (sdd/telmex-cobertura-iu PR5, mirrors
   // impulsou-api PR2's PaymentBatchService::generationSummary() addition).
   // Same OPTIONAL rationale as PaymentBatchSummary.telmex_coverage_amount

@@ -37,7 +37,6 @@ const buildSummary = (overrides: Partial<GenerationPaymentSummaryModel> = {}): G
   temporary_increase_amount: '0.00',
   pending_and_advance_amount: '0.00',
   telmex_without_iu_payment: 0,
-  telmex_without_iu_payment_pending_amount: '0.00',
   ...overrides,
 })
 

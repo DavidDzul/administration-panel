@@ -258,53 +258,36 @@ describe('GenerationPaymentRowsTable', () => {
     }
   })
 
-  describe('NO_IU_PAYMENT rows with pending money', () => {
-    const pendingNoIu = () =>
-      buildRow({
-        full_name: 'Pendiente Paz',
-        scholarship_type: 'TELMEX',
-        state: 'NO_IU_PAYMENT',
-        pending_and_advance: '250.00',
-        total_to_pay: '250.00',
-      })
-
-    it('does not mute the row and shows the warning chip "Revisar pendiente"', () => {
-      const wrapper = mountTable([pendingNoIu()])
+  describe('NO_IU_PAYMENT rows', () => {
+    it('always shows the grey "Sin pago IU" chip and mutes the row, even with pending money', () => {
+      const wrapper = mountTable([
+        buildRow({
+          scholarship_type: 'TELMEX',
+          state: 'NO_IU_PAYMENT',
+          pending_and_advance: '250.00',
+          total_to_pay: '250.00',
+        }),
+      ])
 
       const chip = wrapper.find('[data-testid="state-chip"]')
-      expect(chip.text()).toBe('Revisar pendiente')
-      expect(chip.classes()).toContain('text-warning')
-      expect(bodyRows(wrapper)[0].classes()).not.toContain('generation-row-muted')
-    })
-
-    it('exposes the tooltip text for the warning chip', () => {
-      const wrapper = mountTable([pendingNoIu()])
-
-      const tooltips = wrapper.findAllComponents({ name: 'VTooltip' }).map((t) => t.props('text'))
-      expect(tooltips).toContain('Telmex sin pago IU con monto pendiente de meses anteriores')
-    })
-
-    it('shows a warning alert above the table when any such row exists', () => {
-      const wrapper = mountTable([pendingNoIu()])
-
-      const alert = wrapper.find('[data-testid="no-iu-pending-alert"]')
-      expect(alert.exists()).toBe(true)
-      expect(alert.text()).toBe(
-        'Hay becarios Telmex sin pago IU con montos pendientes de meses anteriores. Revisa su situación antes de cerrar el periodo.',
-      )
-      expect(wrapper.html().indexOf('no-iu-pending-alert')).toBeLessThan(wrapper.html().indexOf('<table'))
-    })
-
-    it('keeps the grey "Sin pago IU" chip, muting and no alert for zero rows', () => {
-      const wrapper = mountTable([buildRow({ scholarship_type: 'TELMEX', state: 'NO_IU_PAYMENT' })])
-
-      expect(wrapper.find('[data-testid="state-chip"]').text()).toBe('Sin pago IU')
+      expect(chip.text()).toBe('Sin pago IU')
       expect(bodyRows(wrapper)[0].classes()).toContain('generation-row-muted')
-      expect(wrapper.find('[data-testid="no-iu-pending-alert"]').exists()).toBe(false)
     })
 
-    it('still excludes the pending NO_IU_PAYMENT row from the footer totals', () => {
-      const wrapper = mountTable([pendingNoIu()])
+    it('never renders a pending alert', () => {
+      const wrapper = mountTable([
+        buildRow({ scholarship_type: 'TELMEX', state: 'NO_IU_PAYMENT', pending_and_advance: '250.00' }),
+        buildRow({ scholarship_type: 'TELMEX', state: 'NO_IU_PAYMENT' }),
+      ])
+
+      expect(wrapper.find('[data-testid="no-iu-pending-alert"]').exists()).toBe(false)
+      expect(wrapper.find('.v-alert').exists()).toBe(false)
+    })
+
+    it('still excludes the row from the footer totals', () => {
+      const wrapper = mountTable([
+        buildRow({ scholarship_type: 'TELMEX', state: 'NO_IU_PAYMENT', total_to_pay: '250.00' }),
+      ])
 
       expect(wrapper.find('[data-testid="total-total_to_pay"]').text()).toBe(formatAmount('0.00'))
     })
@@ -348,7 +331,6 @@ describe('GenerationPaymentRowsTable', () => {
       total_amount: '6610.00',
       difference_amount: '340.00',
       telmex_without_iu_payment: 1,
-      telmex_without_iu_payment_pending_amount: '0.00',
     }
 
     const table = mountTable(rows)
