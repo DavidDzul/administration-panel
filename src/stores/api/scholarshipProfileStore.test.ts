@@ -21,7 +21,7 @@ const buildConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): Scholar
   scholarship_type: 'IU',
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
-  advance_payment_eligible: true,
+  is_cert_unid: true,
   iu_payment_amount: null,
   temporary_increase_amount: null,
   temporary_increase_valid_from: null,
@@ -37,7 +37,7 @@ const buildForm = (overrides: Partial<ScholarshipProfileConfigForm> = {}): Schol
   scholarship_type: 'IU',
   monthly_amount: 1500,
   monto_apoyo: 200,
-  advance_payment_eligible: true,
+  is_cert_unid: true,
   iu_payment_amount: 0,
   ...overrides,
 })

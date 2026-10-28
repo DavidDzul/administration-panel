@@ -48,7 +48,7 @@
             </v-col>
             <v-col cols="12" md="6">
               <v-switch
-                v-model="configForm.advance_payment_eligible"
+                v-model="configForm.is_cert_unid"
                 label="¿Estudia en el CERT de Mérida o UNID Tizimín?"
                 color="primary"
                 :disabled="!editScholarshipProfile"
@@ -249,7 +249,7 @@ const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
   scholarship_type: 'IU',
   monthly_amount: 0,
   monto_apoyo: 0,
-  advance_payment_eligible: false,
+  is_cert_unid: false,
   iu_payment_amount: 0,
 })
 
@@ -313,7 +313,7 @@ const loadExisting = async (userId: number): Promise<void> => {
       configForm.scholarship_type = existingConfig.scholarship_type
       configForm.monthly_amount = Number(existingConfig.monthly_amount)
       configForm.monto_apoyo = existingConfig.monto_apoyo !== null ? Number(existingConfig.monto_apoyo) : 0
-      configForm.advance_payment_eligible = existingConfig.advance_payment_eligible
+      configForm.is_cert_unid = existingConfig.is_cert_unid
       configForm.iu_payment_amount =
         existingConfig.iu_payment_amount !== null ? Number(existingConfig.iu_payment_amount) : 0
       profileConfig.value = existingConfig
@@ -420,7 +420,7 @@ const onSubmit = async (): Promise<void> => {
         scholarship_type: configForm.scholarship_type,
         monthly_amount: configForm.monthly_amount,
         monto_apoyo: configForm.monto_apoyo,
-        advance_payment_eligible: configForm.advance_payment_eligible,
+        is_cert_unid: configForm.is_cert_unid,
         iu_payment_amount: configForm.iu_payment_amount,
       })
       configSaved = true

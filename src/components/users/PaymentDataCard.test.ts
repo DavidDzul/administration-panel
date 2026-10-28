@@ -50,7 +50,7 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   scholarship_type: 'IU',
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
-  advance_payment_eligible: true,
+  is_cert_unid: true,
   iu_payment_amount: null,
   temporary_increase_amount: null,
   temporary_increase_valid_from: null,

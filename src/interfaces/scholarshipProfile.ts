@@ -15,7 +15,7 @@ export interface ScholarshipProfileConfig {
   scholarship_type: 'IU' | 'TELMEX' | 'TELMEX_IU'
   monthly_amount: string
   monto_apoyo: string | null
-  advance_payment_eligible: boolean
+  is_cert_unid: boolean
   iu_payment_amount: string | null
   // Read-only (sdd/temporary-increase-visibility). GET
   // scholarship-profiles/{userId} already returns the whole model, so these
@@ -56,6 +56,6 @@ export interface ScholarshipProfileConfigForm {
   scholarship_type: 'IU' | 'TELMEX' | 'TELMEX_IU'
   monthly_amount: number
   monto_apoyo: number
-  advance_payment_eligible: boolean
+  is_cert_unid: boolean
   iu_payment_amount: number
 }

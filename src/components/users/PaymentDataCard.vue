@@ -41,7 +41,7 @@
         </v-col>
         <v-col cols="12" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">¿Estudia en el CERT de Mérida o UNID Tizimín?</div>
-          <div class="font-weight-medium">{{ profileConfig.advance_payment_eligible ? 'Sí' : 'No' }}</div>
+          <div class="font-weight-medium">{{ profileConfig.is_cert_unid ? 'Sí' : 'No' }}</div>
         </v-col>
         <!-- "Pago IU" row (sdd/scholarship-telmex-iu-split) — read-only,
              renders only for TELMEX_IU, matching PaymentDataDialog's

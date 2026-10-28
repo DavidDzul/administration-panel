@@ -44,7 +44,7 @@ const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): 
   scholarship_type: 'IU',
   monthly_amount: '1500.00',
   monto_apoyo: '200.00',
-  advance_payment_eligible: true,
+  is_cert_unid: true,
   iu_payment_amount: null,
   temporary_increase_amount: null,
   temporary_increase_valid_from: null,
@@ -396,7 +396,7 @@ describe('PaymentDataDialog', () => {
         scholarship_type: 'IU',
         monthly_amount: 1500,
         monto_apoyo: 200,
-        advance_payment_eligible: true,
+        is_cert_unid: true,
         iu_payment_amount: 0,
       })
       expect(wrapper.emitted('saved')).toHaveLength(1)
@@ -422,7 +422,7 @@ describe('PaymentDataDialog', () => {
         scholarship_type: 'IU',
         monthly_amount: 1200,
         monto_apoyo: 0,
-        advance_payment_eligible: false,
+        is_cert_unid: false,
         iu_payment_amount: 0,
       })
       expect(wrapper.emitted('saved')).toHaveLength(1)
