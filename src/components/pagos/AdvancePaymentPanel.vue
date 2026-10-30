@@ -7,7 +7,16 @@
           Adelantado desde {{ monthLabel(advancePayment.origin_period_year!, advancePayment.origin_period_month!) }}
           · Monto {{ fmt(advancePayment.settled_amount!) }}
         </div>
-        <div v-if="advancePayment.settled_status === 'PENDING'" class="text-caption text-medium-emphasis">
+        <div
+          v-if="advancePayment.settled_status === 'CANCELLED'"
+          class="text-caption text-error"
+          data-testid="settled-cancellation"
+        >
+          {{ advanceCancellationLabel(advancePayment.settled_cancel_reason, advancePayment.settled_cancelled_cut_refrend) }}<span
+            v-if="advancePayment.settled_cancelled_at"
+          > · el {{ formatDate(advancePayment.settled_cancelled_at) }}</span>
+        </div>
+        <div v-else-if="advancePayment.settled_status === 'PENDING'" class="text-caption text-medium-emphasis">
           Aún no se resuelve la situación de este mes.
         </div>
         <template v-else>
@@ -37,6 +46,25 @@
         <div v-if="advancePayment.registered_notes" class="text-caption text-medium-emphasis">
           Notas: {{ advancePayment.registered_notes }}
         </div>
+        <div v-if="isRegisteredCancelled" class="text-body-2 mt-1 text-error" data-testid="registered-cancellation">
+          {{
+            advanceCancellationLabel(
+              advancePayment.registered_cancel_reason,
+              advancePayment.registered_cancelled_cut_refrend,
+              advancePayment.registered_status === 'PARTIALLY_CANCELLED',
+            )
+          }}<span v-if="advancePayment.registered_cancelled_at"> · el {{ formatDate(advancePayment.registered_cancelled_at) }}</span>
+          <div v-if="hasAmount(advancePayment.registered_cancelled_amount)">
+            Monto cancelado: {{ fmt(advancePayment.registered_cancelled_amount!) }}
+          </div>
+        </div>
+        <div
+          v-if="hasAmount(advancePayment.registered_overpaid_amount)"
+          class="text-body-2 mt-1 font-weight-medium"
+          data-testid="registered-overpayment"
+        >
+          Sobrepago por adelanto: {{ fmt(advancePayment.registered_overpaid_amount!) }}
+        </div>
       </div>
     </template>
 
@@ -59,6 +87,7 @@
 // refrend; never conflated into one section.
 import { computed } from 'vue'
 import type { AdvancePaymentDocumentInfo } from '@/interfaces/payment'
+import { advanceCancellationLabel } from '@/utils/advancePaymentMeta'
 
 interface Props {
   advancePayment: AdvancePaymentDocumentInfo
@@ -77,6 +106,14 @@ const fmt = (value: string | number): string =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(value))
 
 const formatDate = (value: string): string => new Date(value).toLocaleDateString('es-MX')
+
+const hasAmount = (value: string | null | undefined): boolean => value != null && Number(value) > 0
+
+const isRegisteredCancelled = computed(
+  () =>
+    props.advancePayment.registered_status === 'CANCELLED'
+    || props.advancePayment.registered_status === 'PARTIALLY_CANCELLED',
+)
 
 const isEmpty = computed(
   () => !props.advancePayment.settled_as_advance && !props.advancePayment.has_registered_batch,

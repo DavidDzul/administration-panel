@@ -452,21 +452,44 @@ export interface RetentionBreakdown {
 // refrend itself HAS a NEW batch registered against it) — never conflate
 // the two, they come from different rows
 // (scholarship_advance_payment_months vs scholarship_advance_payments).
+export type AdvanceHeaderStatus = 'ACTIVE' | 'PARTIALLY_CANCELLED' | 'CANCELLED'
+
+// The refrend whose baja/egreso cut cancelled an advance payment.
+export interface AdvanceCutRefrend {
+  id: number
+  period_year: number
+  period_month: number
+}
+
 export interface AdvancePaymentDocumentInfo {
   settled_as_advance: boolean
   origin_period_year: number | null
   origin_period_month: number | null
   settled_amount: string | null
-  settled_status: 'PENDING' | 'REACHED' | 'OVERRIDDEN' | null
+  settled_status: 'PENDING' | 'REACHED' | 'OVERRIDDEN' | 'CANCELLED' | null
   settled_resolution_type: string | null
   divergence_reason: string | null
   reached_at: string | null
+  // Cycle-cut cancellation of the header covering this month
+  // (sdd/revertir-pago-adelantado). Optional: absent on older payloads.
+  settled_header_status?: AdvanceHeaderStatus | null
+  settled_cancelled_at?: string | null
+  settled_cancel_reason?: string | null
+  settled_cancelled_cut_refrend?: AdvanceCutRefrend | null
 
   has_registered_batch: boolean
   registered_months_count: number | null
   registered_total_amount: string | null
   registered_cause: string | null
   registered_notes: string | null
+  // Cycle-cut cancellation of the batch registered FROM this refrend.
+  // Amounts are 2-decimal strings.
+  registered_status?: AdvanceHeaderStatus | null
+  registered_cancelled_at?: string | null
+  registered_cancel_reason?: string | null
+  registered_cancelled_cut_refrend?: AdvanceCutRefrend | null
+  registered_cancelled_amount?: string | null
+  registered_overpaid_amount?: string | null
 }
 
 export interface PaymentDocument {

@@ -3,6 +3,7 @@ import {
   ADVANCE_PAYMENT_DIVERGENCE_META,
   ADVANCE_PAYMENT_META,
   ADVANCE_PAYMENT_REGISTERED_META,
+  advanceCancellationLabel,
   advancePaymentChip,
   advancePaymentDivergenceChip,
   advancePaymentRegisteredChip,
@@ -161,5 +162,23 @@ describe('advancePaymentDivergenceChip', () => {
     expect(chip?.color).toBe(ADVANCE_PAYMENT_DIVERGENCE_META.color)
     expect(chip?.label).toBe(ADVANCE_PAYMENT_DIVERGENCE_META.label)
     expect(chip?.ariaLabel).toContain('Autorizado por dirección.')
+  })
+})
+
+describe('advanceCancellationLabel', () => {
+  const cut = { period_year: 2026, period_month: 4 }
+
+  it.each([
+    ['BAJA_DEFINITIVA', false, 'Cancelado por baja definitiva del 04/2026'],
+    ['EGRESADO', false, 'Cancelado por egreso del 04/2026'],
+    ['EGRESADO', true, 'Cancelado parcialmente por egreso del 04/2026'],
+  ])('builds the label for %s (partial=%s)', (reason, partial, expected) => {
+    expect(advanceCancellationLabel(reason, cut, partial)).toBe(expected)
+  })
+
+  it('degrades gracefully without reason or cut period', () => {
+    expect(advanceCancellationLabel(null, null)).toBe('Cancelado')
+    expect(advanceCancellationLabel('EGRESADO', null)).toBe('Cancelado por egreso')
+    expect(advanceCancellationLabel(null, cut)).toBe('Cancelado (corte del 04/2026)')
   })
 })

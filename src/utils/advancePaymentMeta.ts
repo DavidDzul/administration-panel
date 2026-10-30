@@ -166,3 +166,40 @@ export function advancePaymentDivergenceChip(
 
   return { ...ADVANCE_PAYMENT_DIVERGENCE_META, ariaLabel }
 }
+
+// ── Cycle-cut cancellation labels (sdd/revertir-pago-adelantado S12) ───────
+//
+// A manual cycle cut (baja definitiva / egreso) cancels the advance months
+// that fall after the cut. `cancel_reason` is the CycleClosureReason value
+// ('BAJA_DEFINITIVA' | 'EGRESADO'); anything else falls back to a generic
+// "Cancelado" so a cancelled month never reads as "Sin especificar".
+export interface AdvanceCutPeriod {
+  period_year: number
+  period_month: number
+}
+
+const cutTypeLabel = (reason: string | null | undefined): string | null => {
+  if (reason === 'EGRESADO') return 'egreso'
+  if (reason === 'BAJA_DEFINITIVA') return 'baja definitiva'
+  return null
+}
+
+/**
+ * "Cancelado por baja definitiva del 04/2026". `partial` renders
+ * "Cancelado parcialmente ..." for a PARTIALLY_CANCELLED header. Degrades
+ * gracefully when the reason or cut period is missing.
+ */
+export function advanceCancellationLabel(
+  reason: string | null | undefined,
+  cut: AdvanceCutPeriod | null | undefined,
+  partial = false,
+): string {
+  const base = partial ? 'Cancelado parcialmente' : 'Cancelado'
+  const type = cutTypeLabel(reason)
+  const period = cut ? `${String(cut.period_month).padStart(2, '0')}/${cut.period_year}` : null
+
+  if (type && period) return `${base} por ${type} del ${period}`
+  if (type) return `${base} por ${type}`
+  if (period) return `${base} (corte del ${period})`
+  return base
+}
