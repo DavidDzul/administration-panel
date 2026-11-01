@@ -21,27 +21,35 @@
 <script setup lang="ts">
 // Cheque counterpart of PaymentBatchSummary: same card markup/style, two
 // rows (counts, then amounts), each dividing cleanly into the 12-col grid.
+// Also serves the other-bank transfer section (`kind` only changes wording).
 import { computed } from 'vue'
 import { formatAmount } from '@/utils/paymentBreakdownMeta'
 import type { ChequeSummary } from '@/interfaces/payment'
 
 interface Props {
   summary?: ChequeSummary | null
+  kind?: 'cheque' | 'manual_transfer'
 }
 
-const props = withDefaults(defineProps<Props>(), { summary: null })
+const props = withDefaults(defineProps<Props>(), { summary: null, kind: 'cheque' })
+
+const WORDING = {
+  cheque: { total: 'Becarios con cheque', ready: 'Por emitir', readyAmount: 'Monto por emitir' },
+  manual_transfer: { total: 'Becarios con transferencia', ready: 'Por pagar', readyAmount: 'Monto por pagar' },
+} as const
 
 const cardGroups = computed(() => {
   const s = props.summary
   if (!s) return []
+  const words = WORDING[props.kind]
 
   return [
     {
       cols: 6,
       sm: 3,
       cards: [
-        { label: 'Becarios con cheque', value: s.total, icon: 'mdi-account-group-outline', color: undefined },
-        { label: 'Por emitir', value: s.ready, icon: 'mdi-checkbook', color: 'info' },
+        { label: words.total, value: s.total, icon: 'mdi-account-group-outline', color: undefined },
+        { label: words.ready, value: s.ready, icon: 'mdi-checkbook', color: 'info' },
         { label: 'Pagados', value: s.paid, icon: 'mdi-check-circle-outline', color: 'success' },
         { label: 'Bloqueados', value: s.blocking, icon: 'mdi-alert-circle-outline', color: 'error' },
       ],
@@ -50,7 +58,7 @@ const cardGroups = computed(() => {
       cols: 12,
       sm: 6,
       cards: [
-        { label: 'Monto por emitir', value: formatAmount(s.ready_amount), icon: 'mdi-cash-clock', color: 'primary' },
+        { label: words.readyAmount, value: formatAmount(s.ready_amount), icon: 'mdi-cash-clock', color: 'primary' },
         { label: 'Monto pagado', value: formatAmount(s.paid_amount), icon: 'mdi-cash-check', color: 'success' },
       ],
     },

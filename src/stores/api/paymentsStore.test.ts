@@ -8,6 +8,9 @@ import type {
   ChequeSummary,
   ExportSummary,
   InvalidBankRow,
+  ManualTransferPaymentData,
+  ManualTransferRowFields,
+  ManualTransferSummary,
   PaymentBatchRow,
   PaymentBatchSummary,
   PaymentDocument,
@@ -532,6 +535,176 @@ describe('paymentsStore', () => {
       const result = await store.revertChequePayment(7, 'corto')
 
       expect(result).toEqual({ status: 'validation', msg: 'The given data was invalid.', errors })
+    })
+  })
+
+  describe('fetchBatch manual transfer state', () => {
+    it('stores manual_transfer_rows and manual_transfer_summary from the index response', async () => {
+      const manualRow: PaymentBatchRow & ManualTransferRowFields = {
+        ...buildRow({ refrend_id: 9 }),
+        payment_method: 'MANUAL_TRANSFER',
+        paid_payment_method: null,
+        bank_code: '072',
+        transfer_reference: null,
+        transfer_paid_at: null,
+        transfer_notes: null,
+      }
+      const manualSummary: ManualTransferSummary = buildChequeSummary()
+      mockAxiosGet.mockResolvedValueOnce({
+        data: {
+          res: true,
+          data: {
+            rows: [],
+            summary: buildSummary(),
+            manual_transfer_rows: [manualRow],
+            manual_transfer_summary: manualSummary,
+            batch: { batch_id: null, is_paid: false },
+          },
+        },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.manualTransferRows).toEqual([manualRow])
+      expect(store.manualTransferSummary).toEqual(manualSummary)
+    })
+
+    it('defaults to [] / null when the response omits them', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { rows: [], summary: buildSummary(), batch: { batch_id: null, is_paid: false } } },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.manualTransferRows).toEqual([])
+      expect(store.manualTransferSummary).toBeNull()
+    })
+  })
+
+  describe('markManualTransferPaid', () => {
+    const payload = { transfer_reference: 'SPEI-0001', transfer_paid_at: '2026-10-20', transfer_notes: 'Banorte' }
+    const reject = (status: number, data: Record<string, unknown>): void => {
+      mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
+    }
+    const buildData = (overrides: Partial<ManualTransferPaymentData> = {}): ManualTransferPaymentData => ({
+      refrend_id: 7,
+      status: 'PAID',
+      workflow_status: 'CLOSED',
+      paid_payment_method: 'MANUAL_TRANSFER',
+      transfer_reference: 'SPEI-0001',
+      transfer_paid_at: '2026-10-20',
+      transfer_notes: 'Banorte',
+      locked_at: '2026-10-20T10:00:00Z',
+      ...overrides,
+    })
+
+    it('POSTs the payload to manual-transfer-payment and returns success with the data', async () => {
+      const data = buildData()
+      mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'api/admin/scholarship-payments/7/manual-transfer-payment',
+        payload,
+      )
+      expect(result).toEqual({ status: 'success', data })
+    })
+
+    it.each([
+      [409, 'ALREADY_PAID', 'already_paid'],
+      [422, 'NOT_MANUAL_TRANSFER_METHOD', 'not_manual_transfer'],
+      [422, 'TRANSFER_REFERENCE_TAKEN', 'transfer_reference_taken'],
+      [409, 'CYCLE_CLOSED', 'cycle_closed'],
+      [409, 'TELMEX_REPAYMENT_EXISTS', 'telmex_repayment_exists'],
+    ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
+      reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it('maps 422 NOT_PAYABLE to not_payable with the reasons', async () => {
+      const reasons = [{ code: 'MISSING_BANK', message: 'Falta seleccionar banco' }]
+      reject(422, { res: false, msg: 'No es pagable', code: 'NOT_PAYABLE', data: { reasons } })
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(result).toEqual({ status: 'not_payable', msg: 'No es pagable', reasons })
+    })
+
+    it('maps a Laravel 422 validation body to validation with field errors', async () => {
+      const errors = { transfer_reference: ['La referencia de la transferencia es obligatoria.'] }
+      reject(422, { message: 'The given data was invalid.', errors })
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(result).toEqual({ status: 'validation', msg: 'The given data was invalid.', errors })
+    })
+
+    it('maps a network failure to error with a null msg', async () => {
+      mockAxiosPost.mockRejectedValueOnce(new Error('network error'))
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(result).toEqual({ status: 'error', msg: null })
+    })
+  })
+
+  describe('revertManualTransferPayment', () => {
+    const reject = (status: number, data: Record<string, unknown>): void => {
+      mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
+    }
+
+    it('POSTs the reason to manual-transfer-payment/revert and returns success', async () => {
+      const data = {
+        refrend_id: 7,
+        status: 'DRAFT',
+        workflow_status: 'OPEN',
+        paid_payment_method: null,
+        transfer_reference: null,
+        transfer_paid_at: null,
+        transfer_notes: null,
+        locked_at: null,
+      }
+      mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
+
+      const store = usePaymentsStore()
+      const result = await store.revertManualTransferPayment(7, 'Transferencia rechazada')
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/7/manual-transfer-payment/revert', {
+        reason: 'Transferencia rechazada',
+      })
+      expect(result).toEqual({ status: 'success', data })
+    })
+
+    it.each([
+      [422, 'NOT_MANUAL_TRANSFER_PAID', 'not_manual_transfer'],
+      [409, 'CYCLE_CLOSED', 'cycle_closed'],
+    ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
+      reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.revertManualTransferPayment(7, 'Motivo suficientemente largo')
+
+      expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it('maps TRANSFER_LOG_MISSING to error with the server msg', async () => {
+      reject(422, { res: false, msg: 'Falta el registro', code: 'TRANSFER_LOG_MISSING', data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.revertManualTransferPayment(7, 'Motivo suficientemente largo')
+
+      expect(result).toEqual({ status: 'error', msg: 'Falta el registro' })
     })
   })
 

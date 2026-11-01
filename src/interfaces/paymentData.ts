@@ -1,4 +1,6 @@
-export type PaymentMethod = 'TRANSFER' | 'CHEQUE'
+// MANUAL_TRANSFER (sdd/catalogo-bancos) is an EFFECTIVE batch channel only (a
+// TRANSFER becario with a non-BBVA bank); it is never stored on payment data.
+export type PaymentMethod = 'TRANSFER' | 'CHEQUE' | 'MANUAL_TRANSFER'
 
 export interface PaymentData {
   id: number

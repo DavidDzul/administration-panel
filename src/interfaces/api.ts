@@ -20,6 +20,8 @@ import type {
   PaymentBatchBlock,
   ChequeRow,
   ChequeSummary,
+  ManualTransferRow,
+  ManualTransferSummary,
   PaymentBatchRow,
   PaymentBatchSummary,
   PaymentBatchType,
@@ -148,6 +150,9 @@ export interface PaymentBatchIndexResponse {
     // Optional so older server builds (and fixtures) keep type-checking.
     cheque_rows?: ChequeRow[]
     cheque_summary?: ChequeSummary
+    // sdd/catalogo-bancos: TRANSFER becarios of non-BBVA banks.
+    manual_transfer_rows?: ManualTransferRow[]
+    manual_transfer_summary?: ManualTransferSummary
     batch: PaymentBatchBlock
     // Echoes the resolved batch_type (sdd/pagos-lote-pago-adelantado,
     // amendment #1942) — always present since index() now requires
