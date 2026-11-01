@@ -37,6 +37,7 @@ import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
 const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => ({
   id: 1,
   user_id: 5,
+  bank_id: 1,
   bank_name: 'BBVA',
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',

@@ -27,18 +27,39 @@ import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import PaymentDataDialog from '@/components/users/PaymentDataDialog.vue'
 import type { ScholarshipSetting } from '@/interfaces/scholarshipSetting'
+import { useBanksStore } from '@/stores/api/banksStore'
+import type { Bank } from '@/interfaces/bank'
 
 const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => ({
   id: 1,
   user_id: 5,
+  bank_id: 1,
   bank_name: 'BBVA',
-  account_number: '012180001234567895',
+  account_number: '1234567890',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
   payment_method: 'TRANSFER',
   cheque_beneficiary: null,
   ...overrides,
 })
+
+const BBVA: Bank = { id: 1, code: '012', name: 'BBVA', is_active: true, is_system: true }
+const BANORTE: Bank = { id: 2, code: '072', name: 'Banorte', is_active: true, is_system: false }
+const SANTANDER: Bank = { id: 4, code: '014', name: 'Santander', is_active: true, is_system: false }
+const BANAMEX_INACTIVE: Bank = { id: 3, code: '002', name: 'Banamex', is_active: false, is_system: false }
+
+// Valid CLABEs (check digit verified by utils/clabe, same vectors as the API).
+const CLABE_BANORTE = '072000000000000009'
+const CLABE_BBVA = '012180000112345671'
+
+// Seeds the catalog and stubs the network fetch so no test issues a real
+// axios call for banks.
+const stubBanks = (banks: Bank[] = [BBVA, BANORTE, SANTANDER, BANAMEX_INACTIVE], fetchResult = true) => {
+  const banksStore = useBanksStore()
+  banksStore.banks = banks
+  vi.spyOn(banksStore, 'fetchBanks').mockResolvedValue(fetchResult)
+  return banksStore
+}
 
 const buildProfileConfig = (overrides: Partial<ScholarshipProfileConfig> = {}): ScholarshipProfileConfig => ({
   scholarship_type: 'IU',
@@ -102,6 +123,7 @@ const stubProfileConfigDefaults = () => {
   vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
   const scholarshipSettingsStore = useScholarshipSettingsStore()
   vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
+  stubBanks()
   return scholarshipProfileStore
 }
 
@@ -124,8 +146,8 @@ describe('PaymentDataDialog', () => {
     await flushPromises()
 
     expect(paymentDataStore.fetchPaymentData).toHaveBeenCalledWith(5)
-    expect(fieldByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe('BBVA')
-    expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')?.props('modelValue')).toBe('012180001234567895')
+    expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
+    expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')?.props('modelValue')).toBe('1234567890')
     expect(fieldByLabelPrefix(wrapper, 'CURP')?.props('modelValue')).toBe('AAAA000101HDFRRR01')
     expect(fieldByLabelPrefix(wrapper, 'RFC')?.props('modelValue')).toBe('AAAA000101AAA')
   })
@@ -138,7 +160,8 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 9 })
     await flushPromises()
 
-    expect(fieldByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe('')
+    // BBVA (the batch bank) is preselected for a new TRANSFER record.
+    expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
     expect(fieldByLabelPrefix(wrapper, 'CURP')?.props('modelValue')).toBe('')
   })
 
@@ -167,8 +190,7 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 9 })
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
     await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('TOOSHORT')
 
     await submitForm()
@@ -187,8 +209,7 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 9 })
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
     await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
     await fieldByLabelPrefix(wrapper, 'RFC')?.setValue('SHORT')
 
@@ -208,16 +229,15 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 9 })
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
     await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
 
     await submitForm()
     await flushPromises()
 
     expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(9, {
-      bank_name: 'BBVA',
-      account_number: '012180001234567895',
+      bank_id: 1,
+      account_number: '1234567890',
       curp: 'AAAA000101HDFRRR01',
       rfc: null,
       payment_method: 'TRANSFER',
@@ -234,8 +254,7 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 5 })
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
     await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
     await fieldByLabelPrefix(wrapper, 'RFC')?.setValue('AAAA000101AAA')
 
@@ -243,8 +262,8 @@ describe('PaymentDataDialog', () => {
     await flushPromises()
 
     expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(5, {
-      bank_name: 'BBVA',
-      account_number: '012180001234567895',
+      bank_id: 1,
+      account_number: '1234567890',
       curp: 'AAAA000101HDFRRR01',
       rfc: 'AAAA000101AAA',
       payment_method: 'TRANSFER',
@@ -263,8 +282,7 @@ describe('PaymentDataDialog', () => {
     const wrapper = mountDialog({ modelValue: true, userId: 5 })
     await flushPromises()
 
-    await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+    await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
     await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
 
     await submitForm()
@@ -286,6 +304,7 @@ describe('PaymentDataDialog', () => {
     vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(config)
     const scholarshipSettingsStore = useScholarshipSettingsStore()
     vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
+    stubBanks()
 
     const wrapper = mountDialog({ modelValue: true, userId })
     await flushPromises()
@@ -342,8 +361,7 @@ describe('PaymentDataDialog', () => {
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
       vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig({ monthly_amount: '0.00' }))
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(0)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
@@ -365,8 +383,7 @@ describe('PaymentDataDialog', () => {
       const saveConfigSpy = vi.spyOn(scholarshipProfileStore, 'saveProfileConfig')
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue('')
 
@@ -383,8 +400,7 @@ describe('PaymentDataDialog', () => {
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
       vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
@@ -409,8 +425,7 @@ describe('PaymentDataDialog', () => {
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
       vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1200)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(0)
@@ -435,8 +450,7 @@ describe('PaymentDataDialog', () => {
       const saveConfigSpy = vi.spyOn(scholarshipProfileStore, 'saveProfileConfig')
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
 
       await submitForm()
@@ -455,8 +469,7 @@ describe('PaymentDataDialog', () => {
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
       vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockResolvedValue(buildProfileConfig())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
@@ -474,8 +487,7 @@ describe('PaymentDataDialog', () => {
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
       vi.spyOn(scholarshipProfileStore, 'saveProfileConfig').mockRejectedValue(new Error('monto_apoyo inválido'))
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Beca')?.setValue(1500)
       await fieldByLabelPrefix(wrapper, 'Apoyo')?.setValue(200)
@@ -539,8 +551,7 @@ describe('PaymentDataDialog', () => {
       const saveConfigSpy = vi.spyOn(scholarshipProfileStore, 'saveProfileConfig')
       vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
       await fieldByLabelPrefix(wrapper, 'Pago IU')?.setValue('')
 
@@ -561,8 +572,7 @@ describe('PaymentDataDialog', () => {
         buildProfileConfig({ scholarship_type: 'TELMEX_IU', iu_payment_amount: '300.00' }),
       )
 
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
 
       await submitForm()
@@ -766,7 +776,7 @@ describe('PaymentDataDialog', () => {
       expect(methodGroup(wrapper)?.props('modelValue')).toBe('TRANSFER')
       expect(body().text()).toContain('Transferencia')
       expect(body().text()).toContain('Cheque')
-      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeDefined()
+      expect(selectByLabelPrefix(wrapper, 'Banco')).toBeDefined()
       expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeDefined()
       expect(fieldByLabelPrefix(wrapper, 'A nombre de')).toBeUndefined()
     })
@@ -777,7 +787,7 @@ describe('PaymentDataDialog', () => {
       await methodGroup(wrapper)?.setValue('CHEQUE')
       await flushPromises()
 
-      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
+      expect(selectByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
       expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeUndefined()
       const beneficiary = fieldByLabelPrefix(wrapper, 'A nombre de')
       expect(beneficiary).toBeDefined()
@@ -791,8 +801,7 @@ describe('PaymentDataDialog', () => {
 
     it('submits Cheque without bank values and without applying the bank rules', async () => {
       const { wrapper, paymentDataStore } = await openDialog()
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
 
       await methodGroup(wrapper)?.setValue('CHEQUE')
       await flushPromises()
@@ -803,7 +812,7 @@ describe('PaymentDataDialog', () => {
       await flushPromises()
 
       expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(5, {
-        bank_name: null,
+        bank_id: null,
         account_number: null,
         curp: 'AAAA000101HDFRRR01',
         rfc: null,
@@ -824,7 +833,7 @@ describe('PaymentDataDialog', () => {
 
       expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(
         5,
-        expect.objectContaining({ payment_method: 'CHEQUE', cheque_beneficiary: null, bank_name: null }),
+        expect.objectContaining({ payment_method: 'CHEQUE', cheque_beneficiary: null, bank_id: null }),
       )
     })
 
@@ -856,8 +865,7 @@ describe('PaymentDataDialog', () => {
       await fieldByLabelPrefix(wrapper, 'A nombre de')?.setValue('Maria Lopez')
       await methodGroup(wrapper)?.setValue('TRANSFER')
       await flushPromises()
-      await fieldByLabelPrefix(wrapper, 'Banco')?.setValue('BBVA')
-      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('012180001234567895')
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
       await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
 
       await submitForm()
@@ -865,7 +873,7 @@ describe('PaymentDataDialog', () => {
 
       expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(
         5,
-        expect.objectContaining({ payment_method: 'TRANSFER', cheque_beneficiary: null, bank_name: 'BBVA' }),
+        expect.objectContaining({ payment_method: 'TRANSFER', cheque_beneficiary: null, bank_id: 1 }),
       )
     })
 
@@ -873,6 +881,7 @@ describe('PaymentDataDialog', () => {
       const { wrapper } = await openDialog(
         buildPaymentData({
           payment_method: 'CHEQUE',
+          bank_id: null,
           bank_name: null,
           account_number: null,
           cheque_beneficiary: 'Maria Lopez',
@@ -881,14 +890,285 @@ describe('PaymentDataDialog', () => {
 
       expect(methodGroup(wrapper)?.props('modelValue')).toBe('CHEQUE')
       expect(fieldByLabelPrefix(wrapper, 'A nombre de')?.props('modelValue')).toBe('Maria Lopez')
-      expect(fieldByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
+      expect(selectByLabelPrefix(wrapper, 'Banco')).toBeUndefined()
     })
 
     it('pre-fills Transferencia when editing a Transfer record', async () => {
       const { wrapper } = await openDialog(buildPaymentData())
 
       expect(methodGroup(wrapper)?.props('modelValue')).toBe('TRANSFER')
-      expect(fieldByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe('BBVA')
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
+    })
+  })
+
+  // sdd/catalogo-bancos R3: bank v-select + account field tied to the bank.
+  describe('Banco y cuenta (sdd/catalogo-bancos)', () => {
+    const openBankDialog = async (
+      existing: PaymentData | null = null,
+      banks: Bank[] = [BBVA, BANORTE, SANTANDER, BANAMEX_INACTIVE],
+      fetchResult = true,
+    ) => {
+      const paymentDataStore = usePaymentDataStore()
+      vi.spyOn(paymentDataStore, 'fetchPaymentData').mockResolvedValue(existing)
+      vi.spyOn(paymentDataStore, 'savePaymentData').mockResolvedValue(buildPaymentData())
+      const scholarshipProfileStore = useScholarshipProfileStore()
+      vi.spyOn(scholarshipProfileStore, 'fetchProfileConfig').mockResolvedValue(null)
+      const scholarshipSettingsStore = useScholarshipSettingsStore()
+      vi.spyOn(scholarshipSettingsStore, 'fetchSetting').mockResolvedValue(buildSetting())
+      const banksStore = stubBanks(banks, fetchResult)
+      const wrapper = mountDialog({ modelValue: true, userId: 5 })
+      await flushPromises()
+      return { wrapper, paymentDataStore, banksStore }
+    }
+
+    const bankItems = (wrapper: ReturnType<typeof mountDialog>) =>
+      (selectByLabelPrefix(wrapper, 'Banco')?.props('items') as Array<{ id: number; title: string }>).map((i) => i.title)
+
+    it('loads the catalog when the dialog opens', async () => {
+      const { banksStore } = await openBankDialog()
+
+      expect(banksStore.fetchBanks).toHaveBeenCalled()
+    })
+
+    it('lists only active banks for a new record', async () => {
+      const { wrapper } = await openBankDialog()
+
+      expect(bankItems(wrapper)).toEqual(['BBVA', 'Banorte', 'Santander'])
+    })
+
+    it('keeps showing an inactive bank that is already assigned, flagged as inactive', async () => {
+      const { wrapper } = await openBankDialog(
+        buildPaymentData({ bank_id: 3, bank_name: 'Banamex', account_number: CLABE_BANORTE }),
+      )
+
+      expect(bankItems(wrapper)).toContain('Banamex (inactivo)')
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(3)
+    })
+
+    it('preselects BBVA for a new TRANSFER record and uses the "Número de cuenta" label', async () => {
+      const { wrapper } = await openBankDialog()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
+      expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeDefined()
+      expect(fieldByLabelPrefix(wrapper, 'CLABE')).toBeUndefined()
+    })
+
+    it('preselects BBVA after switching from Cheque back to Transferencia on a record with no bank', async () => {
+      const { wrapper } = await openBankDialog(
+        buildPaymentData({ payment_method: 'CHEQUE', bank_id: null, bank_name: null, account_number: null }),
+      )
+
+      await methodGroup(wrapper)?.setValue('TRANSFER')
+      await flushPromises()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
+    })
+
+    it('does not preselect a bank for a legacy row that has a bank name but no bank_id', async () => {
+      const { wrapper } = await openBankDialog(buildPaymentData({ bank_id: null, bank_name: 'Bancomer viejo' }))
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBeNull()
+      expect(body().text()).toContain('Bancomer viejo')
+    })
+
+    it('switches the account field to "CLABE" when a non-BBVA bank is selected', async () => {
+      const { wrapper } = await openBankDialog()
+
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(BANORTE.id)
+      await flushPromises()
+
+      expect(fieldByLabelPrefix(wrapper, 'CLABE')).toBeDefined()
+      expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')).toBeUndefined()
+    })
+
+    it('rejects a BBVA account that is not 9-10 digits', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('12345678')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+      expect(body().text()).toContain('La cuenta debe tener 9 o 10 dígitos.')
+    })
+
+    it('accepts a 9-digit BBVA account', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('123456789')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ bank_id: 1, account_number: '123456789' }),
+      )
+    })
+
+    it('tells the admin to type the account number (not the CLABE) when BBVA is selected', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue(CLABE_BBVA)
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+      expect(body().text()).toContain('Para BBVA captura el número de cuenta')
+    })
+
+    it('rejects a non-BBVA CLABE with a wrong length', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(BANORTE.id)
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'CLABE')?.setValue('0720000000')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+      expect(body().text()).toContain('La CLABE debe tener 18 dígitos.')
+    })
+
+    it('rejects a CLABE with a wrong check digit', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(BANORTE.id)
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'CLABE')?.setValue('072000000000000000')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+      expect(body().text()).toContain('La CLABE no es válida.')
+    })
+
+    it('rejects a valid CLABE whose prefix belongs to another bank', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      // Typing the CLABE auto-selects Banorte; the admin then overrides it.
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue(CLABE_BANORTE)
+      await flushPromises()
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(SANTANDER.id)
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+      expect(body().text()).toContain('La CLABE no corresponde a Santander.')
+    })
+
+    it('auto-selects the bank whose code matches a valid typed CLABE', async () => {
+      const { wrapper } = await openBankDialog()
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(1)
+
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue(CLABE_BANORTE)
+      await flushPromises()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(2)
+      expect(fieldByLabelPrefix(wrapper, 'CLABE')?.props('modelValue')).toBe(CLABE_BANORTE)
+    })
+
+    it('does not change the bank when the CLABE prefix matches no active bank', async () => {
+      const { wrapper } = await openBankDialog(null, [BBVA, BANORTE])
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(BANORTE.id)
+      await flushPromises()
+
+      // 014 (Santander) is not in this catalog.
+      await fieldByLabelPrefix(wrapper, 'CLABE')?.setValue('014000000000000009')
+      await flushPromises()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(2)
+    })
+
+    it('does not auto-select an inactive bank', async () => {
+      const { wrapper } = await openBankDialog()
+      await selectByLabelPrefix(wrapper, 'Banco')?.setValue(BANORTE.id)
+      await flushPromises()
+
+      // 002 (Banamex) exists but is inactive.
+      await fieldByLabelPrefix(wrapper, 'CLABE')?.setValue('002000000000000008')
+      await flushPromises()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(2)
+    })
+
+    it('submits bank_id and a valid CLABE for a non-BBVA bank, without bank_name', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue(CLABE_BANORTE)
+      await flushPromises()
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).toHaveBeenCalledWith(5, {
+        bank_id: 2,
+        account_number: CLABE_BANORTE,
+        curp: 'AAAA000101HDFRRR01',
+        rfc: null,
+        payment_method: 'TRANSFER',
+        cheque_beneficiary: null,
+      })
+    })
+
+    it('requires a bank for Transferencia', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog(
+        buildPaymentData({ bank_id: null, bank_name: 'Bancomer viejo' }),
+      )
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(paymentDataStore.savePaymentData).not.toHaveBeenCalled()
+    })
+
+    it('maps a server error on bank_id to the bank field and keeps the dialog open', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      vi.mocked(paymentDataStore.savePaymentData).mockRejectedValue({
+        response: { status: 422, data: { errors: { bank_id: ['El banco seleccionado no está disponible.'] } } },
+      })
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('errorMessages')).toEqual([
+        'El banco seleccionado no está disponible.',
+      ])
+      expect(wrapper.emitted('saved')).toBeUndefined()
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    })
+
+    it('maps a server error on account_number to the account field', async () => {
+      const { wrapper, paymentDataStore } = await openBankDialog()
+      vi.mocked(paymentDataStore.savePaymentData).mockRejectedValue({
+        response: { status: 422, data: { errors: { account_number: ['La cuenta debe tener 9 o 10 dígitos.'] } } },
+      })
+      await fieldByLabelPrefix(wrapper, 'Número de cuenta')?.setValue('1234567890')
+      await fieldByLabelPrefix(wrapper, 'CURP')?.setValue('AAAA000101HDFRRR01')
+
+      await submitForm()
+      await flushPromises()
+
+      expect(fieldByLabelPrefix(wrapper, 'Número de cuenta')?.props('errorMessages')).toEqual([
+        'La cuenta debe tener 9 o 10 dígitos.',
+      ])
+    })
+
+    it('falls back to the assigned bank and shows a hint when the catalog cannot be loaded', async () => {
+      const { wrapper } = await openBankDialog(buildPaymentData({ bank_id: 2, bank_name: 'Banorte' }), [], false)
+
+      expect(bankItems(wrapper)).toEqual(['Banorte'])
+      expect(selectByLabelPrefix(wrapper, 'Banco')?.props('modelValue')).toBe(2)
+      expect(body().text()).toContain('No se pudo cargar el catálogo de bancos.')
     })
   })
 })
