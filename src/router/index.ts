@@ -112,6 +112,11 @@ const routes = [
         component: () => catchReload(import('@/views/configuracion/ScholarshipSettingsView.vue')),
       },
       {
+        path: '/control/bancos',
+        name: 'BanksView',
+        component: () => catchReload(import('@/views/bancos/BanksView.vue')),
+      },
+      {
         path: '/becas-telmex',
         name: 'TelmexCoveragesView',
         component: () => catchReload(import('@/views/telmex/TelmexCoveragesView.vue')),

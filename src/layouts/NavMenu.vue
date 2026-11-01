@@ -59,7 +59,7 @@
     />
 
     <v-list-group
-      v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS) || can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS)"
+      v-if="can(PERMISSIONS.READ_ROLES) || can(PERMISSIONS.READ_ADMINS) || can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS) || can(PERMISSIONS.READ_BANKS)"
       value="Control"
     >
       <template #activator="{ props }">
@@ -93,6 +93,14 @@
         v-if="can(PERMISSIONS.MANAGE_SCHOLARSHIP_SETTINGS)"
         to="/control/becas"
         title="Configuración de becas"
+        density="compact"
+        class="nav-subitem"
+      />
+      <!-- Bank catalog (sdd/catalogo-bancos), gated on ADM_READ_BANKS. -->
+      <v-list-item
+        v-if="can(PERMISSIONS.READ_BANKS)"
+        to="/control/bancos"
+        title="Bancos"
         density="compact"
         class="nav-subitem"
       />

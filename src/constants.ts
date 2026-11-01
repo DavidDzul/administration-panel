@@ -118,4 +118,8 @@ export const PERMISSIONS = {
   READ_TELMEX_COVERAGE: 'ADM_READ_TELMEX_COVERAGE',
   MANAGE_TELMEX_COVERAGE: 'ADM_MANAGE_TELMEX_COVERAGE',
   MANAGE_TELMEX_REPAYMENTS: 'ADM_MANAGE_TELMEX_REPAYMENTS',
+  // Bank catalog (sdd/catalogo-bancos) — Control > Bancos. Read gates the nav
+  // entry and route; manage gates create/edit/deactivate/delete.
+  READ_BANKS: 'ADM_READ_BANKS',
+  MANAGE_BANKS: 'ADM_MANAGE_BANKS',
 } as const

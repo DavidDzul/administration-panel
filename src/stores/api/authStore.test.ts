@@ -340,6 +340,18 @@ describe('authStore', () => {
     expect(authStore.editPaymentData).toBe(false)
   })
 
+  // sdd/catalogo-bancos PR5 — bank catalog read/manage computed flags.
+  it('readBanks / manageBanks reflect ADM_READ_BANKS / ADM_MANAGE_BANKS independently', () => {
+    const authStore = useAuthStore()
+    authStore.permissions = [PERMISSIONS.READ_BANKS]
+    expect(authStore.readBanks).toBe(true)
+    expect(authStore.manageBanks).toBe(false)
+
+    authStore.permissions = [PERMISSIONS.MANAGE_BANKS]
+    expect(authStore.readBanks).toBe(false)
+    expect(authStore.manageBanks).toBe(true)
+  })
+
   // Task 4.2 (PR4) — readRoles / manageRoles / readAdmins / manageAdmins
   // additions, mirroring readUsers/readPaymentData exactly. Pure computed
   // properties: no axios calls involved.

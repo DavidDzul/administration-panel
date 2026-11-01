@@ -192,6 +192,10 @@ export const useAuthStore = defineStore('authStore', () => {
     permissions.value.includes(PERMISSIONS.MANAGE_TELMEX_REPAYMENTS),
   )
 
+  // Bank catalog — read/manage split, mirrors readRoles/manageRoles.
+  const readBanks = computed<boolean>(() => permissions.value.includes(PERMISSIONS.READ_BANKS))
+  const manageBanks = computed<boolean>(() => permissions.value.includes(PERMISSIONS.MANAGE_BANKS))
+
   return {
     login,
     logout,
@@ -220,5 +224,7 @@ export const useAuthStore = defineStore('authStore', () => {
     readTelmexCoverage,
     manageTelmexCoverage,
     manageTelmexRepayments,
+    readBanks,
+    manageBanks,
   }
 })
