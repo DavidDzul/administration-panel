@@ -2,13 +2,11 @@
   <v-dialog :model-value="modelValue" max-width="520" persistent @update:model-value="emit('update:modelValue', $event)">
     <v-card>
       <v-form ref="formRef" @submit.prevent="onSubmit">
-        <v-card-title>Revertir pago con cheque</v-card-title>
+        <v-card-title>{{ title }}</v-card-title>
         <v-card-text>
           <div v-if="row" class="mb-4" data-testid="revert-dialog-details">
             <div class="text-subtitle-1">{{ row.snapshot_name }}</div>
-            <div class="text-body-2">
-              Cheque {{ row.cheque_number }} · {{ formatChequeDate(row.cheque_delivered_at) }}
-            </div>
+            <div class="text-body-2">{{ detailsLine }}</div>
           </div>
           <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
             El refrendo volverá a quedar pendiente de pago.
@@ -28,20 +26,37 @@
 <script setup lang="ts">
 // Presentational (pago-cheque PR7): validates the reason (10-500 chars) and
 // emits it; PaymentsView calls revertCheque and decides when to close.
-import { ref, watch } from 'vue'
+// `kind` (sdd/catalogo-bancos) switches the wording for other-bank transfers.
+import { computed, ref, watch } from 'vue'
 import { formatChequeDate } from '@/utils/chequeFormat'
-import type { ChequeRow } from '@/interfaces/payment'
+import type { ChequeRow, ManualTransferRow } from '@/interfaces/payment'
 
 const REASON_MIN = 10
 const REASON_MAX = 500
 
 interface Props {
   modelValue: boolean
-  row: ChequeRow | null
+  row: ChequeRow | ManualTransferRow | null
   saving?: boolean
+  kind?: 'cheque' | 'manual_transfer'
 }
 
-const props = withDefaults(defineProps<Props>(), { saving: false })
+const props = withDefaults(defineProps<Props>(), { saving: false, kind: 'cheque' })
+
+const title = computed<string>(() =>
+  props.kind === 'manual_transfer' ? 'Revertir pago por transferencia' : 'Revertir pago con cheque',
+)
+
+const detailsLine = computed<string>(() => {
+  const row = props.row
+  if (!row) return ''
+  if (props.kind === 'manual_transfer') {
+    const transfer = row as ManualTransferRow
+    return `Folio ${transfer.transfer_reference} · ${formatChequeDate(transfer.transfer_paid_at)}`
+  }
+  const cheque = row as ChequeRow
+  return `Cheque ${cheque.cheque_number} · ${formatChequeDate(cheque.cheque_delivered_at)}`
+})
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void

@@ -20,7 +20,7 @@ function getStatus(error: unknown): number | undefined {
 // no cheque beneficiary. Sending clean values keeps stale data off the wire.
 function normalizeForm(form: PaymentDataForm): PaymentDataForm {
   if (form.payment_method === 'CHEQUE') {
-    return { ...form, bank_name: null, account_number: null }
+    return { ...form, bank_id: null, account_number: null }
   }
   return { ...form, cheque_beneficiary: null }
 }

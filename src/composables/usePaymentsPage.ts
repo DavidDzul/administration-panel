@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePaymentsStore } from '@/stores/api/paymentsStore'
-import type { ChequeActionResult, ProcessBatchResult } from '@/stores/api/paymentsStore'
+import type { ChequeActionResult, ManualTransferActionResult, ProcessBatchResult } from '@/stores/api/paymentsStore'
 import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import type {
@@ -10,12 +10,15 @@ import type {
   ChequeRow,
   InvalidBankRow,
   MarkChequePayload,
+  MarkManualTransferPayload,
   PaymentBatchRow,
   PaymentBatchType,
 } from '@/interfaces/payment'
 
 const EMPTY_BATCH_MESSAGE = 'No hay becarios con pago por transferencia en este lote.'
 const CHEQUE_ERROR_MESSAGE = 'No se pudo completar la operación con el cheque, intenta nuevamente.'
+const MANUAL_TRANSFER_ERROR_MESSAGE =
+  'No se pudo completar la operación con la transferencia, intenta nuevamente.'
 
 // Distinct from ProcessBatchResult's states — 'blocked' is the export-time
 // all-or-nothing bank-data-validation gate (design D4), 'error' is
@@ -33,9 +36,18 @@ export type ExportErrorState = 'blocked' | 'error' | null
 // purely presentational (rows as props, no internal fetching).
 export function usePaymentsPage() {
   const paymentsStore = usePaymentsStore()
-  const { rows, summary, chequeRows, chequeSummary, batchId, isPaid } = storeToRefs(paymentsStore)
-  const { fetchBatch, processBatch, fetchExportSummary, downloadExportFile, markChequePaid, revertChequePayment } =
-    paymentsStore
+  const { rows, summary, chequeRows, chequeSummary, manualTransferRows, manualTransferSummary, batchId, isPaid } =
+    storeToRefs(paymentsStore)
+  const {
+    fetchBatch,
+    processBatch,
+    fetchExportSummary,
+    downloadExportFile,
+    markChequePaid,
+    revertChequePayment,
+    markManualTransferPaid,
+    revertManualTransferPayment,
+  } = paymentsStore
   const { showAlert } = useAlertStore()
 
   const { filteredCampus, readPayments, processPayments, exportPayments } = storeToRefs(useAuthStore())
@@ -153,26 +165,39 @@ export function usePaymentsPage() {
   // generic error) keep the current data so the dialog can be corrected.
   const savingCheque = ref<boolean>(false)
 
-  const RELOAD_STATUSES: ReadonlySet<ChequeActionResult['status']> = new Set([
+  const RELOAD_STATUSES: ReadonlySet<string> = new Set([
     'success',
     'already_paid',
     'not_cheque',
+    'not_manual_transfer',
     'cycle_closed',
     'telmex_repayment_exists',
   ])
 
-  const finishChequeAction = async (
-    result: ChequeActionResult,
+  // Shared by the cheque and the other-bank transfer actions (same result
+  // contract: `status` + server `msg` on every failure).
+  const finishManualAction = async <T extends ChequeActionResult | ManualTransferActionResult>(
+    result: T,
     successMessage: string,
-  ): Promise<ChequeActionResult> => {
+    errorMessage: string,
+  ): Promise<T> => {
     if (result.status === 'success') {
       showAlert({ title: successMessage, status: 'success' })
     } else {
-      showAlert({ title: result.msg ?? CHEQUE_ERROR_MESSAGE, status: 'error' })
+      showAlert({ title: result.msg ?? errorMessage, status: 'error' })
     }
     if (RELOAD_STATUSES.has(result.status)) await loadBatch()
     return result
   }
+
+  const finishChequeAction = (result: ChequeActionResult, successMessage: string): Promise<ChequeActionResult> =>
+    finishManualAction(result, successMessage, CHEQUE_ERROR_MESSAGE)
+
+  const finishManualTransferAction = (
+    result: ManualTransferActionResult,
+    successMessage: string,
+  ): Promise<ManualTransferActionResult> =>
+    finishManualAction(result, successMessage, MANUAL_TRANSFER_ERROR_MESSAGE)
 
   const markCheque = async (refrendId: number, payload: MarkChequePayload): Promise<ChequeActionResult> => {
     savingCheque.value = true
@@ -189,6 +214,37 @@ export function usePaymentsPage() {
       return await finishChequeAction(await revertChequePayment(refrendId, reason), 'Pago por cheque revertido.')
     } finally {
       savingCheque.value = false
+    }
+  }
+
+  // sdd/catalogo-bancos R7: other-bank transfer actions, same reload policy
+  // as the cheque ones.
+  const savingManualTransfer = ref<boolean>(false)
+
+  const markManualTransfer = async (
+    refrendId: number,
+    payload: MarkManualTransferPayload,
+  ): Promise<ManualTransferActionResult> => {
+    savingManualTransfer.value = true
+    try {
+      return await finishManualTransferAction(
+        await markManualTransferPaid(refrendId, payload),
+        'Transferencia registrada.',
+      )
+    } finally {
+      savingManualTransfer.value = false
+    }
+  }
+
+  const revertManualTransfer = async (refrendId: number, reason: string): Promise<ManualTransferActionResult> => {
+    savingManualTransfer.value = true
+    try {
+      return await finishManualTransferAction(
+        await revertManualTransferPayment(refrendId, reason),
+        'Pago por transferencia revertido.',
+      )
+    } finally {
+      savingManualTransfer.value = false
     }
   }
 
@@ -252,6 +308,11 @@ export function usePaymentsPage() {
     savingCheque,
     markCheque,
     revertCheque,
+    manualTransferRows,
+    manualTransferSummary,
+    savingManualTransfer,
+    markManualTransfer,
+    revertManualTransfer,
     loadingBatch,
     loadError,
     canProcess,

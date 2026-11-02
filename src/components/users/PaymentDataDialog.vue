@@ -142,13 +142,28 @@
             </template>
             <template v-else>
               <v-col cols="12">
-                <v-text-field v-model="form.bank_name" label="Banco *" :rules="[requiredRule]"></v-text-field>
+                <v-select
+                  v-model="form.bank_id"
+                  :items="bankItems"
+                  item-title="title"
+                  item-value="id"
+                  label="Banco *"
+                  :rules="[bankRule]"
+                  :error-messages="serverErrors.bank_id"
+                  :hint="bankHint"
+                  :persistent-hint="!!bankHint"
+                  @update:model-value="serverErrors.bank_id = []"
+                ></v-select>
               </v-col>
               <v-col cols="12">
                 <v-text-field
-                  v-model="form.account_number"
-                  label="Número de cuenta / CLABE *"
-                  :rules="[requiredRule]"
+                  :model-value="form.account_number"
+                  :label="accountLabel"
+                  :rules="[accountRule]"
+                  :error-messages="serverErrors.account_number"
+                  :maxlength="isBatchBank ? 10 : CLABE_LENGTH"
+                  inputmode="numeric"
+                  @update:model-value="onAccountInput"
                 ></v-text-field>
               </v-col>
             </template>
@@ -177,12 +192,15 @@ import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 import { useScholarshipProfileStore } from '@/stores/api/scholarshipProfileStore'
 import { useScholarshipSettingsStore } from '@/stores/api/scholarshipSettingsStore'
 import { useAuthStore } from '@/stores/api/authStore'
+import { useBanksStore } from '@/stores/api/banksStore'
 import { useAlertStore } from '@/stores/alert'
 import { temporaryIncreaseDisplay } from '@/utils/temporaryIncreaseVigencia'
+import { CLABE_LENGTH, bankCode, isValid as isValidClabe } from '@/utils/clabe'
 import type { PaymentDataForm } from '@/interfaces/paymentData'
 import type { ScholarshipProfileConfig, ScholarshipProfileConfigForm } from '@/interfaces/scholarshipProfile'
 import type { SelectOption } from '@/constants'
 import type { Person } from '@/interfaces/user'
+import type { Bank } from '@/interfaces/bank'
 
 type PaymentDialogPerson = Pick<Person, 'first_name' | 'last_name'> & Partial<Pick<Person, 'enrollment'>>
 
@@ -209,6 +227,8 @@ const emit = defineEmits<Emits>()
 const paymentDataStore = usePaymentDataStore()
 const scholarshipProfileStore = useScholarshipProfileStore()
 const scholarshipSettingsStore = useScholarshipSettingsStore()
+const banksStore = useBanksStore()
+const { banks } = storeToRefs(banksStore)
 const { editScholarshipProfile } = storeToRefs(useAuthStore())
 const { showAlert } = useAlertStore()
 
@@ -237,7 +257,7 @@ const scholarshipTypeOptions: SelectOption[] = [
 const CHEQUE_BENEFICIARY_MAX_LENGTH = 150
 
 const emptyForm = (): PaymentDataForm => ({
-  bank_name: '',
+  bank_id: null,
   account_number: '',
   curp: '',
   rfc: '',
@@ -256,6 +276,94 @@ const emptyConfigForm = (): ScholarshipProfileConfigForm => ({
 const form = reactive<PaymentDataForm>(emptyForm())
 const isCheque = computed(() => form.payment_method === 'CHEQUE')
 const configForm = reactive<ScholarshipProfileConfigForm>(emptyConfigForm())
+
+// Banco y cuenta (sdd/catalogo-bancos R3). BBVA (code 012) is the batch bank:
+// it takes a 9-10 digit account number. Every other bank takes an 18-digit
+// CLABE, validated like impulsou-api's App\Rules\AccountMatchesBank.
+const BATCH_BANK_CODE = '012'
+const BBVA_ACCOUNT_PATTERN = /^\d{9,10}$/
+
+const catalogLoaded = ref(true)
+// The bank currently assigned in the DB, kept so it stays selectable (and
+// readable) even when it is inactive or the catalog could not be loaded.
+const assignedBank = ref<{ id: number; name: string; is_active: boolean } | null>(null)
+// Legacy row: a free-text bank_name from before the catalog, with no bank_id.
+const legacyBankName = ref<string | null>(null)
+const serverErrors = reactive<{ bank_id: string[]; account_number: string[] }>({ bank_id: [], account_number: [] })
+
+const activeBanks = computed<Bank[]>(() => banks.value.filter((b) => b.is_active))
+
+const bankItems = computed(() => {
+  const items = activeBanks.value.map((b) => ({ id: b.id, title: b.name }))
+  const assigned = assignedBank.value
+  if (assigned && !items.some((i) => i.id === assigned.id)) {
+    const fromCatalog = banks.value.find((b) => b.id === assigned.id)
+    const isActive = fromCatalog ? fromCatalog.is_active : assigned.is_active
+    items.push({
+      id: assigned.id,
+      title: isActive ? (fromCatalog?.name ?? assigned.name) : `${fromCatalog?.name ?? assigned.name} (inactivo)`,
+    })
+  }
+  return items
+})
+
+const selectedBank = computed<Bank | null>(() => banks.value.find((b) => b.id === form.bank_id) ?? null)
+const isBatchBank = computed(() => selectedBank.value?.code === BATCH_BANK_CODE)
+const accountLabel = computed(() => {
+  if (isBatchBank.value) return 'Número de cuenta *'
+  return selectedBank.value ? 'CLABE *' : 'Número de cuenta / CLABE *'
+})
+
+const bankHint = computed(() => {
+  if (!catalogLoaded.value) return 'No se pudo cargar el catálogo de bancos.'
+  if (legacyBankName.value && form.bank_id === null) {
+    return `Banco registrado anteriormente: ${legacyBankName.value}. Selecciona un banco del catálogo.`
+  }
+  return ''
+})
+
+const bankRule = (v: unknown): true | string => (v !== null && v !== undefined && v !== '') || 'Campo requerido.'
+
+const accountRule = (v: unknown): true | string => {
+  const required = requiredRule(v)
+  if (required !== true) return required
+  const account = String(v)
+  const bank = selectedBank.value
+  if (!bank) return true // The bank rule reports the missing bank.
+
+  if (bank.code === BATCH_BANK_CODE) {
+    if (account.length === CLABE_LENGTH && bankCode(account) === BATCH_BANK_CODE) {
+      return 'Para BBVA captura el número de cuenta, no la CLABE.'
+    }
+    return BBVA_ACCOUNT_PATTERN.test(account) || 'La cuenta debe tener 9 o 10 dígitos.'
+  }
+  if (!/^\d{18}$/.test(account)) return 'La CLABE debe tener 18 dígitos.'
+  if (!isValidClabe(account)) return 'La CLABE no es válida.'
+  return bankCode(account) === bank.code || `La CLABE no corresponde a ${bank.name}.`
+}
+
+// BBVA is the batch bank and by far the most common case, so a new TRANSFER
+// record starts on it. Legacy rows (bank_name without bank_id) are left blank
+// on purpose: the admin has to confirm the real bank explicitly.
+const preselectBatchBank = (): void => {
+  if (isCheque.value || form.bank_id !== null || legacyBankName.value) return
+  const batchBank = activeBanks.value.find((b) => b.code === BATCH_BANK_CODE)
+  if (batchBank) form.bank_id = batchBank.id
+}
+
+// Typing a valid CLABE picks the bank its prefix points to (active, non-BBVA
+// banks only: BBVA takes an account number, not a CLABE).
+const onAccountInput = (value: string | null): void => {
+  const account = (value ?? '').replace(/\s+/g, '')
+  form.account_number = account
+  serverErrors.account_number = []
+
+  if (!isValidClabe(account)) return
+  const code = bankCode(account)
+  if (code === BATCH_BANK_CODE) return
+  const match = activeBanks.value.find((b) => b.code === code)
+  if (match && match.id !== form.bank_id) form.bank_id = match.id
+}
 
 // Mirrors impulsou-api's App\Rules\Curp / App\Rules\Rfc bounded
 // length+charset validation exactly (design D3, spec obs #1582's explicit
@@ -298,9 +406,19 @@ const loadExisting = async (userId: number): Promise<void> => {
       scholarshipProfileStore.fetchProfileConfig(userId),
     ])
 
+    assignedBank.value = null
+    legacyBankName.value = null
+    serverErrors.bank_id = []
+    serverErrors.account_number = []
+
     if (existing) {
       form.payment_method = existing.payment_method ?? 'TRANSFER'
-      form.bank_name = existing.bank_name ?? ''
+      form.bank_id = existing.bank_id ?? null
+      if (existing.bank_id !== null && existing.bank_id !== undefined) {
+        assignedBank.value = { id: existing.bank_id, name: existing.bank_name ?? '', is_active: true }
+      } else if (existing.bank_name) {
+        legacyBankName.value = existing.bank_name
+      }
       form.account_number = existing.account_number ?? ''
       form.cheque_beneficiary = existing.cheque_beneficiary ?? ''
       form.curp = existing.curp
@@ -308,6 +426,7 @@ const loadExisting = async (userId: number): Promise<void> => {
     } else {
       Object.assign(form, emptyForm())
     }
+    preselectBatchBank()
 
     if (existingConfig) {
       configForm.scholarship_type = existingConfig.scholarship_type
@@ -344,15 +463,27 @@ const loadTelmexBaseAmount = async (): Promise<void> => {
   }
 }
 
+// Independent of loadExisting for the same reason: a catalog failure must not
+// wipe the form. The assigned bank stays selectable through `assignedBank`.
+const loadBanks = async (): Promise<void> => {
+  catalogLoaded.value = await banksStore.fetchBanks()
+  preselectBatchBank()
+}
+
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen && props.userId !== null) {
-      void loadExisting(props.userId)
+      void loadExisting(props.userId).then(loadBanks)
       void loadTelmexBaseAmount()
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => form.payment_method,
+  () => preselectBatchBank(),
 )
 
 watch(
@@ -381,6 +512,16 @@ const close = (): void => {
   emit('update:modelValue', false)
 }
 
+// Pulls Laravel's 422 `errors` bag off a rejected request (duck-typed, same
+// approach as paymentDataStore.getStatus).
+const extractFieldErrors = (error: unknown): Record<string, string[]> => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const errors = (error as { response?: { data?: { errors?: Record<string, string[]> } } }).response?.data?.errors
+    if (errors && typeof errors === 'object') return errors
+  }
+  return {}
+}
+
 // Two sequential, independently-caught saves (design D6): a failure in one
 // section must not roll back or mask the other's success. The config save
 // is skipped entirely (not attempted) when the admin lacks
@@ -399,7 +540,7 @@ const onSubmit = async (): Promise<void> => {
     // Only the fields of the selected method are sent; the other method's
     // values (possibly typed before switching) are dropped.
     await paymentDataStore.savePaymentData(props.userId, {
-      bank_name: isCheque.value ? null : form.bank_name,
+      bank_id: isCheque.value ? null : form.bank_id,
       account_number: isCheque.value ? null : form.account_number,
       curp: form.curp,
       rfc: form.rfc || null,
@@ -409,7 +550,14 @@ const onSubmit = async (): Promise<void> => {
   } catch (error: unknown) {
     paymentDataOk = false
     console.error('Error al guardar los datos de pago:', error)
-    showAlert({ title: 'Error al guardar los datos de pago, intenta nuevamente.', status: 'error' })
+    const fieldErrors = extractFieldErrors(error)
+    serverErrors.bank_id = fieldErrors.bank_id ?? []
+    serverErrors.account_number = fieldErrors.account_number ?? []
+    const firstMessage = serverErrors.bank_id[0] ?? serverErrors.account_number[0]
+    showAlert({
+      title: firstMessage ?? 'Error al guardar los datos de pago, intenta nuevamente.',
+      status: 'error',
+    })
   }
 
   let configOk = true

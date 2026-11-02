@@ -23,6 +23,7 @@ const router = createRouter({
     { path: '/control/roles', component: { template: '<div />' } },
     { path: '/control/accesos', component: { template: '<div />' } },
     { path: '/control/becas', component: { template: '<div />' } },
+    { path: '/control/bancos', component: { template: '<div />' } },
     { path: '/pagos', component: { template: '<div />' } },
     { path: '/pagos/por-generacion', component: { template: '<div />' } },
     { path: '/becas-telmex', component: { template: '<div />' } },
@@ -142,6 +143,33 @@ describe('NavMenu — "Control" > "Configuración de becas" gating on ADM_MANAGE
 
     expect(wrapper.text()).not.toContain('Control')
     expect(wrapper.text()).not.toContain('Configuración de becas')
+  })
+})
+
+// sdd/catalogo-bancos PR5: "Bancos" nav item, gated on ADM_READ_BANKS, which
+// also opens the "Control" group on its own.
+describe('NavMenu — "Control" > "Bancos" gating on ADM_READ_BANKS', () => {
+  beforeEach(() => {
+    mockPermissions.value = []
+  })
+
+  it('shows "Control" > "Bancos" for a bank-only user (ADM_READ_BANKS alone)', async () => {
+    mockPermissions.value = ['ADM_READ_BANKS']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).toContain('Bancos')
+    expect(wrapper.text()).not.toContain('Roles')
+  })
+
+  it('hides "Bancos" when the user lacks ADM_READ_BANKS', async () => {
+    mockPermissions.value = ['ADM_READ_ROLES']
+    const wrapper = mountNav()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.text()).toContain('Control')
+    expect(wrapper.text()).not.toContain('Bancos')
   })
 })
 

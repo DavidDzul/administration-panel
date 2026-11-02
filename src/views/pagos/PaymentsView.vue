@@ -39,21 +39,21 @@
       </v-col>
     </v-row>
 
-    <v-row v-if="onlyCheques">
+    <v-row v-if="hasNoBatchRows">
       <v-col cols="12">
         <v-alert type="info" variant="tonal" density="compact" data-testid="only-cheques-alert">
-          No hay becarios con pago por transferencia en este lote.
+          {{ noBatchRowsText }}
         </v-alert>
       </v-col>
     </v-row>
 
-    <h2 v-if="!onlyCheques" data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
+    <h2 v-if="!hasNoBatchRows" data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
       <v-icon icon="mdi-bank-transfer" />
       Transferencias
     </h2>
 
     <!-- Transfers only: payable cheques must stay visible to be marked as paid. -->
-    <v-row v-if="!onlyCheques && rows.length > 0">
+    <v-row v-if="!hasNoBatchRows && rows.length > 0">
       <v-col cols="12" sm="6" md="4">
         <v-switch
           v-model="showOnlyPending"
@@ -65,9 +65,9 @@
       </v-col>
     </v-row>
 
-    <PaymentBatchSummary v-if="!isPaid && !onlyCheques" :summary="summary" />
+    <PaymentBatchSummary v-if="!isPaid && !hasNoBatchRows" :summary="summary" />
 
-    <v-row v-if="hasProcessPermission && !onlyCheques" justify="end">
+    <v-row v-if="hasProcessPermission && !hasNoBatchRows" justify="end">
       <v-col cols="auto">
         <v-btn color="primary" :disabled="!canProcess" @click="dialogOpen = true">Pagar todos</v-btn>
       </v-col>
@@ -110,7 +110,7 @@
       @download="confirmExport"
     />
 
-    <v-row v-if="!onlyCheques">
+    <v-row v-if="!hasNoBatchRows">
       <v-col cols="12">
         <PaymentBatchTable
           :rows="visibleRows"
@@ -122,7 +122,26 @@
       </v-col>
     </v-row>
 
-    <v-divider v-if="!onlyCheques && chequeRows.length > 0" data-testid="section-divider" class="mt-10 mb-8" />
+    <v-divider
+      v-if="!hasNoBatchRows && manualTransferRows.length > 0"
+      data-testid="manual-transfer-divider"
+      class="mt-10 mb-8"
+    />
+
+    <ManualTransferPaymentSection
+      :rows="manualTransferRows"
+      :summary="manualTransferSummary"
+      :can-manage="hasProcessPermission"
+      @view="onViewDocument"
+      @mark="onMarkManualTransfer"
+      @revert="onRevertManualTransfer"
+    />
+
+    <v-divider
+      v-if="(!hasNoBatchRows || manualTransferRows.length > 0) && chequeRows.length > 0"
+      data-testid="section-divider"
+      class="mt-10 mb-8"
+    />
 
     <ChequePaymentSection
       :rows="chequeRows"
@@ -158,6 +177,22 @@
     :saving="savingCheque"
     @submit="onSubmitRevert"
   />
+
+  <ManualTransferPaymentDialog
+    v-model="manualMarkDialogOpen"
+    :row="manualTarget"
+    :saving="savingManualTransfer"
+    :server-errors="manualMarkServerErrors"
+    @submit="onSubmitManualMark"
+  />
+
+  <RevertChequePaymentDialog
+    v-model="manualRevertDialogOpen"
+    kind="manual_transfer"
+    :row="manualTarget"
+    :saving="savingManualTransfer"
+    @submit="onSubmitManualRevert"
+  />
 </template>
 
 <script setup lang="ts">
@@ -177,8 +212,15 @@ import BankFileExportCard from '@/components/pagos/BankFileExportCard.vue'
 import ChequePaymentSection from '@/components/pagos/ChequePaymentSection.vue'
 import ChequePaymentDialog from '@/components/pagos/ChequePaymentDialog.vue'
 import RevertChequePaymentDialog from '@/components/pagos/RevertChequePaymentDialog.vue'
-import type { ChequeActionResult } from '@/stores/api/paymentsStore'
-import type { ChequeRow, MarkChequePayload } from '@/interfaces/payment'
+import ManualTransferPaymentSection from '@/components/pagos/ManualTransferPaymentSection.vue'
+import ManualTransferPaymentDialog from '@/components/pagos/ManualTransferPaymentDialog.vue'
+import type { ChequeActionResult, ManualTransferActionResult } from '@/stores/api/paymentsStore'
+import type {
+  ChequeRow,
+  ManualTransferRow,
+  MarkChequePayload,
+  MarkManualTransferPayload,
+} from '@/interfaces/payment'
 import type { LinkInterface } from '@/interfaces/link'
 import { batchTypeMap } from '@/constants'
 
@@ -197,6 +239,11 @@ const {
   savingCheque,
   markCheque,
   revertCheque,
+  manualTransferRows,
+  manualTransferSummary,
+  savingManualTransfer,
+  markManualTransfer,
+  revertManualTransfer,
   loadingBatch,
   loadError,
   canProcess,
@@ -242,11 +289,19 @@ const onViewDocument = (refrendId: number): void => {
   documentDialogOpen.value = true
 }
 
-// pago-cheque: the server already limits `rows`/`summary` to transfer
-// becarios, so a batch with cheques only has an empty transfer side. In that
-// case the transfer widgets (summary cards, "Pagar todos", filter, table)
-// are replaced by an explanatory note; the cheque section is the whole page.
-const onlyCheques = computed<boolean>(() => (summary.value?.total ?? 0) === 0 && chequeRows.value.length > 0)
+// pago-cheque: the server already limits `rows`/`summary` to BBVA transfer
+// becarios, so a batch with only cheques (or only other-bank transfers,
+// sdd/catalogo-bancos) has an empty batch side. In that case the batch
+// widgets (summary cards, "Pagar todos", filter, table) are replaced by an
+// explanatory note; the manual sections are the whole page.
+const hasNoBatchRows = computed<boolean>(
+  () => (summary.value?.total ?? 0) === 0 && (chequeRows.value.length > 0 || manualTransferRows.value.length > 0),
+)
+const noBatchRowsText = computed<string>(() =>
+  manualTransferRows.value.length > 0
+    ? 'No hay becarios con pago por transferencia BBVA en este lote.'
+    : 'No hay becarios con pago por transferencia en este lote.',
+)
 
 // The transfer table emptied by the "Solo pendientes de revisar" filter says
 // so; a table that is genuinely empty (no rows at all, or filter off) keeps
@@ -300,6 +355,51 @@ const onSubmitRevert = async (reason: string): Promise<void> => {
   if (!chequeTarget.value) return
   const result = await revertCheque(chequeTarget.value.refrend_id, reason)
   if (CLOSING_STATUSES.has(result.status)) revertDialogOpen.value = false
+}
+
+// Other-bank transfer dialogs (sdd/catalogo-bancos R7): same close policy as
+// the cheque ones, with their own target/state so both flows stay independent.
+const MANUAL_CLOSING_STATUSES: ReadonlySet<ManualTransferActionResult['status']> = new Set([
+  'success',
+  'already_paid',
+  'not_manual_transfer',
+  'cycle_closed',
+  'telmex_repayment_exists',
+])
+
+const manualTarget = ref<ManualTransferRow | null>(null)
+const manualMarkDialogOpen = ref(false)
+const manualRevertDialogOpen = ref(false)
+const manualMarkServerErrors = ref<Record<string, string[]>>({})
+
+const onMarkManualTransfer = (row: ManualTransferRow): void => {
+  manualTarget.value = row
+  manualMarkServerErrors.value = {}
+  manualMarkDialogOpen.value = true
+}
+
+const onRevertManualTransfer = (row: ManualTransferRow): void => {
+  manualTarget.value = row
+  manualRevertDialogOpen.value = true
+}
+
+const onSubmitManualMark = async (payload: MarkManualTransferPayload): Promise<void> => {
+  if (!manualTarget.value) return
+  manualMarkServerErrors.value = {}
+  const result = await markManualTransfer(manualTarget.value.refrend_id, payload)
+  if (MANUAL_CLOSING_STATUSES.has(result.status)) {
+    manualMarkDialogOpen.value = false
+  } else if (result.status === 'validation') {
+    manualMarkServerErrors.value = result.errors
+  } else if (result.status === 'transfer_reference_taken' && result.msg) {
+    manualMarkServerErrors.value = { transfer_reference: [result.msg] }
+  }
+}
+
+const onSubmitManualRevert = async (reason: string): Promise<void> => {
+  if (!manualTarget.value) return
+  const result = await revertManualTransfer(manualTarget.value.refrend_id, reason)
+  if (MANUAL_CLOSING_STATUSES.has(result.status)) manualRevertDialogOpen.value = false
 }
 
 // "Solo pendientes de revisar" (sdd/becario-payment-review-filter) is a

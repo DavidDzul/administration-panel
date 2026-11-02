@@ -41,4 +41,18 @@ describe('ChequePaymentSummary', () => {
     expect(cards[5]).toContain('Monto pagado')
     expect(cards[5]).toContain('$2,500.50')
   })
+
+  it('uses transfer wording for the manual_transfer kind', () => {
+    const wrapper = mount(ChequePaymentSummary, {
+      props: { summary, kind: 'manual_transfer' },
+      global: { plugins: [vuetify] },
+    })
+    const cards = wrapper.findAll('.payment-summary-card').map((c) => c.text())
+    expect(cards).toHaveLength(6)
+    expect(cards[0]).toContain('Becarios con transferencia')
+    expect(cards[1]).toContain('Por pagar')
+    expect(cards[4]).toContain('Monto por pagar')
+    expect(cards[4]).toContain('$1,000.00')
+    expect(cards[5]).toContain('Monto pagado')
+  })
 })

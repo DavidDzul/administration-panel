@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { VTextarea } from 'vuetify/components'
-import type { ChequeRow } from '@/interfaces/payment'
+import type { ChequeRow, ManualTransferRow } from '@/interfaces/payment'
 
 if (!('visualViewport' in window)) {
   Object.defineProperty(window, 'visualViewport', { value: null, writable: true })
@@ -97,6 +97,23 @@ describe('RevertChequePaymentDialog', () => {
     await wrapper.setProps({ modelValue: true })
     await flushPromises()
     expect(wrapper.findComponent(VTextarea).props('modelValue')).toBe('')
+  })
+
+  it('shows transfer wording and the folio for the manual_transfer kind', () => {
+    mountDialog({
+      kind: 'manual_transfer',
+      row: {
+        refrend_id: 9,
+        snapshot_name: 'Ada Lovelace',
+        transfer_reference: 'SPEI-77',
+        transfer_paid_at: '2026-10-05',
+      } as ManualTransferRow,
+    })
+    const text = body().text()
+    expect(text).toContain('Revertir pago por transferencia')
+    expect(text).toContain('Folio SPEI-77')
+    expect(text).toContain('05/10/2026')
+    expect(text).not.toContain('Cheque CH-77')
   })
 
   it('shows loading on the revert button while saving', () => {

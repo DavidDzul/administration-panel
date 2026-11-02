@@ -22,6 +22,7 @@ import { usePaymentDataStore } from '@/stores/api/paymentDataStore'
 const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => ({
   id: 1,
   user_id: 5,
+  bank_id: 1,
   bank_name: 'BBVA',
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
@@ -32,7 +33,7 @@ const buildPaymentData = (overrides: Partial<PaymentData> = {}): PaymentData => 
 })
 
 const buildForm = (overrides: Partial<PaymentDataForm> = {}): PaymentDataForm => ({
-  bank_name: 'BBVA',
+  bank_id: 1,
   account_number: '012180001234567895',
   curp: 'AAAA000101HDFRRR01',
   rfc: 'AAAA000101AAA',
@@ -106,12 +107,12 @@ describe('paymentDataStore', () => {
     it('PUTs to update when a prior fetch found an existing row', async () => {
       const existing = buildPaymentData()
       mockAxiosGet.mockResolvedValueOnce({ data: { res: true, data: existing } })
-      const updated = buildPaymentData({ bank_name: 'Santander' })
+      const updated = buildPaymentData({ bank_id: 2, bank_name: 'Santander' })
       mockAxiosPut.mockResolvedValueOnce({ data: { res: true, data: updated } })
 
       const store = usePaymentDataStore()
       await store.fetchPaymentData(5) // establishes "existing row" for user 5
-      const form = buildForm({ bank_name: 'Santander' })
+      const form = buildForm({ bank_id: 2 })
       const result = await store.savePaymentData(5, form)
 
       expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/5', form)
@@ -137,15 +138,15 @@ describe('paymentDataStore', () => {
     it('remembers a row created via savePaymentData, so a second save PUTs', async () => {
       const created = buildPaymentData({ user_id: 9 })
       mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data: created } })
-      const updated = buildPaymentData({ user_id: 9, bank_name: 'Santander' })
+      const updated = buildPaymentData({ user_id: 9, bank_id: 2, bank_name: 'Santander' })
       mockAxiosPut.mockResolvedValueOnce({ data: { res: true, data: updated } })
 
       const store = usePaymentDataStore()
       await store.savePaymentData(9, buildForm())
-      await store.savePaymentData(9, buildForm({ bank_name: 'Santander' }))
+      await store.savePaymentData(9, buildForm({ bank_id: 2 }))
 
       expect(mockAxiosPost).toHaveBeenCalledTimes(1)
-      expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/9', buildForm({ bank_name: 'Santander' }))
+      expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/9', buildForm({ bank_id: 2 }))
     })
 
     describe('payment method payload', () => {
@@ -157,7 +158,7 @@ describe('paymentDataStore', () => {
 
         expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payment-data', {
           user_id: 5,
-          bank_name: 'BBVA',
+          bank_id: 1,
           account_number: '012180001234567895',
           curp: 'AAAA000101HDFRRR01',
           rfc: 'AAAA000101AAA',
@@ -174,12 +175,12 @@ describe('paymentDataStore', () => {
         const store = usePaymentDataStore()
         await store.savePaymentData(
           5,
-          buildForm({ payment_method: 'CHEQUE', cheque_beneficiary: 'Maria Lopez', bank_name: 'BBVA', account_number: '123' }),
+          buildForm({ payment_method: 'CHEQUE', cheque_beneficiary: 'Maria Lopez', bank_id: 1, account_number: '123' }),
         )
 
         expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payment-data', {
           user_id: 5,
-          bank_name: null,
+          bank_id: null,
           account_number: null,
           curp: 'AAAA000101HDFRRR01',
           rfc: 'AAAA000101AAA',
@@ -197,7 +198,7 @@ describe('paymentDataStore', () => {
         await store.savePaymentData(5, buildForm({ payment_method: 'CHEQUE', cheque_beneficiary: null }))
 
         expect(mockAxiosPut).toHaveBeenCalledWith('api/admin/scholarship-payment-data/5', {
-          bank_name: null,
+          bank_id: null,
           account_number: null,
           curp: 'AAAA000101HDFRRR01',
           rfc: 'AAAA000101AAA',

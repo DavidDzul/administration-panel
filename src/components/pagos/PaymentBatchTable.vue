@@ -89,7 +89,9 @@
     </template>
 
     <template #[`item.account_number`]="{ item }">
-      {{ maskAccountNumber(item.account_number) }}
+      <!-- Manual transfers are keyed by hand, so the admin needs the full CLABE. -->
+      <template v-if="mode === 'manual_transfer'">{{ item.account_number ?? '—' }}</template>
+      <template v-else>{{ maskAccountNumber(item.account_number) }}</template>
     </template>
 
     <template #[`item.beneficiary`]="{ item }">
@@ -241,13 +243,16 @@
 
     <template #[`item.status`]="{ item }">
       <v-chip v-if="isChequePaid(item)" color="success" size="small" variant="tonal">Pagado (cheque)</v-chip>
+      <v-chip v-else-if="isManualTransferPaid(item)" color="success" size="small" variant="tonal">
+        Pagado (transferencia)
+      </v-chip>
       <v-chip v-else :color="item.is_payable ? 'success' : 'error'" size="small" variant="tonal">
         {{ item.is_payable ? 'Listo' : 'Bloqueado' }}
       </v-chip>
     </template>
 
     <template #[`item.reason`]="{ item }">
-      <span v-if="!item.is_payable && !isChequePaid(item)" class="text-caption" :class="isOnlyAlreadyPaid(item) ? 'text-medium-emphasis' : 'text-error'">
+      <span v-if="!item.is_payable && !isManualPaid(item)" class="text-caption" :class="isOnlyAlreadyPaid(item) ? 'text-medium-emphasis' : 'text-error'">
         {{ item.blocking_reasons.map((reason) => reason.message).join(', ') }}
       </span>
       <span v-else>—</span>
@@ -265,14 +270,26 @@
       <span v-else>—</span>
     </template>
 
+    <template #[`item.transfer`]="{ item }">
+      <template v-if="isManualTransferPaid(item)">
+        <v-tooltip v-if="asManual(item).transfer_notes" :text="asManual(item).transfer_notes ?? ''">
+          <template #activator="{ props: tooltipProps }">
+            <span v-bind="tooltipProps" data-testid="transfer-info">{{ transferInfo(item) }}</span>
+          </template>
+        </v-tooltip>
+        <span v-else data-testid="transfer-info">{{ transferInfo(item) }}</span>
+      </template>
+      <span v-else>—</span>
+    </template>
+
     <template #[`item.actions`]="{ item }">
       <template v-if="canManage">
         <v-btn
-          v-if="isChequePaid(item)"
+          v-if="isManualPaid(item)"
           size="small"
           variant="text"
           color="error"
-          :aria-label="`Revertir pago con cheque de ${item.snapshot_name}`"
+          :aria-label="`Revertir pago ${manualNoun} de ${item.snapshot_name}`"
           @click="emit('revert', sourceRow(item))"
         >
           Revertir
@@ -282,7 +299,7 @@
           size="small"
           variant="text"
           color="primary"
-          :aria-label="`Marcar como pagado con cheque a ${item.snapshot_name}`"
+          :aria-label="`Marcar como pagado ${manualNoun} a ${item.snapshot_name}`"
           @click="emit('mark', sourceRow(item))"
         >
           Marcar como pagado
@@ -361,7 +378,7 @@ import {
   telmexCoverageAmount,
 } from '@/utils/paymentBreakdownMeta'
 import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
-import type { ChequeRow, PaymentBatchRow } from '@/interfaces/payment'
+import type { ChequeRow, ManualTransferRow, PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
   rows?: PaymentBatchRow[]
@@ -375,7 +392,9 @@ interface Props {
   // 'cheque' (pago-cheque follow-up): same columns/chips/"Ver" as transfers,
   // but "Cuenta" becomes "A nombre de" and Cheque/Acciones columns are added.
   // Default 'transfer' keeps the original output untouched.
-  mode?: 'transfer' | 'cheque'
+  // 'manual_transfer' (sdd/catalogo-bancos): other-bank transfers paid by hand;
+  // "Cuenta" becomes Banco + CLABE and the cheque column becomes Folio.
+  mode?: 'transfer' | 'cheque' | 'manual_transfer'
   // Gates the mark/revert buttons (cheque mode only).
   canManage?: boolean
   // Shown when there are no rows to render. The parent overrides it when the
@@ -395,8 +414,8 @@ const props = withDefaults(defineProps<Props>(), {
 
 interface Emits {
   (e: 'view', refrendId: number): void
-  (e: 'mark', row: ChequeRow): void
-  (e: 'revert', row: ChequeRow): void
+  (e: 'mark', row: ChequeRow & ManualTransferRow): void
+  (e: 'revert', row: ChequeRow & ManualTransferRow): void
 }
 
 const emit = defineEmits<Emits>()
@@ -425,6 +444,17 @@ const baseHeaders = [
 ]
 
 const headers = computed(() => {
+  if (props.mode === 'manual_transfer') {
+    const accountIndex = baseHeaders.findIndex((header) => header.key === 'account_number')
+    return [
+      ...baseHeaders.slice(0, accountIndex),
+      { title: 'Banco', key: 'bank_name' },
+      { title: 'CLABE', key: 'account_number' },
+      ...baseHeaders.slice(accountIndex + 1),
+      { title: 'Folio', key: 'transfer' },
+      { title: 'Acciones', key: 'actions', align: 'end' as const },
+    ]
+  }
   if (props.mode !== 'cheque') return baseHeaders
   const chequeHeaders = baseHeaders.map((header) =>
     header.key === 'account_number' ? { ...header, title: 'A nombre de', key: 'beneficiary' } : header,
@@ -443,9 +473,20 @@ const headers = computed(() => {
 const asCheque = (row: PaymentBatchRow): ChequeRow => row as ChequeRow
 // Grouped items carry an extra `generation_group` key; emit the caller's
 // original row object instead so listeners receive exactly what they passed.
-const sourceRow = (item: PaymentBatchRow): ChequeRow =>
-  asCheque(props.rows.find((row) => row.refrend_id === item.refrend_id) ?? item)
+const sourceRow = (item: PaymentBatchRow): ChequeRow & ManualTransferRow =>
+  (props.rows.find((row) => row.refrend_id === item.refrend_id) ?? item) as ChequeRow & ManualTransferRow
 const isChequePaid = (row: PaymentBatchRow): boolean => props.mode === 'cheque' && row.status === 'PAID'
+const isManualTransferPaid = (row: PaymentBatchRow): boolean =>
+  props.mode === 'manual_transfer' && row.status === 'PAID'
+// Paid by hand in either manual channel: drives the revert button and keeps
+// the "Motivo" column free of the (irrelevant) ALREADY_PAID reason.
+const isManualPaid = (row: PaymentBatchRow): boolean => isChequePaid(row) || isManualTransferPaid(row)
+const asManual = (row: PaymentBatchRow): ManualTransferRow => row as ManualTransferRow
+const transferInfo = (row: PaymentBatchRow): string => {
+  const transfer = asManual(row)
+  return `${transfer.transfer_reference} · ${formatChequeDate(transfer.transfer_paid_at)}`
+}
+const manualNoun = computed<string>(() => (props.mode === 'manual_transfer' ? 'por transferencia' : 'con cheque'))
 const chequeInfo = (row: PaymentBatchRow): string => {
   const cheque = asCheque(row)
   return `${cheque.cheque_number} · ${formatChequeDate(cheque.cheque_delivered_at)}`

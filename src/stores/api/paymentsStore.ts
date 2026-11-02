@@ -8,7 +8,11 @@ import type {
   ChequeRow,
   ChequeSummary,
   ExportSummary,
+  ManualTransferPaymentData,
+  ManualTransferRow,
+  ManualTransferSummary,
   MarkChequePayload,
+  MarkManualTransferPayload,
   InvalidBankRow,
   PaymentBatchRow,
   PaymentBatchSummary,
@@ -70,6 +74,20 @@ export type ChequeActionResult =
   | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
   | { status: 'error'; msg: string | null }
 
+// sdd/catalogo-bancos R7: result of markManualTransferPaid /
+// revertManualTransferPayment. Same shape as the cheque one, with the
+// transfer-specific statuses.
+export type ManualTransferActionResult =
+  | { status: 'success'; data: ManualTransferPaymentData }
+  | { status: 'already_paid'; msg: string | null }
+  | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
+  | { status: 'not_manual_transfer'; msg: string | null }
+  | { status: 'transfer_reference_taken'; msg: string | null }
+  | { status: 'cycle_closed'; msg: string | null }
+  | { status: 'telmex_repayment_exists'; msg: string | null }
+  | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
+  | { status: 'error'; msg: string | null }
+
 // Maps the envelope `code` of a failed cheque action to its result status.
 // Unknown/absent codes (404 NOT_FOUND, 403, CHEQUE_LOG_MISSING, 500) fall
 // through to 'error' with the server msg.
@@ -97,7 +115,30 @@ function getErrorBody(error: unknown): ErrorBody | undefined {
   return undefined
 }
 
-function mapChequeError(error: unknown): ChequeActionResult {
+// Same mapping for the other-bank transfer endpoints. TRANSFER_LOG_MISSING and
+// any unknown code fall through to 'error' with the server msg.
+const MANUAL_TRANSFER_CODE_STATUS: Record<
+  string,
+  'already_paid' | 'not_manual_transfer' | 'transfer_reference_taken' | 'cycle_closed' | 'telmex_repayment_exists'
+> = {
+  ALREADY_PAID: 'already_paid',
+  NOT_MANUAL_TRANSFER_METHOD: 'not_manual_transfer',
+  NOT_MANUAL_TRANSFER_PAID: 'not_manual_transfer',
+  TRANSFER_REFERENCE_TAKEN: 'transfer_reference_taken',
+  CYCLE_CLOSED: 'cycle_closed',
+  TELMEX_REPAYMENT_EXISTS: 'telmex_repayment_exists',
+}
+
+type ManualActionError<S extends string> =
+  | { status: S; msg: string | null }
+  | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
+  | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
+  | { status: 'error'; msg: string | null }
+
+function mapManualActionError<S extends string>(
+  error: unknown,
+  codeStatus: Record<string, S>,
+): ManualActionError<S> {
   const body = getErrorBody(error)
   const msg = body?.msg ?? body?.message ?? null
 
@@ -105,7 +146,7 @@ function mapChequeError(error: unknown): ChequeActionResult {
     return { status: 'not_payable', msg, reasons: body.data?.reasons ?? [] }
   }
 
-  const mapped = body?.code ? CHEQUE_CODE_STATUS[body.code] : undefined
+  const mapped = body?.code ? codeStatus[body.code] : undefined
   if (mapped) return { status: mapped, msg }
 
   // Laravel validation body: no envelope code, has field `errors`.
@@ -114,6 +155,14 @@ function mapChequeError(error: unknown): ChequeActionResult {
   }
 
   return { status: 'error', msg }
+}
+
+function mapChequeError(error: unknown): ChequeActionResult {
+  return mapManualActionError(error, CHEQUE_CODE_STATUS)
+}
+
+function mapManualTransferError(error: unknown): ManualTransferActionResult {
+  return mapManualActionError(error, MANUAL_TRANSFER_CODE_STATUS)
 }
 
 // Discriminated result for downloadExportFile — same "never collapse into
@@ -155,6 +204,8 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
   const summary = ref<PaymentBatchSummary | null>(null)
   const chequeRows = ref<ChequeRow[]>([])
   const chequeSummary = ref<ChequeSummary | null>(null)
+  const manualTransferRows = ref<ManualTransferRow[]>([])
+  const manualTransferSummary = ref<ManualTransferSummary | null>(null)
   const batchId = ref<number | null>(null)
   const isPaid = ref<boolean>(false)
   const document = ref<PaymentDocument | null>(null)
@@ -172,6 +223,8 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       summary.value = res.data.data.summary
       chequeRows.value = res.data.data.cheque_rows ?? []
       chequeSummary.value = res.data.data.cheque_summary ?? null
+      manualTransferRows.value = res.data.data.manual_transfer_rows ?? []
+      manualTransferSummary.value = res.data.data.manual_transfer_summary ?? null
       // D3 — this is what lets the SPA reach the export action after a page
       // reload; `batchId` is no longer only set transiently by processBatch.
       batchId.value = res.data.data.batch?.batch_id ?? null
@@ -317,16 +370,50 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
     }
   }
 
+  const markManualTransferPaid = async (
+    refrendId: number,
+    payload: MarkManualTransferPayload,
+  ): Promise<ManualTransferActionResult> => {
+    try {
+      const res = await axios.post<{ res: boolean; data: ManualTransferPaymentData }>(
+        `api/admin/scholarship-payments/${refrendId}/manual-transfer-payment`,
+        payload,
+      )
+      return { status: 'success', data: res.data.data }
+    } catch (error: unknown) {
+      return mapManualTransferError(error)
+    }
+  }
+
+  const revertManualTransferPayment = async (
+    refrendId: number,
+    reason: string,
+  ): Promise<ManualTransferActionResult> => {
+    try {
+      const res = await axios.post<{ res: boolean; data: ManualTransferPaymentData }>(
+        `api/admin/scholarship-payments/${refrendId}/manual-transfer-payment/revert`,
+        { reason },
+      )
+      return { status: 'success', data: res.data.data }
+    } catch (error: unknown) {
+      return mapManualTransferError(error)
+    }
+  }
+
   return {
     rows,
     summary,
     chequeRows,
     chequeSummary,
+    manualTransferRows,
+    manualTransferSummary,
     batchId,
     isPaid,
     document,
     markChequePaid,
     revertChequePayment,
+    markManualTransferPaid,
+    revertManualTransferPayment,
     fetchBatch,
     fetchDocument,
     processBatch,

@@ -279,6 +279,41 @@ export interface ChequePaymentData {
   locked_at: string | null
 }
 
+// sdd/catalogo-bancos R7: transfers to non-BBVA banks are paid outside the
+// bank file. manual_transfer_rows share the batch row shape plus these fields;
+// `bank_name` / `account_number` (full CLABE) come from the base row.
+export interface ManualTransferRowFields {
+  payment_method: PaymentMethod
+  paid_payment_method: PaymentMethod | null
+  bank_code: string | null
+  transfer_reference: string | null
+  transfer_paid_at: string | null
+  transfer_notes: string | null
+}
+
+export type ManualTransferRow = PaymentBatchRow & ManualTransferRowFields
+
+// Same counts/amounts as the cheque section.
+export type ManualTransferSummary = ChequeSummary
+
+export interface MarkManualTransferPayload {
+  transfer_reference: string
+  transfer_paid_at?: string
+  transfer_notes?: string
+}
+
+// 200 body of manual-transfer-payment and manual-transfer-payment/revert.
+export interface ManualTransferPaymentData {
+  refrend_id: number
+  status: string
+  workflow_status: string
+  paid_payment_method: PaymentMethod | null
+  transfer_reference: string | null
+  transfer_paid_at: string | null
+  transfer_notes: string | null
+  locked_at: string | null
+}
+
 // Matches ScholarshipPaymentController::index()'s new `data.batch` block
 // (design D3, sdd/becario-payment-bank-file-export) — derived server-side
 // from the row-level `payment_batch_id` already SELECTed by

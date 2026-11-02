@@ -223,4 +223,25 @@ describe('router auth guard', () => {
     expect(router.currentRoute.value.path).toBe('/pagos/por-generacion')
     expect(router.currentRoute.value.name).toBe('PaymentsByGenerationView')
   })
+
+  // sdd/catalogo-bancos PR5 — /control/bancos, same inherited-meta reasoning
+  // as /control/roles above.
+  it('redirects unauthenticated access to /control/bancos to /auth/login', async () => {
+    await router.push('/control/bancos')
+
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+    expect(mockGetProfile).not.toHaveBeenCalled()
+  })
+
+  it('allows access to /control/bancos when a valid token exists and getProfile rehydrates the session', async () => {
+    localStorage.setItem('token', 'stored-token')
+    mockGetProfile.mockImplementation(async () => {
+      mockLoggedUser.value = true
+    })
+
+    await router.push('/control/bancos')
+
+    expect(router.currentRoute.value.path).toBe('/control/bancos')
+    expect(router.currentRoute.value.name).toBe('BanksView')
+  })
 })

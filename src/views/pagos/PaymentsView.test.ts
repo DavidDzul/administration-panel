@@ -1214,4 +1214,292 @@ describe('PaymentsView', () => {
       expect(revertDialogOpen(wrapper)).toBe(true)
     })
   })
+
+  // sdd/catalogo-bancos R7: "Transferencias a otros bancos" section + dialogs.
+  describe('manual transfer payments', () => {
+    const transferSummary = {
+      total: 1,
+      ready: 1,
+      blocking: 0,
+      beca_amount: '1000.00',
+      apoyo_amount: '0.00',
+      pago_iu_amount: '0.00',
+      total_amount: '1000.00',
+      difference_amount: '0.00',
+    }
+    const emptySummary = { ...transferSummary, total: 0, ready: 0, total_amount: '0.00', beca_amount: '0.00' }
+    const manualSummary = { total: 2, ready: 1, paid: 1, blocking: 0, ready_amount: '1500.00', paid_amount: '800.00' }
+
+    const manualRow = (overrides: Record<string, unknown> = {}) =>
+      buildRow({
+        refrend_id: 20,
+        snapshot_name: 'Katherine Johnson',
+        total_to_pay: '1500.00',
+        bank_name: 'Banorte',
+        bank_code: '072',
+        account_number: '072180001234567895',
+        payment_method: 'MANUAL_TRANSFER',
+        paid_payment_method: null,
+        transfer_reference: null,
+        transfer_paid_at: null,
+        transfer_notes: null,
+        ...overrides,
+      } as Partial<PaymentBatchRow>)
+
+    const paidManualRow = () =>
+      manualRow({
+        refrend_id: 21,
+        snapshot_name: 'Dorothy Vaughan',
+        status: 'PAID',
+        is_payable: false,
+        paid_payment_method: 'MANUAL_TRANSFER',
+        transfer_reference: 'SPEI-77',
+        transfer_paid_at: '2026-10-05',
+      })
+
+    const mockWithManual = (
+      manualRows: PaymentBatchRow[],
+      options: {
+        rows?: PaymentBatchRow[]
+        summary?: Record<string, unknown>
+        chequeRows?: PaymentBatchRow[]
+      } = {},
+    ): void => {
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: {
+                rows: options.rows ?? [buildRow()],
+                summary: options.summary ?? transferSummary,
+                batch: { batch_id: null, is_paid: false },
+                cheque_rows: options.chequeRows ?? [],
+                manual_transfer_rows: manualRows,
+                manual_transfer_summary: manualSummary,
+              },
+            },
+          })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+    }
+
+    const apiError = (status: number, data: Record<string, unknown>) => ({ response: { status, data } })
+
+    const buttonByText = (wrapper: ReturnType<typeof mountView>, text: string) =>
+      wrapper.findAllComponents(VBtn).find((b) => b.text() === text)
+
+    const dialogButton = (text: string) =>
+      body()
+        .findAll('button')
+        .find((b) => b.text() === text)
+
+    const markDialog = (wrapper: ReturnType<typeof mountView>) =>
+      wrapper.findComponent({ name: 'ManualTransferPaymentDialog' })
+
+    const revertDialog = (wrapper: ReturnType<typeof mountView>) =>
+      wrapper
+        .findAllComponents({ name: 'RevertChequePaymentDialog' })
+        .find((d) => d.props('kind') === 'manual_transfer')
+
+    const fillReference = async (wrapper: ReturnType<typeof mountView>, value: string): Promise<void> => {
+      const input = wrapper
+        .findAllComponents({ name: 'VTextField' })
+        .find((f) => String(f.props('label')).startsWith('Folio / referencia'))
+      await input?.setValue(value)
+    }
+
+    const submitMark = async (wrapper: ReturnType<typeof mountView>, reference = 'SPEI-100'): Promise<void> => {
+      await buttonByText(wrapper, 'Marcar como pagado')?.trigger('click')
+      await flushPromises()
+      await fillReference(wrapper, reference)
+      await dialogButton('Registrar pago')?.trigger('click')
+      await flushPromises()
+    }
+
+    const submitRevert = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
+      await buttonByText(wrapper, 'Revertir')?.trigger('click')
+      await flushPromises()
+      const reason = wrapper.findAllComponents({ name: 'VTextarea' }).find((f) => f.props('label') === 'Motivo *')
+      await reason?.setValue('Transferencia rechazada por el banco')
+      await dialogButton('Revertir pago')?.trigger('click')
+      await flushPromises()
+    }
+
+    const mounted = async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+      return wrapper
+    }
+
+    it('does not render the section when there are no manual transfer rows', async () => {
+      mockWithManual([])
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="manual-transfer-section"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(false)
+    })
+
+    it('renders heading, summary, bank and full CLABE of the other-bank rows', async () => {
+      mockWithManual([manualRow(), paidManualRow()])
+      const wrapper = await mounted()
+      const section = wrapper.find('[data-testid="manual-transfer-section"]')
+      expect(section.exists()).toBe(true)
+      expect(wrapper.find('[data-testid="manual-transfer-heading"]').text()).toContain('Transferencias a otros bancos')
+      expect(section.text()).toContain('Katherine Johnson')
+      expect(section.text()).toContain('Banorte')
+      expect(section.text()).toContain('072180001234567895')
+      expect(section.text()).toContain('Pagado (transferencia)')
+      expect(section.text()).toContain('SPEI-77')
+      expect(section.text()).toContain('Monto por pagar')
+    })
+
+    it('orders batch table, then other-bank transfers, then cheques with a divider before each section', async () => {
+      mockWithManual([manualRow()], {
+        chequeRows: [
+          buildRow({
+            refrend_id: 30,
+            snapshot_name: 'Cheque Persona',
+            payment_method: 'CHEQUE',
+            cheque_number: null,
+          } as Partial<PaymentBatchRow>),
+        ],
+      })
+      const wrapper = await mounted()
+      const html = wrapper.html()
+      const table = html.indexOf('data-testid="transfers-heading"')
+      const manual = html.indexOf('data-testid="manual-transfer-section"')
+      const cheque = html.indexOf('data-testid="cheque-section"')
+      expect(table).toBeGreaterThan(-1)
+      expect(manual).toBeGreaterThan(table)
+      expect(cheque).toBeGreaterThan(manual)
+      expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="section-divider"]').exists()).toBe(true)
+    })
+
+    it('shows a transfer-less message and no BBVA widgets when the batch only has other-bank rows', async () => {
+      mockWithManual([manualRow()], { rows: [], summary: emptySummary })
+      const wrapper = await mounted()
+      expect(wrapper.find('[data-testid="only-cheques-alert"]').text()).toContain(
+        'No hay becarios con pago por transferencia BBVA en este lote.',
+      )
+      expect(buttonByText(wrapper, 'Pagar todos')).toBeUndefined()
+      expect(wrapper.find('[data-testid="transfers-heading"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="manual-transfer-section"]').exists()).toBe(true)
+    })
+
+    it('hides actions without ADM_PROCESS_PAYMENTS', async () => {
+      grantPermissions(false)
+      mockWithManual([manualRow(), paidManualRow()])
+      const wrapper = await mounted()
+      expect(buttonByText(wrapper, 'Marcar como pagado')).toBeUndefined()
+      expect(buttonByText(wrapper, 'Revertir')).toBeUndefined()
+    })
+
+    it('opens the document dialog when the becario name is clicked', async () => {
+      mockWithManual([manualRow({ refrend_id: 20 })])
+      const wrapper = await mounted()
+      await wrapper.find('[data-testid="manual-transfer-section"] button.payment-name-link').trigger('click')
+      await flushPromises()
+      const dialog = wrapper.findComponent({ name: 'PaymentDocumentDialog' })
+      expect(dialog.props('modelValue')).toBe(true)
+      expect(dialog.props('refrendId')).toBe(20)
+    })
+
+    it('opens the register dialog with the selected row', async () => {
+      mockWithManual([manualRow()])
+      const wrapper = await mounted()
+      await buttonByText(wrapper, 'Marcar como pagado')?.trigger('click')
+      await flushPromises()
+      expect(markDialog(wrapper).props('modelValue')).toBe(true)
+      expect(body().text()).toContain('Registrar transferencia a otro banco')
+      expect(body().text()).toContain('Katherine Johnson')
+    })
+
+    it('requires the reference: an empty folio is not posted and shows the Spanish message', async () => {
+      mockWithManual([manualRow()])
+      const wrapper = await mounted()
+      await submitMark(wrapper, '   ')
+      expect(mockAxiosPost).not.toHaveBeenCalled()
+      expect(body().text()).toContain('Captura el folio o la referencia de la transferencia.')
+      expect(markDialog(wrapper).props('modelValue')).toBe(true)
+    })
+
+    it('posts the mark payload, closes the dialog and reloads on success', async () => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockResolvedValue({ data: { res: true, data: { refrend_id: 20 } } })
+      const wrapper = await mounted()
+      const getsBefore = mockAxiosGet.mock.calls.length
+      await submitMark(wrapper)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith(
+        'api/admin/scholarship-payments/20/manual-transfer-payment',
+        expect.objectContaining({ transfer_reference: 'SPEI-100' }),
+      )
+      expect(markDialog(wrapper).props('modelValue')).toBe(false)
+      expect(mockAxiosGet.mock.calls.length).toBeGreaterThan(getsBefore)
+    })
+
+    it.each([
+      ['already_paid', 409, 'ALREADY_PAID'],
+      ['cycle_closed', 409, 'CYCLE_CLOSED'],
+      ['not_manual_transfer', 422, 'NOT_MANUAL_TRANSFER_METHOD'],
+    ])('closes the register dialog on %s', async (_name, status, code) => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockRejectedValue(apiError(status, { res: false, msg: 'Mensaje del servidor', code }))
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialog(wrapper).props('modelValue')).toBe(false)
+    })
+
+    it('keeps the register dialog open and shows the taken-reference error inline', async () => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, {
+          res: false,
+          msg: 'Esa referencia de transferencia ya fue registrada.',
+          code: 'TRANSFER_REFERENCE_TAKEN',
+        }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialog(wrapper).props('modelValue')).toBe(true)
+      expect(body().text()).toContain('Esa referencia de transferencia ya fue registrada.')
+    })
+
+    it('keeps the register dialog open and shows validation errors inline', async () => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, { message: 'invalid', errors: { transfer_notes: ['Las notas son demasiado largas'] } }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialog(wrapper).props('modelValue')).toBe(true)
+      expect(body().text()).toContain('Las notas son demasiado largas')
+    })
+
+    it('posts the revert reason to manual-transfer-payment/revert and closes the dialog', async () => {
+      mockWithManual([paidManualRow()])
+      mockAxiosPost.mockResolvedValue({ data: { res: true, data: { refrend_id: 21 } } })
+      const wrapper = await mounted()
+      await submitRevert(wrapper)
+
+      expect(mockAxiosPost).toHaveBeenCalledWith('api/admin/scholarship-payments/21/manual-transfer-payment/revert', {
+        reason: 'Transferencia rechazada por el banco',
+      })
+      expect(revertDialog(wrapper)?.props('modelValue')).toBe(false)
+    })
+
+    it('keeps the revert dialog open on TRANSFER_LOG_MISSING', async () => {
+      mockWithManual([paidManualRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, { res: false, msg: 'Falta el registro', code: 'TRANSFER_LOG_MISSING' }),
+      )
+      const wrapper = await mounted()
+      await submitRevert(wrapper)
+      expect(revertDialog(wrapper)?.props('modelValue')).toBe(true)
+    })
+  })
 })
