@@ -7,11 +7,12 @@ import {
   discountPercent,
   finalAdjustments,
   formatAmount,
-  iuPaymentAmount,
-  monthlyAmount,
+  netCell,
+  retentionAdvanceAmount,
   telmexCoverageAmount,
   type PaymentBreakdownRowFields,
 } from '@/utils/paymentBreakdownMeta'
+import type { NetBreakdown } from '@/interfaces/payment'
 
 // sdd/lotes-pago-generacion-desglose PR2: pure per-column display helpers for
 // Lotes de pago's breakdown columns (Beca, Apoyo, Pago IU, Base,
@@ -59,85 +60,55 @@ describe('amountOrDash', () => {
   })
 })
 
-describe('monthlyAmount (Beca column)', () => {
-  it('IU row: gross − apoyo − aumento temporal', () => {
-    const row = buildRow({
-      snapshot_scholarship_type: 'IU',
-      snapshot_gross_amount: '2000.00',
-      snapshot_monto_apoyo: '300.00',
-      snapshot_temporary_increase_amount: '100.00',
+// sdd/descuento-beca-apoyo PR4: the API now sends the net split; the UI
+// renders it and does NO Beca/Pago IU math of its own.
+const buildNet = (overrides: Partial<NetBreakdown> = {}): NetBreakdown => ({
+  beca: '1545.45',
+  apoyo: '154.55',
+  pago_iu: '0.00',
+  temporary_increase: '0.00',
+  telmex_coverage: '0.00',
+  pending_and_advance: '0.00',
+  total: '1700.00',
+  nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '0.00' },
+  ...overrides,
+})
+
+describe('netCell (net-first Beca/Apoyo/Pago IU/Aumento cells)', () => {
+  it('returns the net as the main value and the nominal as the secondary note when they differ', () => {
+    expect(netCell(buildNet(), 'beca')).toEqual({ net: '$1,545.45', nominal: '$1,800.00' })
+    expect(netCell(buildNet(), 'apoyo')).toEqual({ net: '$154.55', nominal: '$200.00' })
+  })
+
+  it('has no nominal note when net equals nominal', () => {
+    const net = buildNet({ beca: '1800.00', nominal: { beca: '1800.00', apoyo: '0.00', pago_iu: '0.00', temporary_increase: '0.00' } })
+
+    expect(netCell(net, 'beca')).toEqual({ net: '$1,800.00', nominal: null })
+  })
+
+  it('is a dash with no note when both net and nominal are zero', () => {
+    expect(netCell(buildNet(), 'pago_iu')).toEqual({ net: '—', nominal: null })
+  })
+
+  it('keeps the nominal note when the net is fully discounted to zero', () => {
+    const net = buildNet({
+      beca: '0.00',
+      nominal: { beca: '1800.00', apoyo: '0.00', pago_iu: '0.00', temporary_increase: '0.00' },
     })
 
-    expect(monthlyAmount(row)).toBe('$1,600.00')
+    expect(netCell(net, 'beca')).toEqual({ net: '—', nominal: '$1,800.00' })
   })
 
-  it('IU row with null apoyo/aumento: gross alone', () => {
-    const row = buildRow({
-      snapshot_scholarship_type: 'IU',
-      snapshot_gross_amount: '2000.00',
-      snapshot_monto_apoyo: null,
-      snapshot_temporary_increase_amount: null,
-    })
-
-    expect(monthlyAmount(row)).toBe('$2,000.00')
-  })
-
-  it('IU row with null gross: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'IU', snapshot_gross_amount: null })
-
-    expect(monthlyAmount(row)).toBe('—')
-  })
-
-  it('TELMEX_IU row: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'TELMEX_IU' })
-
-    expect(monthlyAmount(row)).toBe('—')
-  })
-
-  it('TELMEX row: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'TELMEX' })
-
-    expect(monthlyAmount(row)).toBe('—')
+  it('is a dash when the payload carries no net_breakdown', () => {
+    expect(netCell(undefined, 'beca')).toEqual({ net: '—', nominal: null })
   })
 })
 
-describe('iuPaymentAmount (Pago IU column)', () => {
-  it('TELMEX_IU row: gross − aumento temporal', () => {
-    const row = buildRow({
-      snapshot_scholarship_type: 'TELMEX_IU',
-      snapshot_gross_amount: '2000.00',
-      snapshot_temporary_increase_amount: '150.00',
-    })
-
-    expect(iuPaymentAmount(row)).toBe('$1,850.00')
-  })
-
-  it('TELMEX_IU row with null aumento: gross alone', () => {
-    const row = buildRow({
-      snapshot_scholarship_type: 'TELMEX_IU',
-      snapshot_gross_amount: '2000.00',
-      snapshot_temporary_increase_amount: null,
-    })
-
-    expect(iuPaymentAmount(row)).toBe('$2,000.00')
-  })
-
-  it('TELMEX_IU row with null gross: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'TELMEX_IU', snapshot_gross_amount: null })
-
-    expect(iuPaymentAmount(row)).toBe('—')
-  })
-
-  it('IU row: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'IU' })
-
-    expect(iuPaymentAmount(row)).toBe('—')
-  })
-
-  it('TELMEX row: dash', () => {
-    const row = buildRow({ snapshot_scholarship_type: 'TELMEX' })
-
-    expect(iuPaymentAmount(row)).toBe('—')
+describe('retentionAdvanceAmount (Ret./Adelanto column)', () => {
+  it('formats pending_and_advance, or a dash when zero or absent', () => {
+    expect(retentionAdvanceAmount(buildNet({ pending_and_advance: '450.00' }))).toBe('$450.00')
+    expect(retentionAdvanceAmount(buildNet())).toBe('—')
+    expect(retentionAdvanceAmount(undefined)).toBe('—')
   })
 })
 

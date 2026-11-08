@@ -110,6 +110,22 @@
                   </div>
                 </template>
               </div>
+              <div v-if="netRows.length > 0" class="mt-4" data-testid="net-breakdown">
+                <div class="text-subtitle-2 mb-1">Desglose neto</div>
+                <div
+                  v-for="row in netRows"
+                  :key="row.key"
+                  class="d-flex justify-space-between align-start py-1"
+                  :class="{ 'text-disabled': row.zero }"
+                  :data-testid="`net-row-${row.key}`"
+                >
+                  <div>
+                    <div class="text-body-2">{{ row.label }}</div>
+                    <div v-if="row.caption" class="text-caption text-medium-emphasis">{{ row.caption }}</div>
+                  </div>
+                  <div class="text-body-2">{{ row.amount }}</div>
+                </div>
+              </div>
               <v-divider class="my-4"></v-divider>
               <div class="d-flex justify-space-between align-center" data-testid="breakdown-row-total">
                 <div class="text-h5">Total a pagar</div>
@@ -147,6 +163,7 @@ import RetentionBreakdownPanel from '@/components/pagos/RetentionBreakdownPanel.
 import AdvancePaymentPanel from '@/components/pagos/AdvancePaymentPanel.vue'
 import { baseAmountLabel } from '@/utils/paymentBreakdownMeta'
 import { TEMPORARY_INCREASE_META } from '@/utils/temporaryIncreaseMeta'
+import type { NetComponentKey } from '@/interfaces/payment'
 
 interface Props {
   modelValue: boolean
@@ -280,6 +297,53 @@ const breakdownRows = computed<BreakdownRow[]>(() => {
     { key: 'final', label: 'Monto final', amount: money(b.final_amount), subtotal: true },
     optional({ key: 'pendiente', label: 'Pendiente de periodo anterior' }, b.amount_pending_from_previous, '+'),
     optional({ key: 'adelanto', label: 'Pago adelantado' }, b.advance_payment_amount, '+'),
+  ]
+})
+
+// Net section (sdd/descuento-beca-apoyo): server-computed split of the total
+// into what the becario actually receives. Rendered verbatim — no math here;
+// the lines sum to total_to_pay by the API's invariant. Nominal is a caption,
+// only when a discount made it differ from the net. Absent on payloads
+// predating the change, in which case the section is omitted.
+interface NetRow {
+  key: string
+  label: string
+  amount: string
+  caption?: string
+  zero: boolean
+}
+
+const NET_COMPONENT_ROWS: ReadonlyArray<{ key: string; label: string; component: NetComponentKey }> = [
+  { key: 'beca', label: 'Beca neta', component: 'beca' },
+  { key: 'apoyo', label: 'Apoyo neto', component: 'apoyo' },
+  { key: 'pago-iu', label: 'Pago IU neto', component: 'pago_iu' },
+  { key: 'aumento', label: 'Aumento temporal neto', component: 'temporary_increase' },
+]
+
+const netRows = computed<NetRow[]>(() => {
+  const net = breakdown.value.net_breakdown
+  if (!net) return []
+
+  const rows: NetRow[] = NET_COMPONENT_ROWS.map(({ key, label, component }) => {
+    const nominalDiffers = isPresent(net.nominal[component]) && net.nominal[component] !== net[component]
+    return {
+      key,
+      label,
+      amount: money(net[component]),
+      caption: nominalDiffers ? `Nominal ${money(net.nominal[component])}` : undefined,
+      zero: !isPresent(net[component]),
+    }
+  })
+
+  return [
+    ...rows,
+    { key: 'cobertura', label: 'Cobertura Telmex', amount: money(net.telmex_coverage), zero: !isPresent(net.telmex_coverage) },
+    {
+      key: 'retencion-adelanto',
+      label: 'Ret./Adelanto',
+      amount: money(net.pending_and_advance),
+      zero: !isPresent(net.pending_and_advance),
+    },
   ]
 })
 

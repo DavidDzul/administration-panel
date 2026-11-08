@@ -4,7 +4,7 @@ import { DOMWrapper, mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createVuetify } from 'vuetify'
 import { VTab } from 'vuetify/components'
-import type { PaymentDocument } from '@/interfaces/payment'
+import type { NetBreakdown, PaymentDocument } from '@/interfaces/payment'
 
 // Same jsdom shim as PaymentsView.test.ts / AccesoDetailView.test.ts.
 if (!('visualViewport' in window)) {
@@ -233,6 +233,63 @@ describe('PaymentDocumentDialog', () => {
     expect(body().text()).toContain('1000.00')
     expect(body().text()).toContain('450.00')
     expect(body().text()).toContain('1450.00')
+  })
+
+  describe('net section (sdd/descuento-beca-apoyo)', () => {
+    const netBreakdown: NetBreakdown = {
+      beca: '1545.45',
+      apoyo: '154.55',
+      pago_iu: '0.00',
+      temporary_increase: '0.00',
+      telmex_coverage: '0.00',
+      pending_and_advance: '450.00',
+      total: '2150.00',
+      nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '0.00' },
+    }
+    const netRow = (key: string) => body().find(`[data-testid="net-row-${key}"]`)
+
+    it('renders net lines with a Ret./Adelanto line, net first and nominal as a caption', async () => {
+      await openDesglose(
+        buildDocument({
+          amount_breakdown: {
+            ...buildDocument().amount_breakdown,
+            total_to_pay: '2150.00',
+            net_breakdown: netBreakdown,
+          },
+        }),
+      )
+
+      expect(body().find('[data-testid="net-breakdown"]').exists()).toBe(true)
+      expect(netRow('beca').text()).toContain('Beca neta')
+      expect(netRow('beca').text()).toContain('$1545.45')
+      expect(netRow('beca').text()).toContain('Nominal $1800.00')
+      expect(netRow('apoyo').text()).toContain('Apoyo neto')
+      expect(netRow('apoyo').text()).toContain('$154.55')
+      expect(netRow('apoyo').text()).toContain('Nominal $200.00')
+      expect(netRow('retencion-adelanto').text()).toContain('Ret./Adelanto')
+      expect(netRow('retencion-adelanto').text()).toContain('$450.00')
+    })
+
+    it('does not touch the legacy reconciliation rows or the total line', async () => {
+      await openDesglose(
+        buildDocument({
+          amount_breakdown: { ...buildDocument().amount_breakdown, net_breakdown: netBreakdown },
+        }),
+      )
+
+      const keys = Array.from(body().element.querySelectorAll('[data-testid^="breakdown-row-"]')).map(
+        (el) => el.getAttribute('data-testid'),
+      )
+      expect(keys).toContain('breakdown-row-final')
+      expect(keys).toContain('breakdown-row-total')
+      expect(keys.some((key) => key?.includes('net'))).toBe(false)
+    })
+
+    it('omits the net section when the payload has no net_breakdown', async () => {
+      await openDesglose(buildDocument())
+
+      expect(body().find('[data-testid="net-breakdown"]').exists()).toBe(false)
+    })
   })
 
   it('reconciles an IU case with monto de apoyo and a temporary increase, in order', async () => {
