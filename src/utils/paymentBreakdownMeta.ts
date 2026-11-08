@@ -11,9 +11,11 @@
 // Invariant: like every other helper in this folder, these functions MUST
 // NEVER read or influence `is_payable`/`blocking_reasons`.
 //
-// Money subtraction (monthlyAmount/iuPaymentAmount) is done in integer
-// cents (design D6) — `gross − apoyo − aumento temporal` as a float
-// subtraction can drift by a cent; `Math.round(Number(x) * 100)` avoids it.
+// Beca / Apoyo / Pago IU / Aumento are NOT computed here any more
+// (sdd/descuento-beca-apoyo): the API sends the net split and `netCell` only
+// formats it. Cent conversion is kept solely for zero/inequality checks.
+
+import type { NetBreakdown, NetComponentKey } from '@/interfaces/payment'
 
 const DASH = '—'
 
@@ -60,37 +62,59 @@ export interface PaymentBreakdownRowFields {
   // the only reliable "is this row actually covered" signal.
   snapshot_telmex_coverage_id?: number | null
   snapshot_telmex_covered_amount?: string | null
+  // Server-computed net split (sdd/descuento-beca-apoyo); absent on payloads
+  // predating that change.
+  net_breakdown?: NetBreakdown
+}
+
+export interface NetCellDisplay {
+  // Net amount (primary value), or a dash when zero/absent.
+  net: string
+  // Nominal amount (secondary note), only when it differs from the net.
+  nominal: string | null
 }
 
 /**
- * Beca column. IU rows only (spec) — gross − apoyo − aumento
- * temporal. "—" for every other scholarship type, and when the gross
- * snapshot itself is null.
+ * Beca / Apoyo / Pago IU / Aumento cells — the SERVER's net amount is the
+ * primary value (sdd/descuento-beca-apoyo); the nominal is a secondary note
+ * shown only when a discount actually made it differ from the net. No math
+ * here: both values come straight from `net_breakdown`.
  */
-export function monthlyAmount(row: PaymentBreakdownRowFields): string {
-  if (row.snapshot_scholarship_type !== 'IU') return DASH
-  if (row.snapshot_gross_amount === null) return DASH
+export function netCell(net: NetBreakdown | undefined, key: NetComponentKey): NetCellDisplay {
+  if (!net) return { net: DASH, nominal: null }
 
-  const cents =
-    toCents(row.snapshot_gross_amount) -
-    toCents(row.snapshot_monto_apoyo) -
-    toCents(row.snapshot_temporary_increase_amount)
+  const nominalCents = toCents(net.nominal[key])
+  const differs = nominalCents !== 0 && nominalCents !== toCents(net[key])
 
-  return formatAmount(cents / 100)
+  return { net: amountOrDash(net[key]), nominal: differs ? formatAmount(nominalCents / 100) : null }
+}
+
+export interface NetTotalDisplay {
+  // Formatted net total (primary value).
+  value: string
+  // Formatted nominal total, only when it differs from the net.
+  nominal: string | null
 }
 
 /**
- * Pago IU column. TELMEX_IU rows only (spec) — gross − aumento temporal.
- * "—" for every other scholarship type, and when the gross snapshot itself
- * is null.
+ * Summary-card totals: the server's net total is the primary value and the
+ * nominal a secondary caption (only when it differs). A payload without the
+ * net key (older server) degrades to the nominal total with no caption.
  */
-export function iuPaymentAmount(row: PaymentBreakdownRowFields): string {
-  if (row.snapshot_scholarship_type !== 'TELMEX_IU') return DASH
-  if (row.snapshot_gross_amount === null) return DASH
+export function netTotal(net: string | undefined, nominal: string): NetTotalDisplay {
+  if (net === undefined) return { value: formatAmount(nominal), nominal: null }
+  return {
+    value: formatAmount(net),
+    nominal: toCents(net) === toCents(nominal) ? null : formatAmount(nominal),
+  }
+}
 
-  const cents = toCents(row.snapshot_gross_amount) - toCents(row.snapshot_temporary_increase_amount)
-
-  return formatAmount(cents / 100)
+/**
+ * Ret./Adelanto column — released retentions plus advance of future months,
+ * already summed by the server (never split, always >= 0).
+ */
+export function retentionAdvanceAmount(net: NetBreakdown | undefined): string {
+  return amountOrDash(net?.pending_and_advance)
 }
 
 /**

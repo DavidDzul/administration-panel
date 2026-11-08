@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createVuetify } from 'vuetify'
 import { VBtn } from 'vuetify/components'
-import type { PaymentBatchRow } from '@/interfaces/payment'
+import type { NetBreakdown, PaymentBatchRow } from '@/interfaces/payment'
 
 // Same jsdom shim as PaymentsView.test.ts.
 if (!('visualViewport' in window)) {
@@ -733,51 +733,152 @@ describe('PaymentBatchTable', () => {
   // desglose, spec "Breakdown columns rendered per scholarship type") ──────
 
   describe('breakdown columns per scholarship type', () => {
-    it('IU row: Beca = gross − apoyo − aumento temporal, Pago IU is a dash', () => {
-      const wrapper = mountTable([
-        buildRow({
-          snapshot_scholarship_type: 'IU',
-          snapshot_gross_amount: '1000.00',
-          snapshot_monto_apoyo: '100.00',
-          snapshot_temporary_increase_amount: '50.00',
-        }),
-      ])
+    const net = (overrides: Partial<NetBreakdown> = {}): NetBreakdown => ({
+      beca: '1545.45',
+      apoyo: '154.55',
+      pago_iu: '0.00',
+      temporary_increase: '0.00',
+      telmex_coverage: '0.00',
+      pending_and_advance: '0.00',
+      total: '1700.00',
+      nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '0.00' },
+      ...overrides,
+    })
 
-      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('$850.00')
+    it('uses Beca neta / Apoyo neto / Pago IU neto / Ret./Adelanto headers', () => {
+      const headers = mountTable([buildRow({ net_breakdown: net() })])
+        .findAll('th')
+        .map((th) => th.text())
+
+      expect(headers).toEqual(
+        expect.arrayContaining(['Beca neta', 'Apoyo neto', 'Pago IU neto', 'Ret./Adelanto']),
+      )
+      expect(headers).not.toContain('Beca')
+      expect(headers).not.toContain('Apoyo')
+    })
+
+    it('IU row: Beca neta and Apoyo neto show the net first and the nominal as a note', () => {
+      const wrapper = mountTable([buildRow({ net_breakdown: net() })])
+
+      const beca = wrapper.find('[data-testid="cell-monthly-amount"]')
+      expect(beca.text()).toContain('$1,545.45')
+      expect(beca.text()).toContain('$1,800.00')
+      expect(beca.find('.text-caption').text()).toContain('$1,800.00')
+
+      const apoyo = wrapper.find('[data-testid="cell-support-amount"]')
+      expect(apoyo.text()).toContain('$154.55')
+      expect(apoyo.find('.text-caption').text()).toContain('$200.00')
       expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('—')
     })
 
-    it('TELMEX_IU row: Pago IU = gross − aumento temporal, Beca is a dash', () => {
+    it('does not do its own Beca math: it ignores gross/apoyo snapshots', () => {
+      const wrapper = mountTable([
+        buildRow({
+          snapshot_gross_amount: '9999.00',
+          snapshot_monto_apoyo: '1.00',
+          net_breakdown: net(),
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toContain('$1,545.45')
+    })
+
+    it('TELMEX_IU row: Pago IU neto shows net with nominal, Beca is a dash', () => {
       const wrapper = mountTable([
         buildRow({
           snapshot_scholarship_type: 'TELMEX_IU',
-          snapshot_gross_amount: '1000.00',
-          snapshot_temporary_increase_amount: '50.00',
+          net_breakdown: net({
+            beca: '0.00',
+            apoyo: '0.00',
+            pago_iu: '900.00',
+            nominal: { beca: '0.00', apoyo: '0.00', pago_iu: '950.00', temporary_increase: '0.00' },
+          }),
         }),
       ])
 
-      expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('$950.00')
+      const cell = wrapper.find('[data-testid="cell-iu-payment-amount"]')
+      expect(cell.text()).toContain('$900.00')
+      expect(cell.find('.text-caption').text()).toContain('$950.00')
       expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('—')
     })
 
-    it('TELMEX row with a frozen temporary increase: both Beca and Pago IU are dashes', () => {
+    it('shows no nominal note when net equals nominal, and dashes for empty components', () => {
       const wrapper = mountTable([
         buildRow({
-          snapshot_scholarship_type: 'TELMEX',
-          snapshot_temporary_increase_amount: '500.00',
+          net_breakdown: net({
+            beca: '1000.00',
+            apoyo: '0.00',
+            nominal: { beca: '1000.00', apoyo: '0.00', pago_iu: '0.00', temporary_increase: '0.00' },
+          }),
         }),
       ])
 
-      expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toBe('—')
-      expect(wrapper.find('[data-testid="cell-iu-payment-amount"]').text()).toBe('—')
+      const beca = wrapper.find('[data-testid="cell-monthly-amount"]')
+      expect(beca.text()).toBe('$1,000.00')
+      expect(beca.find('.text-caption').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="cell-support-amount"]').text()).toBe('—')
     })
 
-    it('Apoyo shows the formatted amount, or a dash when 0 or null', () => {
-      const withApoyo = mountTable([buildRow({ snapshot_monto_apoyo: '100.00' })])
-      expect(withApoyo.find('[data-testid="cell-support-amount"]').text()).toBe('$100.00')
+    it('Ret./Adelanto cell shows pending_and_advance, or a dash when zero', () => {
+      const withCarry = mountTable([
+        buildRow({
+          amount_pending_from_previous: '300.00',
+          net_breakdown: net({ pending_and_advance: '300.00' }),
+        }),
+      ])
+      const cell = withCarry.find('[data-testid="cell-retention-advance"]')
+      expect(cell.text()).toContain('$300.00')
+      expect(cell.text()).toContain('ret.')
 
-      const withoutApoyo = mountTable([buildRow({ snapshot_monto_apoyo: null })])
-      expect(withoutApoyo.find('[data-testid="cell-support-amount"]').text()).toBe('—')
+      const without = mountTable([buildRow({ net_breakdown: net() })])
+      expect(without.find('[data-testid="cell-retention-advance"]').text()).toBe('—')
+    })
+
+    it('Aumento neto sits between Pago IU neto and Ret./Adelanto and shows net with nominal note', () => {
+      const wrapper = mountTable([
+        buildRow({
+          net_breakdown: net({
+            temporary_increase: '450.00',
+            nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '500.00' },
+          }),
+        }),
+      ])
+      const headers = wrapper.findAll('th').map((th) => th.text())
+      const aumento = headers.indexOf('Aumento neto')
+
+      expect(aumento).toBeGreaterThan(headers.indexOf('Pago IU neto'))
+      expect(aumento).toBeLessThan(headers.indexOf('Ret./Adelanto'))
+      const cell = wrapper.find('[data-testid="cell-temporary-increase-net"]')
+      expect(cell.text()).toContain('$450.00')
+      expect(cell.find('.text-caption').text()).toContain('$500.00')
+    })
+
+    it('Aumento neto shows a dash when there is no increase, and exists in every mode', () => {
+      for (const mode of ['transfer', 'cheque', 'manual_transfer'] as const) {
+        const rows = [buildRow({ net_breakdown: net() })]
+        const wrapper = mount(PaymentBatchTable, {
+          props: { rows, groupSourceRows: rows, mode },
+          global: { plugins: [vuetify] },
+        })
+
+        expect(wrapper.findAll('th').map((th) => th.text())).toContain('Aumento neto')
+        expect(wrapper.find('[data-testid="cell-temporary-increase-net"]').text()).toBe('—')
+      }
+    })
+
+    it('renders the net columns in cheque and manual-transfer modes too', () => {
+      for (const mode of ['cheque', 'manual_transfer'] as const) {
+        const rows = [buildRow({ net_breakdown: net({ pending_and_advance: '50.00' }) })]
+        const wrapper = mount(PaymentBatchTable, {
+          props: { rows, groupSourceRows: rows, mode },
+          global: { plugins: [vuetify] },
+        })
+        const headers = wrapper.findAll('th').map((th) => th.text())
+
+        expect(headers).toEqual(expect.arrayContaining(['Beca neta', 'Apoyo neto', 'Ret./Adelanto']))
+        expect(wrapper.find('[data-testid="cell-monthly-amount"]').text()).toContain('$1,545.45')
+        expect(wrapper.find('[data-testid="cell-retention-advance"]').text()).toContain('$50.00')
+      }
     })
 
     it('Base shows snapshot_gross_amount with a "−X%" second line when discounted', () => {
@@ -965,6 +1066,57 @@ describe('PaymentBatchTable', () => {
 
       expect(estadoCell.text()).toContain('Listo')
       expect(wrapper.find('[data-testid="telmex-coverage-chip"]').exists()).toBe(true)
+    })
+  })
+
+  // Every row must read left to right to the total: reference/nominal
+  // columns first, then the net group, immediately followed by the total.
+  describe('money header order', () => {
+    const MONEY_ORDER = [
+      'Base',
+      'Desc.%',
+      'Final',
+      'Beca neta',
+      'Apoyo neto',
+      'Pago IU neto',
+      'Aumento neto',
+      'Cob. Telmex',
+      'Ret./Adelanto',
+      'Total a pagar',
+    ]
+    const moneyHeaders = (wrapper: ReturnType<typeof mountTable>) =>
+      wrapper
+        .findAll('th')
+        .map((th) => th.text())
+        .filter((text) => MONEY_ORDER.includes(text))
+
+    it('transfer mode: nominal columns, then net group, then Total a pagar', () => {
+      expect(moneyHeaders(mountTable([buildRow()]))).toEqual(MONEY_ORDER)
+    })
+
+    it('cheque mode: same order', () => {
+      const wrapper = mount(PaymentBatchTable, {
+        props: { rows: [buildRow()], groupSourceRows: [buildRow()], mode: 'cheque', canManage: true },
+        global: { plugins: [vuetify] },
+      })
+      expect(moneyHeaders(wrapper as unknown as ReturnType<typeof mountTable>)).toEqual(MONEY_ORDER)
+    })
+
+    it('manual transfer mode: same order', () => {
+      const wrapper = mount(PaymentBatchTable, {
+        props: { rows: [buildRow()], groupSourceRows: [buildRow()], mode: 'manual_transfer', canManage: true },
+        global: { plugins: [vuetify] },
+      })
+      expect(moneyHeaders(wrapper as unknown as ReturnType<typeof mountTable>)).toEqual(MONEY_ORDER)
+    })
+
+    it('Total a pagar is immediately preceded by Ret./Adelanto and followed by the flags column', () => {
+      const headers = mountTable([buildRow()])
+        .findAll('th')
+        .map((th) => th.text())
+      const total = headers.indexOf('Total a pagar')
+      expect(headers[total - 1]).toBe('Ret./Adelanto')
+      expect(headers[total + 1]).toBe('')
     })
   })
 

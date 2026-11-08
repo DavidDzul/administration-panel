@@ -41,15 +41,39 @@
     </template>
 
     <template #[`item.monthly_amount`]="{ item }">
-      <span data-testid="cell-monthly-amount">{{ monthlyAmount(item) }}</span>
+      <div data-testid="cell-monthly-amount">
+        <div>{{ netCell(item.net_breakdown, 'beca').net }}</div>
+        <div v-if="netCell(item.net_breakdown, 'beca').nominal" class="text-caption text-medium-emphasis">
+          Nominal {{ netCell(item.net_breakdown, 'beca').nominal }}
+        </div>
+      </div>
     </template>
 
     <template #[`item.support_amount`]="{ item }">
-      <span data-testid="cell-support-amount">{{ amountOrDash(item.snapshot_monto_apoyo) }}</span>
+      <div data-testid="cell-support-amount">
+        <div>{{ netCell(item.net_breakdown, 'apoyo').net }}</div>
+        <div v-if="netCell(item.net_breakdown, 'apoyo').nominal" class="text-caption text-medium-emphasis">
+          Nominal {{ netCell(item.net_breakdown, 'apoyo').nominal }}
+        </div>
+      </div>
     </template>
 
     <template #[`item.iu_payment_amount`]="{ item }">
-      <span data-testid="cell-iu-payment-amount">{{ iuPaymentAmount(item) }}</span>
+      <div data-testid="cell-iu-payment-amount">
+        <div>{{ netCell(item.net_breakdown, 'pago_iu').net }}</div>
+        <div v-if="netCell(item.net_breakdown, 'pago_iu').nominal" class="text-caption text-medium-emphasis">
+          Nominal {{ netCell(item.net_breakdown, 'pago_iu').nominal }}
+        </div>
+      </div>
+    </template>
+
+    <template #[`item.temporary_increase_net`]="{ item }">
+      <div data-testid="cell-temporary-increase-net">
+        <div>{{ netCell(item.net_breakdown, 'temporary_increase').net }}</div>
+        <div v-if="netCell(item.net_breakdown, 'temporary_increase').nominal" class="text-caption text-medium-emphasis">
+          Nominal {{ netCell(item.net_breakdown, 'temporary_increase').nominal }}
+        </div>
+      </div>
     </template>
 
     <template #[`item.breakdown_base_amount`]="{ item }">
@@ -76,6 +100,19 @@
           class="text-caption text-medium-emphasis"
         >
           + {{ adjustment.label }} {{ adjustment.amount }}
+        </div>
+      </div>
+    </template>
+
+    <template #[`item.retention_advance`]="{ item }">
+      <div data-testid="cell-retention-advance">
+        <div>{{ retentionAdvanceAmount(item.net_breakdown) }}</div>
+        <div
+          v-for="adjustment in finalAdjustments(item)"
+          :key="adjustment.label"
+          class="text-caption text-medium-emphasis"
+        >
+          {{ adjustment.label }} {{ adjustment.amount }}
         </div>
       </div>
     </template>
@@ -367,14 +404,13 @@ import { telmexExportExclusionChip } from '@/utils/telmexExportMeta'
 import { telmexCoverageChip } from '@/utils/telmexCoverageMeta'
 import { temporaryIncreaseChip } from '@/utils/temporaryIncreaseMeta'
 import {
-  amountOrDash,
   baseAmount,
   baseDiscountNote,
   discountPercent,
   finalAdjustments,
   formatAmount,
-  iuPaymentAmount,
-  monthlyAmount,
+  netCell,
+  retentionAdvanceAmount,
   telmexCoverageAmount,
 } from '@/utils/paymentBreakdownMeta'
 import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
@@ -430,14 +466,19 @@ const baseHeaders = [
   { title: '', key: 'data-table-group' },
   { title: 'Nombre', key: 'snapshot_name' },
   { title: 'Cuenta', key: 'account_number' },
-  { title: 'Beca', key: 'monthly_amount', width: 110, align: 'end' as const },
-  { title: 'Apoyo', key: 'support_amount', width: 90, align: 'end' as const },
-  { title: 'Pago IU', key: 'iu_payment_amount', width: 100, align: 'end' as const },
+  // Reference (nominal) columns first, then the net group that sums to the
+  // total, with "Total a pagar" immediately after it so every row reads left
+  // to right to the total.
   { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },
   { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
   { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },
-  { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
+  { title: 'Beca neta', key: 'monthly_amount', width: 120, align: 'end' as const },
+  { title: 'Apoyo neto', key: 'support_amount', width: 110, align: 'end' as const },
+  { title: 'Pago IU neto', key: 'iu_payment_amount', width: 120, align: 'end' as const },
+  { title: 'Aumento neto', key: 'temporary_increase_net', width: 120, align: 'end' as const },
   { title: 'Cob. Telmex', key: 'telmex_coverage_column', width: 110, align: 'end' as const },
+  { title: 'Ret./Adelanto', key: 'retention_advance', width: 120, align: 'end' as const },
+  { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },

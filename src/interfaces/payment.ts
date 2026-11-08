@@ -10,6 +10,30 @@ export interface BlockingReason {
   message: string
 }
 
+// Server-computed net split of a payment (impulsou-api RefrendNetComponents,
+// sdd/descuento-beca-apoyo). All values are "0.00" strings. INVARIANT:
+// beca + apoyo + pago_iu + temporary_increase + telmex_coverage +
+// pending_and_advance = total (the displayed total_to_pay). `pending_and_advance`
+// is carry-over money (released retentions + advance of future months) and is
+// never split. `nominal` is the pre-discount amount, informational only.
+export interface NetBreakdown {
+  beca: string
+  apoyo: string
+  pago_iu: string
+  temporary_increase: string
+  telmex_coverage: string
+  pending_and_advance: string
+  total: string
+  nominal: {
+    beca: string
+    apoyo: string
+    pago_iu: string
+    temporary_increase: string
+  }
+}
+
+export type NetComponentKey = keyof NetBreakdown['nominal']
+
 export interface PaymentBatchRow {
   refrend_id: number
   user_id: number
@@ -18,6 +42,9 @@ export interface PaymentBatchRow {
   bank_name: string | null
   account_number: string | null
   total_to_pay: string
+  // Optional only so fixtures/payloads predating sdd/descuento-beca-apoyo
+  // still type-check; the API always sends it on every payment row.
+  net_breakdown?: NetBreakdown
   is_payable: boolean
   blocking_reasons: BlockingReason[]
   outcome: 'PAID' | 'SKIPPED' | null
@@ -173,6 +200,19 @@ export interface PaymentBatchSummary {
   // Telmex" summary card (PaymentBatchSummary.vue) renders only when this
   // is present AND > 0.
   telmex_coverage_amount?: string
+  // Nominal temporary-increase total; the "Aumento neto" card renders only
+  // when the net (or this nominal) is > 0.
+  temporary_increase_amount?: string
+  // Net totals (sdd/descuento-beca-apoyo): sums of the rows' net_breakdown.
+  // OPTIONAL for the same fixture rationale as above; the summary cards fall
+  // back to the nominal totals when a payload predates them. The six net keys
+  // plus pending_and_advance_amount add up to total_amount.
+  net_beca_amount?: string
+  net_apoyo_amount?: string
+  net_pago_iu_amount?: string
+  net_temporary_increase_amount?: string
+  net_telmex_coverage_amount?: string
+  pending_and_advance_amount?: string
 }
 
 // Matches PaymentBatchService::generationSummary()'s real keys
@@ -214,6 +254,13 @@ export interface GenerationPaymentSummary {
   // Same OPTIONAL rationale as PaymentBatchSummary.telmex_coverage_amount
   // above.
   telmex_coverage_amount?: string
+  // Net totals (sdd/descuento-beca-apoyo), same semantics as on
+  // PaymentBatchSummary; cards fall back to the nominal totals when absent.
+  net_beca_amount?: string
+  net_apoyo_amount?: string
+  net_pago_iu_amount?: string
+  net_temporary_increase_amount?: string
+  net_telmex_coverage_amount?: string
 }
 
 // Batch type partition (sdd/pagos-lote-pago-adelantado, amendment #1942,
@@ -404,6 +451,9 @@ export interface PaymentAmountBreakdown {
   advance_payment_amount: string | null
   final_amount: string
   total_to_pay: string
+  // Net split over the UNFLOORED total (see NetBreakdown). Optional for the
+  // same reason as PaymentBatchRow.net_breakdown.
+  net_breakdown?: NetBreakdown
 }
 
 // Matches `RefrendRetentionBreakdown::forRefrend()`'s real response shape
@@ -588,4 +638,8 @@ export interface GenerationPaymentRow {
   pending_and_advance: string
   total_to_pay: string
   state: GenerationPaymentRowState
+  // Server-computed net split (sdd/descuento-beca-apoyo). The table shows
+  // these net values; absent on payloads predating it (falls back to the
+  // nominal fields above).
+  net_breakdown?: NetBreakdown
 }
