@@ -3,7 +3,7 @@
     <v-data-table
       v-model:sort-by="sortBy"
       :headers="headers"
-      :items="rows"
+      :items="netRows"
       :custom-key-sort="customKeySort"
       :row-props="rowProps"
       density="compact"
@@ -26,7 +26,7 @@
       </template>
 
       <template #[`item.discounts`]="{ item }">
-        <span data-testid="cell-discounts" :class="mutedClass(item.discounts)">{{ discountText(item.discounts) }}</span>
+        <span data-testid="cell-discounts" class="text-caption" :class="mutedClass(item.discounts) ?? 'text-medium-emphasis'">{{ discountText(item.discounts) }}</span>
       </template>
 
       <template #[`item.total_to_pay`]="{ item }">
@@ -62,7 +62,12 @@
       <template #tfoot>
         <tr class="generation-rows-totals" data-testid="totals-row">
           <td class="font-weight-bold" colspan="3">Totales</td>
-          <td v-for="column in totalColumns" :key="column.key" class="text-end font-weight-bold">
+          <td
+            v-for="column in totalColumns"
+            :key="column.key"
+            class="text-end"
+            :class="column.key === 'discounts' ? 'text-caption text-medium-emphasis' : 'font-weight-bold'"
+          >
             <span :data-testid="`total-${column.key}`">{{ column.text }}</span>
           </td>
           <td></td>
@@ -79,8 +84,11 @@
 <script setup lang="ts">
 // Per-becario amounts table of "Resumen por generación"
 // (sdd/tabla-montos-por-generacion). Purely presentational: rows come from
-// the API already reconciled (beca + apoyo + pago IU + aumento temporal +
-// cobertura Telmex - descuentos + pendiente/adelanto = total a pagar).
+// the API already reconciled. Sprint sdd/descuento-beca-apoyo: the component
+// columns show the NET amounts (row.net_breakdown) so that, left to right,
+// beca neta + apoyo neto + pago IU neto + aumento neto + cobertura Telmex +
+// ret./adelanto = total a pagar. "Descuentos" (nominal - net) is informative
+// only and is NOT part of that sum.
 //
 // The "Totales" footer is computed here from the rows, over PAID + PENDING
 // only — the same scope the cards use — so BLOCKED and NO_IU_PAYMENT rows
@@ -135,16 +143,30 @@ const headers = [
   { title: 'Matrícula', key: 'enrollment' },
   { title: 'Nombre completo', key: 'full_name' },
   { title: 'Tipo de beca', key: 'scholarship_type' },
-  money('beca', 'Beca'),
-  money('apoyo', 'Apoyo'),
-  money('pago_iu', 'Pago IU'),
-  money('temporary_increase', 'Aumento temporal'),
+  money('beca', 'Beca neta'),
+  money('apoyo', 'Apoyo neto'),
+  money('pago_iu', 'Pago IU neto'),
+  money('temporary_increase', 'Aumento neto'),
   money('telmex_coverage', 'Cobertura Telmex'),
-  money('discounts', 'Descuentos y retenciones'),
-  money('pending_and_advance', 'Pendiente / adelanto'),
+  money('pending_and_advance', 'Ret./Adelanto'),
   money('total_to_pay', 'Total a pagar'),
+  money('discounts', 'Descuentos (informativo)'),
   { title: 'Estado', key: 'state' },
 ]
+
+type NetKey = 'beca' | 'apoyo' | 'pago_iu' | 'temporary_increase' | 'telmex_coverage' | 'pending_and_advance'
+const NET_KEYS: NetKey[] = ['beca', 'apoyo', 'pago_iu', 'temporary_increase', 'telmex_coverage', 'pending_and_advance']
+
+// Rows with the component fields replaced by the server's net amounts, so
+// cells, sorting and footer totals all work on the same values. A payload
+// without net_breakdown keeps the row's own fields.
+const netRows = computed<GenerationPaymentRow[]>(() =>
+  props.rows.map((row) => {
+    const net = row.net_breakdown
+    if (!net) return row
+    return NET_KEYS.reduce((acc, key) => ({ ...acc, [key]: net[key] }), row)
+  }),
+)
 
 // `discounts` and `total_to_pay` have their own templates (sign / emphasis).
 const plainMoneyKeys: MoneyKey[] = [
@@ -193,16 +215,16 @@ const rowProps = ({ item }: { item: GenerationPaymentRow }) =>
   item.state === 'NO_IU_PAYMENT' ? { class: 'generation-row-muted text-disabled' } : {}
 
 const totalColumns = computed(() => {
-  const counted = props.rows.filter((row) => row.state === 'PAID' || row.state === 'PENDING')
+  const counted = netRows.value.filter((row) => row.state === 'PAID' || row.state === 'PENDING')
   const keys: MoneyKey[] = [
     'beca',
     'apoyo',
     'pago_iu',
     'temporary_increase',
     'telmex_coverage',
-    'discounts',
     'pending_and_advance',
     'total_to_pay',
+    'discounts',
   ]
   return keys.map((key) => {
     const cents = counted.reduce((sum, row) => sum + toCents(row[key]), 0)

@@ -200,6 +200,16 @@ export interface PaymentBatchSummary {
   // Telmex" summary card (PaymentBatchSummary.vue) renders only when this
   // is present AND > 0.
   telmex_coverage_amount?: string
+  // Net totals (sdd/descuento-beca-apoyo): sums of the rows' net_breakdown.
+  // OPTIONAL for the same fixture rationale as above; the summary cards fall
+  // back to the nominal totals when a payload predates them. The six net keys
+  // plus pending_and_advance_amount add up to total_amount.
+  net_beca_amount?: string
+  net_apoyo_amount?: string
+  net_pago_iu_amount?: string
+  net_temporary_increase_amount?: string
+  net_telmex_coverage_amount?: string
+  pending_and_advance_amount?: string
 }
 
 // Matches PaymentBatchService::generationSummary()'s real keys
@@ -241,6 +251,13 @@ export interface GenerationPaymentSummary {
   // Same OPTIONAL rationale as PaymentBatchSummary.telmex_coverage_amount
   // above.
   telmex_coverage_amount?: string
+  // Net totals (sdd/descuento-beca-apoyo), same semantics as on
+  // PaymentBatchSummary; cards fall back to the nominal totals when absent.
+  net_beca_amount?: string
+  net_apoyo_amount?: string
+  net_pago_iu_amount?: string
+  net_temporary_increase_amount?: string
+  net_telmex_coverage_amount?: string
 }
 
 // Batch type partition (sdd/pagos-lote-pago-adelantado, amendment #1942,
@@ -618,4 +635,8 @@ export interface GenerationPaymentRow {
   pending_and_advance: string
   total_to_pay: string
   state: GenerationPaymentRowState
+  // Server-computed net split (sdd/descuento-beca-apoyo). The table shows
+  // these net values; absent on payloads predating it (falls back to the
+  // nominal fields above).
+  net_breakdown?: NetBreakdown
 }

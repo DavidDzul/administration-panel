@@ -67,6 +67,15 @@
       </div>
     </template>
 
+    <template #[`item.temporary_increase_net`]="{ item }">
+      <div data-testid="cell-temporary-increase-net">
+        <div>{{ netCell(item.net_breakdown, 'temporary_increase').net }}</div>
+        <div v-if="netCell(item.net_breakdown, 'temporary_increase').nominal" class="text-caption text-medium-emphasis">
+          Nominal {{ netCell(item.net_breakdown, 'temporary_increase').nominal }}
+        </div>
+      </div>
+    </template>
+
     <template #[`item.breakdown_base_amount`]="{ item }">
       <div data-testid="cell-base-amount">
         <div>{{ baseAmount(item) }}</div>
@@ -460,6 +469,7 @@ const baseHeaders = [
   { title: 'Beca neta', key: 'monthly_amount', width: 120, align: 'end' as const },
   { title: 'Apoyo neto', key: 'support_amount', width: 110, align: 'end' as const },
   { title: 'Pago IU neto', key: 'iu_payment_amount', width: 120, align: 'end' as const },
+  { title: 'Aumento neto', key: 'temporary_increase_net', width: 120, align: 'end' as const },
   { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },
   { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
   { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },

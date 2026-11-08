@@ -89,6 +89,26 @@ export function netCell(net: NetBreakdown | undefined, key: NetComponentKey): Ne
   return { net: amountOrDash(net[key]), nominal: differs ? formatAmount(nominalCents / 100) : null }
 }
 
+export interface NetTotalDisplay {
+  // Formatted net total (primary value).
+  value: string
+  // Formatted nominal total, only when it differs from the net.
+  nominal: string | null
+}
+
+/**
+ * Summary-card totals: the server's net total is the primary value and the
+ * nominal a secondary caption (only when it differs). A payload without the
+ * net key (older server) degrades to the nominal total with no caption.
+ */
+export function netTotal(net: string | undefined, nominal: string): NetTotalDisplay {
+  if (net === undefined) return { value: formatAmount(nominal), nominal: null }
+  return {
+    value: formatAmount(net),
+    nominal: toCents(net) === toCents(nominal) ? null : formatAmount(nominal),
+  }
+}
+
 /**
  * Ret./Adelanto column — released retentions plus advance of future months,
  * already summed by the server (never split, always >= 0).

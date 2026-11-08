@@ -72,23 +72,55 @@ describe('GenerationPaymentSummary', () => {
     const wrapper = mountSummary(buildSummary())
     const text = wrapper.text()
 
-    expect(text).toContain('Monto total de beca')
-    expect(text).toContain('Monto total de apoyo')
-    expect(text).toContain('Monto total Pago IU')
-    expect(text).toContain('Aumentos temporales')
-    expect(text).toContain('Pendientes y adelantos')
+    expect(text).toContain('Total de beca')
+    expect(text).toContain('Total de apoyo')
+    expect(text).toContain('Total Pago IU')
+    expect(text).toContain('Aumento neto')
+    expect(text).toContain('Ret./Adelanto')
   })
 
-  it('renders the formatted temporary increase and pending/advance amounts', () => {
+  it('renders the formatted net temporary increase and Ret./Adelanto amounts', () => {
     const wrapper = mountSummary(
-      buildSummary({ temporary_increase_amount: '800.00', pending_and_advance_amount: '250.00' }),
+      buildSummary({
+        temporary_increase_amount: '800.00',
+        net_temporary_increase_amount: '700.00',
+        pending_and_advance_amount: '250.00',
+      }),
     )
     const cards = wrapper.findAll('.v-row')[1].findAll('.payment-summary-card')
 
-    expect(cards[3].text()).toContain('Aumentos temporales')
-    expect(cards[3].text()).toContain('$800.00')
-    expect(cards[4].text()).toContain('Pendientes y adelantos')
-    expect(cards[4].text()).toContain('$250.00')
+    expect(cards[3].text()).toContain('Aumento neto')
+    expect(cards[3].find('.text-h5').text()).toBe('$700.00')
+    expect(cards[3].text()).toContain('Nominal $800.00')
+    expect(cards[4].text()).toContain('Ret./Adelanto')
+    expect(cards[4].find('.text-h5').text()).toBe('$250.00')
+  })
+
+  it('shows NET beca/apoyo/Pago IU as the primary value with the nominal as a caption', () => {
+    const wrapper = mountSummary(
+      buildSummary({
+        net_beca_amount: '4500.00',
+        net_apoyo_amount: '800.00',
+        net_pago_iu_amount: '1100.00',
+      }),
+    )
+    const cards = wrapper.findAll('.v-row')[1].findAll('.payment-summary-card')
+
+    expect(cards[0].find('.text-h5').text()).toBe('$4,500.00')
+    expect(cards[0].text()).toContain('Nominal $5,000.00')
+    expect(cards[1].find('.text-h5').text()).toBe('$800.00')
+    expect(cards[1].text()).not.toContain('Nominal')
+    expect(cards[2].find('.text-h5').text()).toBe('$1,100.00')
+    expect(cards[2].text()).toContain('Nominal $1,200.00')
+  })
+
+  it('uses the net Telmex coverage for the Adelanto Telmex card', () => {
+    const wrapper = mountSummary(
+      buildSummary({ telmex_coverage_amount: '900.00', net_telmex_coverage_amount: '850.00' }),
+    )
+    const card = wrapper.findAll('.payment-summary-card').find((c) => c.text().includes('Adelanto Telmex'))
+
+    expect(card?.find('.text-h5').text()).toBe('$850.00')
   })
 
   it('renders the row 3 payment-state money labels, including the difference card', () => {

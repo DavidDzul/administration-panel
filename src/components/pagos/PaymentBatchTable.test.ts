@@ -834,6 +834,38 @@ describe('PaymentBatchTable', () => {
       expect(without.find('[data-testid="cell-retention-advance"]').text()).toBe('—')
     })
 
+    it('Aumento neto sits between Pago IU neto and Ret./Adelanto and shows net with nominal note', () => {
+      const wrapper = mountTable([
+        buildRow({
+          net_breakdown: net({
+            temporary_increase: '450.00',
+            nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '500.00' },
+          }),
+        }),
+      ])
+      const headers = wrapper.findAll('th').map((th) => th.text())
+      const aumento = headers.indexOf('Aumento neto')
+
+      expect(aumento).toBeGreaterThan(headers.indexOf('Pago IU neto'))
+      expect(aumento).toBeLessThan(headers.indexOf('Ret./Adelanto'))
+      const cell = wrapper.find('[data-testid="cell-temporary-increase-net"]')
+      expect(cell.text()).toContain('$450.00')
+      expect(cell.find('.text-caption').text()).toContain('$500.00')
+    })
+
+    it('Aumento neto shows a dash when there is no increase, and exists in every mode', () => {
+      for (const mode of ['transfer', 'cheque', 'manual_transfer'] as const) {
+        const rows = [buildRow({ net_breakdown: net() })]
+        const wrapper = mount(PaymentBatchTable, {
+          props: { rows, groupSourceRows: rows, mode },
+          global: { plugins: [vuetify] },
+        })
+
+        expect(wrapper.findAll('th').map((th) => th.text())).toContain('Aumento neto')
+        expect(wrapper.find('[data-testid="cell-temporary-increase-net"]').text()).toBe('—')
+      }
+    })
+
     it('renders the net columns in cheque and manual-transfer modes too', () => {
       for (const mode of ['cheque', 'manual_transfer'] as const) {
         const rows = [buildRow({ net_breakdown: net({ pending_and_advance: '50.00' }) })]

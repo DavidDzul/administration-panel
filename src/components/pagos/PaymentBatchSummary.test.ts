@@ -44,11 +44,58 @@ describe('PaymentBatchSummary', () => {
     const wrapper = mountSummary(buildSummary())
     const text = wrapper.text()
 
-    expect(text).toContain('Monto total de beca')
-    expect(text).toContain('Monto total de apoyo')
-    expect(text).toContain('Monto total Pago IU')
+    expect(text).toContain('Total de beca')
+    expect(text).toContain('Total de apoyo')
+    expect(text).toContain('Total Pago IU')
     expect(text).toContain('Monto total a pagar')
     expect(text).toContain('Diferencia por descuentos y retenciones')
+  })
+
+  describe('net totals (sdd/descuento-beca-apoyo)', () => {
+    const netSummary = (overrides: Partial<PaymentBatchSummaryModel> = {}) =>
+      buildSummary({
+        net_beca_amount: '4500.00',
+        net_apoyo_amount: '700.00',
+        net_pago_iu_amount: '1100.00',
+        net_temporary_increase_amount: '0.00',
+        net_telmex_coverage_amount: '0.00',
+        pending_and_advance_amount: '700.00',
+        ...overrides,
+      })
+
+    const card = (wrapper: ReturnType<typeof mountSummary>, label: string) =>
+      wrapper.findAll('.payment-summary-card').find((c) => c.text().includes(label))
+
+    it('shows the NET totals as the primary value and the nominal as a caption', () => {
+      const wrapper = mountSummary(netSummary())
+
+      expect(card(wrapper, 'Total de beca')?.find('.text-h5').text()).toBe('$4,500.00')
+      expect(card(wrapper, 'Total de beca')?.text()).toContain('Nominal $5,000.00')
+      expect(card(wrapper, 'Total de apoyo')?.find('.text-h5').text()).toBe('$700.00')
+      expect(card(wrapper, 'Total de apoyo')?.text()).toContain('Nominal $800.00')
+      expect(card(wrapper, 'Total Pago IU')?.find('.text-h5').text()).toBe('$1,100.00')
+    })
+
+    it('omits the nominal caption when net equals nominal', () => {
+      const wrapper = mountSummary(netSummary({ net_beca_amount: '5000.00' }))
+
+      expect(card(wrapper, 'Total de beca')?.text()).not.toContain('Nominal')
+    })
+
+    it('renders a Ret./Adelanto card from pending_and_advance_amount', () => {
+      const wrapper = mountSummary(netSummary())
+
+      expect(card(wrapper, 'Ret./Adelanto')?.find('.text-h5').text()).toBe('$700.00')
+      expect(wrapper.findAll('.payment-summary-card')).toHaveLength(9)
+    })
+
+    it('uses the net Telmex coverage for the Adelanto Telmex card', () => {
+      const wrapper = mountSummary(
+        netSummary({ telmex_coverage_amount: '1500.00', net_telmex_coverage_amount: '1400.00' }),
+      )
+
+      expect(card(wrapper, 'Adelanto Telmex')?.find('.text-h5').text()).toBe('$1,400.00')
+    })
   })
 
   it('renders card 5 with a correctly signed negative value, never the $-amount form', () => {

@@ -23,6 +23,7 @@
                 </v-tooltip>
               </div>
               <div class="text-h5 font-weight-medium">{{ card.value }}</div>
+              <div v-if="card.nominal" class="text-caption text-medium-emphasis">Nominal {{ card.nominal }}</div>
             </div>
           </v-card-text>
         </v-card>
@@ -33,6 +34,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { netTotal } from '@/utils/paymentBreakdownMeta'
 import type { GenerationPaymentSummary } from '@/interfaces/payment'
 
 interface Props {
@@ -62,6 +64,14 @@ interface SummaryCard {
   icon: string
   color: string | undefined
   help?: string
+  // Nominal caption shown under a net total when it differs.
+  nominal?: string | null
+}
+
+// Net total card: net is the primary value, nominal a secondary caption.
+const netCard = (label: string, net: string | undefined, nominal: string, icon: string): SummaryCard => {
+  const total = netTotal(net, nominal)
+  return { label, value: total.value, icon, color: 'info', nominal: total.nominal }
 }
 
 const card = (
@@ -120,11 +130,11 @@ const cardGroups = computed<CardGroup[]>(() => {
       cols: 6,
       sm: true,
       cards: [
-        card('Monto total de beca', formatAmount(s.beca_amount), 'mdi-school-outline', 'info'),
-        card('Monto total de apoyo', formatAmount(s.apoyo_amount), 'mdi-hand-heart-outline', 'info'),
-        card('Monto total Pago IU', formatAmount(s.pago_iu_amount), 'mdi-cash-sync', 'info'),
-        card('Aumentos temporales', formatAmount(s.temporary_increase_amount), 'mdi-trending-up', 'info'),
-        card('Pendientes y adelantos', formatAmount(s.pending_and_advance_amount), 'mdi-cash-fast', 'info'),
+        netCard('Total de beca', s.net_beca_amount, s.beca_amount, 'mdi-school-outline'),
+        netCard('Total de apoyo', s.net_apoyo_amount, s.apoyo_amount, 'mdi-hand-heart-outline'),
+        netCard('Total Pago IU', s.net_pago_iu_amount, s.pago_iu_amount, 'mdi-cash-sync'),
+        netCard('Aumento neto', s.net_temporary_increase_amount, s.temporary_increase_amount, 'mdi-trending-up'),
+        card('Ret./Adelanto', formatAmount(s.pending_and_advance_amount), 'mdi-cash-fast', 'info'),
       ],
     },
     {
@@ -148,11 +158,12 @@ const cardGroups = computed<CardGroup[]>(() => {
   // conditional 4th row as PaymentBatchSummary.vue's copy: shown ONLY when
   // telmex_coverage_amount is present and > 0, so the 3-row/10-card layout
   // stays byte-identical for every generación without a covered row.
-  if (Number(s.telmex_coverage_amount ?? 0) > 0) {
+  const telmexCoverage = s.net_telmex_coverage_amount ?? s.telmex_coverage_amount
+  if (Number(telmexCoverage ?? 0) > 0) {
     groups.push({
       cols: 12,
       sm: 12,
-      cards: [card('Adelanto Telmex', formatAmount(s.telmex_coverage_amount as string), 'mdi-hand-coin-outline', 'teal')],
+      cards: [card('Adelanto Telmex', formatAmount(telmexCoverage as string), 'mdi-hand-coin-outline', 'teal')],
     })
   }
 

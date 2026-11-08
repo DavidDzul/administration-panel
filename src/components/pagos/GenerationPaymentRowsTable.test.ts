@@ -45,7 +45,7 @@ const mountTable = (rows: GenerationPaymentRow[]) =>
 const bodyRows = (wrapper: ReturnType<typeof mountTable>) => wrapper.findAll('tbody tr')
 
 describe('GenerationPaymentRowsTable', () => {
-  it('renders the 12 columns in the specified order', () => {
+  it('renders the 12 columns in the specified order: net components sum left to right into the total', () => {
     const wrapper = mountTable([buildRow()])
 
     const titles = wrapper.findAll('thead th').map((th) => th.text())
@@ -54,16 +54,88 @@ describe('GenerationPaymentRowsTable', () => {
       'Matrícula',
       'Nombre completo',
       'Tipo de beca',
-      'Beca',
-      'Apoyo',
-      'Pago IU',
-      'Aumento temporal',
+      'Beca neta',
+      'Apoyo neto',
+      'Pago IU neto',
+      'Aumento neto',
       'Cobertura Telmex',
-      'Descuentos y retenciones',
-      'Pendiente / adelanto',
+      'Ret./Adelanto',
       'Total a pagar',
+      'Descuentos (informativo)',
       'Estado',
     ])
+  })
+
+  describe('net breakdown (sdd/descuento-beca-apoyo)', () => {
+    const netRow = (overrides: Partial<GenerationPaymentRow> = {}) =>
+      buildRow({
+        state: 'PAID',
+        beca: '1800.00',
+        apoyo: '200.00',
+        discounts: '300.00',
+        total_to_pay: '1700.00',
+        net_breakdown: {
+          beca: '1545.45',
+          apoyo: '154.55',
+          pago_iu: '0.00',
+          temporary_increase: '0.00',
+          telmex_coverage: '0.00',
+          pending_and_advance: '0.00',
+          total: '1700.00',
+          nominal: { beca: '1800.00', apoyo: '200.00', pago_iu: '0.00', temporary_increase: '0.00' },
+        },
+        ...overrides,
+      })
+
+    it('shows net_breakdown values in the component cells, not the nominal row fields', () => {
+      const wrapper = mountTable([netRow()])
+
+      expect(wrapper.find('[data-testid="cell-beca"]').text()).toBe(formatAmount('1545.45'))
+      expect(wrapper.find('[data-testid="cell-apoyo"]').text()).toBe(formatAmount('154.55'))
+    })
+
+    it('footer totals add the NET components exactly', () => {
+      const wrapper = mountTable([netRow(), netRow()])
+
+      expect(wrapper.find('[data-testid="total-beca"]').text()).toBe(formatAmount('3090.90'))
+      expect(wrapper.find('[data-testid="total-apoyo"]').text()).toBe(formatAmount('309.10'))
+    })
+
+    it('Ret./Adelanto reads net_breakdown.pending_and_advance', () => {
+      const wrapper = mountTable([
+        netRow({
+          pending_and_advance: '0.00',
+          net_breakdown: {
+            ...netRow().net_breakdown!,
+            pending_and_advance: '120.00',
+          },
+        }),
+      ])
+
+      expect(wrapper.find('[data-testid="cell-pending_and_advance"]').text()).toBe(formatAmount('120.00'))
+    })
+
+    it('sorts a net column by its net value', async () => {
+      const lowNet = netRow({ full_name: 'B', beca: '9000.00' })
+      const highNet = netRow({
+        full_name: 'A',
+        beca: '100.00',
+        net_breakdown: { ...netRow().net_breakdown!, beca: '5000.00' },
+      })
+      const wrapper = mountTable([highNet, lowNet])
+
+      await wrapper.findAll('thead th').find((th) => th.text() === 'Beca neta')?.trigger('click')
+
+      const cells = wrapper.findAll('[data-testid="cell-beca"]').map((c) => c.text())
+      expect(cells).toEqual([formatAmount('1545.45'), formatAmount('5000.00')])
+    })
+
+    it('de-emphasizes Descuentos and keeps it out of the sum columns order', () => {
+      const wrapper = mountTable([netRow()])
+
+      expect(wrapper.find('[data-testid="cell-discounts"]').classes()).toContain('text-medium-emphasis')
+      expect(wrapper.find('[data-testid="total-discounts"]').exists()).toBe(true)
+    })
   })
 
   it('labels scholarship types IU, Telmex-IU and Telmex', () => {
@@ -208,13 +280,13 @@ describe('GenerationPaymentRowsTable', () => {
     const wrapper = mountTable([buildRow({ state: 'PAID', beca: '10.00', total_to_pay: '10.00' })])
     const titles = wrapper.findAll('thead th').map((th) => th.text())
     const byKey: Record<string, string> = {
-      beca: 'Beca',
-      apoyo: 'Apoyo',
-      pago_iu: 'Pago IU',
-      temporary_increase: 'Aumento temporal',
+      beca: 'Beca neta',
+      apoyo: 'Apoyo neto',
+      pago_iu: 'Pago IU neto',
+      temporary_increase: 'Aumento neto',
       telmex_coverage: 'Cobertura Telmex',
-      discounts: 'Descuentos y retenciones',
-      pending_and_advance: 'Pendiente / adelanto',
+      discounts: 'Descuentos (informativo)',
+      pending_and_advance: 'Ret./Adelanto',
       total_to_pay: 'Total a pagar',
     }
     const cells = footerColumns(wrapper)
@@ -343,12 +415,12 @@ describe('GenerationPaymentRowsTable', () => {
       return card!.text().replace(label, '').trim()
     }
 
-    expect(cardValue('Monto total de beca')).toBe(total('beca'))
-    expect(cardValue('Monto total de apoyo')).toBe(total('apoyo'))
-    expect(cardValue('Monto total Pago IU')).toBe(total('pago_iu'))
-    expect(cardValue('Aumentos temporales')).toBe(total('temporary_increase'))
+    expect(cardValue('Total de beca')).toBe(total('beca'))
+    expect(cardValue('Total de apoyo')).toBe(total('apoyo'))
+    expect(cardValue('Total Pago IU')).toBe(total('pago_iu'))
+    expect(cardValue('Aumento neto')).toBe(total('temporary_increase'))
     expect(cardValue('Adelanto Telmex')).toBe(total('telmex_coverage'))
-    expect(cardValue('Pendientes y adelantos')).toBe(total('pending_and_advance'))
+    expect(cardValue('Ret./Adelanto')).toBe(total('pending_and_advance'))
     // No card shows total_amount; it is paid_amount + pending_amount.
     expect(cardValue('Monto pagado')).toBe(formatAmount(summary.paid_amount))
     expect(cardValue('Monto por pagar')).toBe(formatAmount(summary.pending_amount))
