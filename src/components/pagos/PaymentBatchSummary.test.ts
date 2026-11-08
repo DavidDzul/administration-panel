@@ -108,8 +108,8 @@ describe('PaymentBatchSummary', () => {
           net_temporary_increase_amount: '450.00',
           telmex_coverage_amount: '300.00',
           net_telmex_coverage_amount: '250.00',
-          pending_and_advance_amount: '-100.00',
-          total_amount: '6900.00',
+          pending_and_advance_amount: '300.00',
+          total_amount: '7300.00',
         }),
       )
       const cents = (label: string): number => {
