@@ -55,7 +55,7 @@ const paymentData: ManualTransferPaymentData = {
   locked_at: '2026-10-20T10:00:00Z',
 }
 
-const manualSummary = { total: 1, ready: 1, paid: 0, blocking: 0, ready_amount: '500.00', paid_amount: '0.00' }
+const manualSummary = { total: 1, ready: 1, paid: 0, blocking: 0, ready_amount: '500.00', paid_amount: '0.00', ready_beca_amount: '500.00', ready_apoyo_amount: '0.00', paid_beca_amount: '0.00', paid_apoyo_amount: '0.00' }
 
 describe('usePaymentsPage manual transfers', () => {
   beforeEach(() => {

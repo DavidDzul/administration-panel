@@ -47,6 +47,10 @@ const summary: ChequeSummary = {
   blocking: 1,
   ready_amount: '1000.00',
   paid_amount: '2500.50',
+  ready_beca_amount: '700.00',
+  ready_apoyo_amount: '300.00',
+  paid_beca_amount: '2000.25',
+  paid_apoyo_amount: '500.25',
 }
 
 const mountSection = (rows: ChequeRow[], canManage = true, sum: ChequeSummary | null = summary) =>
@@ -117,7 +121,7 @@ describe('ChequePaymentSection', () => {
   it('composes heading, summary cards and the batch table in cheque mode', () => {
     const wrapper = mountSection([buildRow(), paidRow, blockedRow])
     expect(wrapper.find('[data-testid="cheque-heading"]').text()).toContain('Cheques')
-    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(6)
+    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
     const headers = wrapper.findAll('th').map((th) => th.text())
     expect(headers).toContain('A nombre de')
     expect(headers).not.toContain('Cuenta')

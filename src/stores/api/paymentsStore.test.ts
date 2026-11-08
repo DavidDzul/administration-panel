@@ -108,6 +108,10 @@ const buildChequeSummary = (overrides: Partial<ChequeSummary> = {}): ChequeSumma
   blocking: 0,
   ready_amount: '1000.00',
   paid_amount: '0.00',
+  ready_beca_amount: '0.00',
+  ready_apoyo_amount: '0.00',
+  paid_beca_amount: '0.00',
+  paid_apoyo_amount: '0.00',
   ...overrides,
 })
 

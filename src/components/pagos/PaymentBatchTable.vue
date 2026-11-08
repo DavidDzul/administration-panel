@@ -121,6 +121,14 @@
       <span data-testid="cell-total-to-pay">{{ formatAmount(item.total_to_pay) }}</span>
     </template>
 
+    <template #[`item.account_beca`]="{ item }">
+      <span data-testid="cell-account-beca">{{ accountSplitAmount(item, 'beca') }}</span>
+    </template>
+
+    <template #[`item.account_apoyo`]="{ item }">
+      <span data-testid="cell-account-apoyo">{{ accountSplitAmount(item, 'apoyo') }}</span>
+    </template>
+
     <template #[`item.telmex_coverage_column`]="{ item }">
       <span data-testid="cell-telmex-coverage-amount">{{ telmexCoverageAmount(item) }}</span>
     </template>
@@ -414,7 +422,7 @@ import {
   telmexCoverageAmount,
 } from '@/utils/paymentBreakdownMeta'
 import { buildGroupHeaders, generationLabel, toGroupedItems } from '@/utils/paymentGenerationGroups'
-import type { ChequeRow, ManualTransferRow, PaymentBatchRow } from '@/interfaces/payment'
+import type { ChequeRow, ConceptSplit, ManualTransferRow, PaymentBatchRow } from '@/interfaces/payment'
 
 interface Props {
   rows?: PaymentBatchRow[]
@@ -479,6 +487,11 @@ const baseHeaders = [
   { title: 'Cob. Telmex', key: 'telmex_coverage_column', width: 110, align: 'end' as const },
   { title: 'Ret./Adelanto', key: 'retention_advance', width: 120, align: 'end' as const },
   { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
+  // Payment-account split (what leaves the Beca / Apoyo ONG account). Placed
+  // AFTER the total so the net columns still sum left to right to it; titled
+  // "Cuenta ..." to not be confused with the net "Beca neta" / "Apoyo neto".
+  { title: 'Cuenta Beca', key: 'account_beca', width: 120, align: 'end' as const },
+  { title: 'Cuenta Apoyo', key: 'account_apoyo', width: 120, align: 'end' as const },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },
@@ -511,6 +524,8 @@ const headers = computed(() => {
 // table is typed on the common PaymentBatchRow so transfer callers are
 // unaffected. A row counts as paid by cheque only in cheque mode with the
 // server status PAID.
+const accountSplitAmount = (row: PaymentBatchRow, concept: keyof ConceptSplit): string =>
+  row.concept_split ? formatAmount(row.concept_split[concept]) : '—'
 const asCheque = (row: PaymentBatchRow): ChequeRow => row as ChequeRow
 // Grouped items carry an extra `generation_group` key; emit the caller's
 // original row object instead so listeners receive exactly what they passed.

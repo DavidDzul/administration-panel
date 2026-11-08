@@ -38,6 +38,13 @@ const WORDING = {
   manual_transfer: { total: 'Becarios con transferencia', ready: 'Por pagar', readyAmount: 'Monto por pagar' },
 } as const
 
+const splitCards = (s: ChequeSummary, words: (typeof WORDING)[keyof typeof WORDING]) => [
+  { label: `${words.readyAmount} · Cuenta Beca`, value: formatAmount(s.ready_beca_amount), icon: 'mdi-cash-clock', color: 'primary' },
+  { label: `${words.readyAmount} · Cuenta Apoyo`, value: formatAmount(s.ready_apoyo_amount), icon: 'mdi-cash-clock', color: 'primary' },
+  { label: 'Monto pagado · Cuenta Beca', value: formatAmount(s.paid_beca_amount), icon: 'mdi-cash-check', color: 'success' },
+  { label: 'Monto pagado · Cuenta Apoyo', value: formatAmount(s.paid_apoyo_amount), icon: 'mdi-cash-check', color: 'success' },
+]
+
 const cardGroups = computed(() => {
   const s = props.summary
   if (!s) return []
@@ -62,6 +69,7 @@ const cardGroups = computed(() => {
         { label: 'Monto pagado', value: formatAmount(s.paid_amount), icon: 'mdi-cash-check', color: 'success' },
       ],
     },
+    { cols: 12, sm: 3, cards: splitCards(s, words) },
   ]
 })
 </script>

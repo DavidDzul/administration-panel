@@ -571,7 +571,7 @@ describe('usePaymentsPage', () => {
       cheque_notes: null,
       cheque_beneficiary: null,
     }
-    const chequeSummary = { total: 1, ready: 1, paid: 0, blocking: 1, ready_amount: '500.00', paid_amount: '0.00' }
+    const chequeSummary = { total: 1, ready: 1, paid: 0, blocking: 1, ready_amount: '500.00', paid_amount: '0.00', ready_beca_amount: '500.00', ready_apoyo_amount: '0.00', paid_beca_amount: '0.00', paid_apoyo_amount: '0.00' }
     const paymentData = {
       refrend_id: 7,
       status: 'PAID',

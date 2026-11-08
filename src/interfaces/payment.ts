@@ -34,6 +34,15 @@ export interface NetBreakdown {
 
 export type NetComponentKey = keyof NetBreakdown['nominal']
 
+// Payment-ACCOUNT split of total_to_pay (sdd/archivo-pago-beca-apoyo): how much
+// leaves the Beca vs the Apoyo ONG account. beca + apoyo == total_to_pay.
+// Not the same as net_breakdown (Beca neta / Apoyo neto): this one includes
+// Pago IU, shares of the increase, Telmex coverage and Ret./Adelanto.
+export interface ConceptSplit {
+  beca: string
+  apoyo: string
+}
+
 export interface PaymentBatchRow {
   refrend_id: number
   user_id: number
@@ -45,6 +54,9 @@ export interface PaymentBatchRow {
   // Optional only so fixtures/payloads predating sdd/descuento-beca-apoyo
   // still type-check; the API always sends it on every payment row.
   net_breakdown?: NetBreakdown
+  // Optional only so fixtures predating the Beca/Apoyo file split still
+  // type-check; the API sends it on every row (rows/cheque/manual).
+  concept_split?: ConceptSplit
   is_payable: boolean
   blocking_reasons: BlockingReason[]
   outcome: 'PAID' | 'SKIPPED' | null
@@ -305,6 +317,11 @@ export interface ChequeSummary {
   blocking: number
   ready_amount: string
   paid_amount: string
+  // Per payment account; each pair sums to ready_amount / paid_amount.
+  ready_beca_amount: string
+  ready_apoyo_amount: string
+  paid_beca_amount: string
+  paid_apoyo_amount: string
 }
 
 export interface MarkChequePayload {

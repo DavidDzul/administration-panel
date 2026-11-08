@@ -1110,13 +1110,52 @@ describe('PaymentBatchTable', () => {
       expect(moneyHeaders(wrapper as unknown as ReturnType<typeof mountTable>)).toEqual(MONEY_ORDER)
     })
 
-    it('Total a pagar is immediately preceded by Ret./Adelanto and followed by the flags column', () => {
+    it('Total a pagar is immediately preceded by Ret./Adelanto and followed by the account split then the flags column', () => {
       const headers = mountTable([buildRow()])
         .findAll('th')
         .map((th) => th.text())
       const total = headers.indexOf('Total a pagar')
       expect(headers[total - 1]).toBe('Ret./Adelanto')
-      expect(headers[total + 1]).toBe('')
+      expect(headers[total + 1]).toBe('Cuenta Beca')
+      expect(headers[total + 2]).toBe('Cuenta Apoyo')
+      expect(headers[total + 3]).toBe('')
+    })
+  })
+
+  // Payment-account split (sdd/archivo-pago-beca-apoyo): what leaves the Beca
+  // vs Apoyo ONG account. Different from the net_breakdown columns (Beca
+  // neta / Apoyo neto), so it sits AFTER Total a pagar and is labelled "Cuenta".
+  describe('payment account split columns', () => {
+    const mountMode = (mode: 'transfer' | 'cheque' | 'manual_transfer', row: PaymentBatchRow) =>
+      mount(PaymentBatchTable, {
+        props: { rows: [row], groupSourceRows: [row], mode, canManage: true },
+        global: { plugins: [vuetify] },
+      })
+
+    it.each(['transfer', 'cheque', 'manual_transfer'] as const)(
+      '%s mode: shows Cuenta Beca / Cuenta Apoyo right after Total a pagar',
+      (mode) => {
+        const headers = mountMode(mode, buildRow())
+          .findAll('th')
+          .map((th) => th.text())
+        const total = headers.indexOf('Total a pagar')
+        expect(headers.slice(total + 1, total + 3)).toEqual(['Cuenta Beca', 'Cuenta Apoyo'])
+      },
+    )
+
+    it.each(['transfer', 'cheque', 'manual_transfer'] as const)(
+      '%s mode: renders the row concept_split amounts',
+      (mode) => {
+        const wrapper = mountMode(mode, buildRow({ concept_split: { beca: '1234.50', apoyo: '200.00' } }))
+        expect(wrapper.find('[data-testid="cell-account-beca"]').text()).toBe('$1,234.50')
+        expect(wrapper.find('[data-testid="cell-account-apoyo"]').text()).toBe('$200.00')
+      },
+    )
+
+    it('renders a dash when the payload carries no concept_split', () => {
+      const wrapper = mountMode('cheque', buildRow())
+      expect(wrapper.find('[data-testid="cell-account-beca"]').text()).toBe('—')
+      expect(wrapper.find('[data-testid="cell-account-apoyo"]').text()).toBe('—')
     })
   })
 
