@@ -89,6 +89,45 @@ describe('PaymentBatchSummary', () => {
       expect(wrapper.findAll('.payment-summary-card')).toHaveLength(9)
     })
 
+    it('renders an Aumento neto card with the nominal caption when a temporary increase exists', () => {
+      const wrapper = mountSummary(
+        netSummary({ temporary_increase_amount: '500.00', net_temporary_increase_amount: '450.00' }),
+      )
+
+      expect(card(wrapper, 'Aumento neto')?.find('.text-h5').text()).toBe('$450.00')
+      expect(card(wrapper, 'Aumento neto')?.text()).toContain('Nominal $500.00')
+    })
+
+    it('net cards add up to Monto total a pagar (cents) when a temporary increase exists', () => {
+      const wrapper = mountSummary(
+        netSummary({
+          net_beca_amount: '4500.00',
+          net_apoyo_amount: '700.00',
+          net_pago_iu_amount: '1100.00',
+          temporary_increase_amount: '500.00',
+          net_temporary_increase_amount: '450.00',
+          telmex_coverage_amount: '300.00',
+          net_telmex_coverage_amount: '250.00',
+          pending_and_advance_amount: '-100.00',
+          total_amount: '6900.00',
+        }),
+      )
+      const cents = (label: string): number => {
+        const raw = card(wrapper, label)?.find('.text-h5').text() ?? ''
+        return Math.round(Number(raw.replace(/[^0-9.-]/g, '')) * 100)
+      }
+      const sum = [
+        'Total de beca',
+        'Total de apoyo',
+        'Total Pago IU',
+        'Aumento neto',
+        'Adelanto Telmex',
+        'Ret./Adelanto',
+      ].reduce((acc, label) => acc + cents(label), 0)
+
+      expect(sum).toBe(cents('Monto total a pagar'))
+    })
+
     it('uses the net Telmex coverage for the Adelanto Telmex card', () => {
       const wrapper = mountSummary(
         netSummary({ telmex_coverage_amount: '1500.00', net_telmex_coverage_amount: '1400.00' }),

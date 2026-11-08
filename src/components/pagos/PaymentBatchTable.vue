@@ -466,16 +466,19 @@ const baseHeaders = [
   { title: '', key: 'data-table-group' },
   { title: 'Nombre', key: 'snapshot_name' },
   { title: 'Cuenta', key: 'account_number' },
+  // Reference (nominal) columns first, then the net group that sums to the
+  // total, with "Total a pagar" immediately after it so every row reads left
+  // to right to the total.
+  { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },
+  { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
+  { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },
   { title: 'Beca neta', key: 'monthly_amount', width: 120, align: 'end' as const },
   { title: 'Apoyo neto', key: 'support_amount', width: 110, align: 'end' as const },
   { title: 'Pago IU neto', key: 'iu_payment_amount', width: 120, align: 'end' as const },
   { title: 'Aumento neto', key: 'temporary_increase_net', width: 120, align: 'end' as const },
-  { title: 'Base', key: 'breakdown_base_amount', width: 110, align: 'end' as const },
-  { title: 'Desc.%', key: 'discount_percent', width: 70, align: 'end' as const },
-  { title: 'Final', key: 'final_breakdown_amount', width: 130, align: 'end' as const },
+  { title: 'Cob. Telmex', key: 'telmex_coverage_column', width: 110, align: 'end' as const },
   { title: 'Ret./Adelanto', key: 'retention_advance', width: 120, align: 'end' as const },
   { title: 'Total a pagar', key: 'total_to_pay', width: 120, align: 'end' as const },
-  { title: 'Cob. Telmex', key: 'telmex_coverage_column', width: 110, align: 'end' as const },
   { title: '', key: 'flags' },
   { title: 'Estado', key: 'status' },
   { title: 'Motivo', key: 'reason' },

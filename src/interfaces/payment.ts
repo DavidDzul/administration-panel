@@ -200,6 +200,9 @@ export interface PaymentBatchSummary {
   // Telmex" summary card (PaymentBatchSummary.vue) renders only when this
   // is present AND > 0.
   telmex_coverage_amount?: string
+  // Nominal temporary-increase total; the "Aumento neto" card renders only
+  // when the net (or this nominal) is > 0.
+  temporary_increase_amount?: string
   // Net totals (sdd/descuento-beca-apoyo): sums of the rows' net_breakdown.
   // OPTIONAL for the same fixture rationale as above; the summary cards fall
   // back to the nominal totals when a payload predates them. The six net keys

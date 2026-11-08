@@ -67,6 +67,21 @@ const cardGroups = computed<CardGroup[]>(() => {
 
   const hasRetentionAdvance = s.pending_and_advance_amount !== undefined
 
+  // "Aumento neto" joins the net components only when an increase exists, so
+  // batches without one keep the 3-card row; with it the 4 cards fill the
+  // grid at sm=3. Together with Telmex and Ret./Adelanto the net cards add up
+  // to "Monto total a pagar".
+  const nominalIncrease = s.temporary_increase_amount ?? '0.00'
+  const hasIncrease = Number(s.net_temporary_increase_amount ?? nominalIncrease) > 0 || Number(nominalIncrease) > 0
+  const netComponents: SummaryCard[] = [
+    netCard('Total de beca', s.net_beca_amount, s.beca_amount, 'mdi-school-outline'),
+    netCard('Total de apoyo', s.net_apoyo_amount, s.apoyo_amount, 'mdi-hand-heart-outline'),
+    netCard('Total Pago IU', s.net_pago_iu_amount, s.pago_iu_amount, 'mdi-cash-sync'),
+  ]
+  if (hasIncrease) {
+    netComponents.push(netCard('Aumento neto', s.net_temporary_increase_amount, nominalIncrease, 'mdi-trending-up'))
+  }
+
   const groups: CardGroup[] = [
     {
       cols: 6,
@@ -79,12 +94,8 @@ const cardGroups = computed<CardGroup[]>(() => {
     },
     {
       cols: 6,
-      sm: 4,
-      cards: [
-        netCard('Total de beca', s.net_beca_amount, s.beca_amount, 'mdi-school-outline'),
-        netCard('Total de apoyo', s.net_apoyo_amount, s.apoyo_amount, 'mdi-hand-heart-outline'),
-        netCard('Total Pago IU', s.net_pago_iu_amount, s.pago_iu_amount, 'mdi-cash-sync'),
-      ],
+      sm: hasIncrease ? 3 : 4,
+      cards: netComponents,
     },
     {
       cols: 12,

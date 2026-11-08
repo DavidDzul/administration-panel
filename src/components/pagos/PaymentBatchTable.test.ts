@@ -1069,6 +1069,57 @@ describe('PaymentBatchTable', () => {
     })
   })
 
+  // Every row must read left to right to the total: reference/nominal
+  // columns first, then the net group, immediately followed by the total.
+  describe('money header order', () => {
+    const MONEY_ORDER = [
+      'Base',
+      'Desc.%',
+      'Final',
+      'Beca neta',
+      'Apoyo neto',
+      'Pago IU neto',
+      'Aumento neto',
+      'Cob. Telmex',
+      'Ret./Adelanto',
+      'Total a pagar',
+    ]
+    const moneyHeaders = (wrapper: ReturnType<typeof mountTable>) =>
+      wrapper
+        .findAll('th')
+        .map((th) => th.text())
+        .filter((text) => MONEY_ORDER.includes(text))
+
+    it('transfer mode: nominal columns, then net group, then Total a pagar', () => {
+      expect(moneyHeaders(mountTable([buildRow()]))).toEqual(MONEY_ORDER)
+    })
+
+    it('cheque mode: same order', () => {
+      const wrapper = mount(PaymentBatchTable, {
+        props: { rows: [buildRow()], groupSourceRows: [buildRow()], mode: 'cheque', canManage: true },
+        global: { plugins: [vuetify] },
+      })
+      expect(moneyHeaders(wrapper as unknown as ReturnType<typeof mountTable>)).toEqual(MONEY_ORDER)
+    })
+
+    it('manual transfer mode: same order', () => {
+      const wrapper = mount(PaymentBatchTable, {
+        props: { rows: [buildRow()], groupSourceRows: [buildRow()], mode: 'manual_transfer', canManage: true },
+        global: { plugins: [vuetify] },
+      })
+      expect(moneyHeaders(wrapper as unknown as ReturnType<typeof mountTable>)).toEqual(MONEY_ORDER)
+    })
+
+    it('Total a pagar is immediately preceded by Ret./Adelanto and followed by the flags column', () => {
+      const headers = mountTable([buildRow()])
+        .findAll('th')
+        .map((th) => th.text())
+      const total = headers.indexOf('Total a pagar')
+      expect(headers[total - 1]).toBe('Ret./Adelanto')
+      expect(headers[total + 1]).toBe('')
+    })
+  })
+
   // ── "Cob. Telmex" column (sdd/telmex-cobertura-iu PR5, task 5.5) ────────
   describe('Cob. Telmex column', () => {
     it('renders the column header', () => {
