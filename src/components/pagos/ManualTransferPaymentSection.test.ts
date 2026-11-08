@@ -47,6 +47,10 @@ const summary: ManualTransferSummary = {
   blocking: 1,
   ready_amount: '1000.00',
   paid_amount: '2500.50',
+  ready_beca_amount: '700.00',
+  ready_apoyo_amount: '300.00',
+  paid_beca_amount: '2000.25',
+  paid_apoyo_amount: '500.25',
 }
 
 const mountSection = (rows: ManualTransferRow[], canManage = true, sum: ManualTransferSummary | null = summary) =>
@@ -94,7 +98,7 @@ describe('ManualTransferPaymentSection', () => {
   it('composes heading, summary cards and the table with bank, CLABE and folio columns', () => {
     const wrapper = mountSection([buildRow(), paidRow, blockedRow])
     expect(wrapper.find('[data-testid="manual-transfer-heading"]').text()).toContain('Transferencias a otros bancos')
-    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(6)
+    expect(wrapper.findAll('.payment-summary-card')).toHaveLength(10)
     const headers = wrapper.findAll('th').map((th) => th.text())
     expect(headers).toContain('Banco')
     expect(headers).toContain('CLABE')

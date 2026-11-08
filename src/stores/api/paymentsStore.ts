@@ -7,6 +7,7 @@ import type {
   ChequePaymentData,
   ChequeRow,
   ChequeSummary,
+  BankFileConcept,
   ExportSummary,
   ManualTransferPaymentData,
   ManualTransferRow,
@@ -236,8 +237,8 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
     }
   }
 
-  // Plain JSON pre-flight (design D4) — count/total/filename computed from
-  // the SAME paidRows()+BankDataValidator gate export() uses, so this can
+  // Plain JSON pre-flight (design D4) — per-concept count/total/filename computed from
+  // the SAME paidRows()+BankDataValidator gate export/{concept} uses, so this can
   // never promise something the file endpoint fails to deliver.
   const fetchExportSummary = async (id: number): Promise<ExportSummary | null> => {
     try {
@@ -255,13 +256,13 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
   // `responseType: 'blob'` set, a 422 error body ALSO arrives as a Blob,
   // never as parsed JSON — it must be `.text()`-ed then `JSON.parse()`-d to
   // read `invalid_rows`, or blocked-row detail silently fails to surface.
-  const downloadExportFile = async (id: number): Promise<DownloadExportResult> => {
+  const downloadExportFile = async (id: number, concept: BankFileConcept): Promise<DownloadExportResult> => {
     try {
-      const res = await axios.get(`api/admin/scholarship-payments/batches/${id}/export`, {
+      const res = await axios.get(`api/admin/scholarship-payments/batches/${id}/export/${concept}`, {
         responseType: 'blob',
       })
       const contentDisposition = (res.headers as Record<string, string> | undefined)?.['content-disposition']
-      const filename = extractFilename(contentDisposition) ?? `PAGO_${id}.TXT`
+      const filename = extractFilename(contentDisposition) ?? `PAGO_${id}_${concept.toUpperCase()}.TXT`
       triggerBlobDownload(res.data as Blob, filename)
       return { status: 'success' }
     } catch (error: unknown) {

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/api/authStore'
 import { useAlertStore } from '@/stores/alert'
 import type {
   BatchKey,
+  BankFileConcept,
   ExportSummary,
   ChequeRow,
   InvalidBankRow,
@@ -253,7 +254,8 @@ export function usePaymentsPage() {
   // works after a page reload, not just right after "Pagar todos".
   const exportSummary = ref<ExportSummary | null>(null)
   const loadingExportSummary = ref<boolean>(false)
-  const loadingExport = ref<boolean>(false)
+  // One flag per file so downloading Beca never shows Apoyo as busy.
+  const loadingExport = ref<Record<BankFileConcept, boolean>>({ beca: false, apoyo: false })
   const exportError = ref<ExportErrorState>(null)
   const invalidBankRows = ref<InvalidBankRow[]>([])
 
@@ -277,19 +279,19 @@ export function usePaymentsPage() {
   // Mirrors confirmProcess()'s pattern: surface 'blocked' and 'error'
   // distinctly, never as one generic failure, and clear stale state on
   // every retry so a fixed batch doesn't keep showing an old blocked list.
-  const confirmExport = async (): Promise<void> => {
+  const confirmExport = async (concept: BankFileConcept): Promise<void> => {
     if (batchId.value === null) return
-    loadingExport.value = true
+    loadingExport.value = { ...loadingExport.value, [concept]: true }
     exportError.value = null
     invalidBankRows.value = []
-    const result = await downloadExportFile(batchId.value)
+    const result = await downloadExportFile(batchId.value, concept)
     if (result.status === 'blocked') {
       exportError.value = 'blocked'
       invalidBankRows.value = result.invalidRows
     } else if (result.status === 'error') {
       exportError.value = 'error'
     }
-    loadingExport.value = false
+    loadingExport.value = { ...loadingExport.value, [concept]: false }
   }
 
   return {
