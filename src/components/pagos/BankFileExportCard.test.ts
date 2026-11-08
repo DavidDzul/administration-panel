@@ -18,56 +18,100 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 
 const vuetify = createVuetify()
 
+const BECA_LABEL = 'Descargar archivo Beca'
+const APOYO_LABEL = 'Descargar archivo Apoyo'
+
 const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSummary => ({
   count: 4,
   total_amount: '2600.02',
-  filename: 'PAGO_1_MERIDA_202609_42.TXT',
   batch_type: 'NORMAL',
+  files: {
+    beca: { count: 4, total_amount: '2400.02', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+    apoyo: { count: 3, total_amount: '200.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+  },
   ...overrides,
 })
 
-describe('BankFileExportCard', () => {
-  it('renders the count and total amount from exportSummary', () => {
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary({ count: 4, total_amount: '2600.02' }) },
-    })
+const mountCard = (props: Record<string, unknown> = {}) =>
+  mount(BankFileExportCard, {
+    global: { plugins: [vuetify] },
+    props: { exportSummary: buildExportSummary(), ...props },
+  })
 
-    expect(wrapper.text()).toContain('4')
+const findButton = (wrapper: ReturnType<typeof mountCard>, label: string) =>
+  wrapper.findAllComponents(VBtn).find((b) => b.text() === label)
+
+describe('BankFileExportCard', () => {
+  it('renders the combined count and total amount from exportSummary', () => {
+    const wrapper = mountCard()
+
     expect(wrapper.text()).toContain('Becarios a Dispersar')
-    expect(wrapper.text()).toContain('2600.02')
     expect(wrapper.text()).toContain('Cantidad Total a Dispersar')
+    expect(wrapper.text()).toContain('2600.02')
+  })
+
+  it('renders one sub-card per concept with its own count, total and filename', () => {
+    const wrapper = mountCard()
+    const beca = wrapper.get('[data-testid="export-file-beca"]')
+    const apoyo = wrapper.get('[data-testid="export-file-apoyo"]')
+
+    expect(beca.text()).toContain('2400.02')
+    expect(beca.text()).toContain('4')
+    expect(beca.text()).toContain('PAGO_MERIDA_202609_42_BECA.TXT')
+    expect(apoyo.text()).toContain('200.00')
+    expect(apoyo.text()).toContain('3')
+    expect(apoyo.text()).toContain('PAGO_MERIDA_202609_42_APOYO.TXT')
+  })
+
+  it('shows per-concept totals that add up to the combined total', () => {
+    const summary = buildExportSummary()
+    const wrapper = mountCard({ exportSummary: summary })
+    const cents = (value: string): number => Math.round(Number(value) * 100)
+
+    expect(cents(summary.files.beca.total_amount) + cents(summary.files.apoyo.total_amount)).toBe(
+      cents(summary.total_amount),
+    )
+    expect(wrapper.get('[data-testid="export-file-beca"]').text()).toContain(summary.files.beca.total_amount)
+    expect(wrapper.get('[data-testid="export-file-apoyo"]').text()).toContain(summary.files.apoyo.total_amount)
+    expect(wrapper.text()).toContain(summary.total_amount)
   })
 
   it('renders nothing when exportSummary is null', () => {
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: null },
-    })
+    const wrapper = mountCard({ exportSummary: null })
 
-    expect(wrapper.text()).not.toContain('Descargar archivo de pago')
+    expect(wrapper.text()).not.toContain(BECA_LABEL)
+    expect(wrapper.text()).not.toContain(APOYO_LABEL)
   })
 
-  it('emits "download" when the download button is clicked', async () => {
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary() },
-    })
+  it('emits "download" with the concept of the clicked button', async () => {
+    const wrapper = mountCard()
 
-    const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo de pago')
-    await downloadButton?.trigger('click')
+    await findButton(wrapper, BECA_LABEL)?.trigger('click')
+    await findButton(wrapper, APOYO_LABEL)?.trigger('click')
 
-    expect(wrapper.emitted('download')).toHaveLength(1)
+    expect(wrapper.emitted('download')).toEqual([['beca'], ['apoyo']])
   })
 
-  it('shows the button as loading while loadingExport is true', () => {
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary(), loadingExport: true },
+  it('disables the button of a concept with no becarios and explains why', () => {
+    const wrapper = mountCard({
+      exportSummary: buildExportSummary({
+        files: {
+          beca: { count: 4, total_amount: '2600.02', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+          apoyo: { count: 0, total_amount: '0.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+        },
+      }),
     })
 
-    const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo de pago')
-    expect(downloadButton?.props('loading')).toBe(true)
+    expect(findButton(wrapper, APOYO_LABEL)?.props('disabled')).toBe(true)
+    expect(findButton(wrapper, BECA_LABEL)?.props('disabled')).toBe(false)
+    expect(wrapper.get('[data-testid="export-file-apoyo"]').text()).toContain('No hay montos de apoyo por dispersar')
+  })
+
+  it('shows loading only on the concept being downloaded', () => {
+    const wrapper = mountCard({ loadingExport: { beca: false, apoyo: true } })
+
+    expect(findButton(wrapper, BECA_LABEL)?.props('loading')).toBe(false)
+    expect(findButton(wrapper, APOYO_LABEL)?.props('loading')).toBe(true)
   })
 
   // spec's requirement: the admin needs to know WHO to fix, not a generic
@@ -89,10 +133,7 @@ describe('BankFileExportCard', () => {
         reasons: [{ code: 'INVALID_RFC', message: 'RFC con estructura inválida' }],
       },
     ]
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary(), exportError: 'blocked', invalidRows },
-    })
+    const wrapper = mountCard({ exportError: 'blocked', invalidRows })
 
     expect(wrapper.text()).toContain('Grace Hopper')
     expect(wrapper.text()).toContain('Número de cuenta inválido: debe ser numérico de 9 o 10 dígitos')
@@ -101,22 +142,16 @@ describe('BankFileExportCard', () => {
   })
 
   it('shows a generic error message (not the invalid-rows list) when exportError is "error"', () => {
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary(), exportError: 'error' },
-    })
+    const wrapper = mountCard({ exportError: 'error' })
 
     expect(wrapper.text()).toContain('No se pudo descargar')
   })
 
-  it('does not raise console errors when the download button is clicked twice quickly', async () => {
+  it('does not raise console errors when a download button is clicked twice quickly', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const wrapper = mount(BankFileExportCard, {
-      global: { plugins: [vuetify] },
-      props: { exportSummary: buildExportSummary() },
-    })
+    const wrapper = mountCard()
 
-    const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo de pago')
+    const downloadButton = findButton(wrapper, BECA_LABEL)
     await downloadButton?.trigger('click')
     await downloadButton?.trigger('click')
 

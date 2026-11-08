@@ -781,7 +781,15 @@ describe('PaymentsView', () => {
   describe('bank-file export (sdd/becario-payment-bank-file-export)', () => {
     const mockExportEndpoints = ({
       batch = { batch_id: 42, is_paid: true },
-      exportSummary = { count: 1, total_amount: '1000.00', filename: 'PAGO_MERIDA_202609_42.TXT' },
+      exportSummary = {
+        count: 1,
+        total_amount: '1000.00',
+        batch_type: 'NORMAL',
+        files: {
+          beca: { count: 1, total_amount: '900.00', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+          apoyo: { count: 1, total_amount: '100.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+        },
+      },
     }: {
       batch?: Record<string, unknown>
       exportSummary?: Record<string, unknown>
@@ -818,7 +826,7 @@ describe('PaymentsView', () => {
       await flushPromises()
       await setAllFilters(wrapper)
 
-      expect(wrapper.text()).not.toContain('Descargar archivo de pago')
+      expect(wrapper.text()).not.toContain('Descargar archivo Beca')
     })
 
     it('does not render the export card when the batch is not yet paid, even with permission', async () => {
@@ -828,7 +836,7 @@ describe('PaymentsView', () => {
       await flushPromises()
       await setAllFilters(wrapper)
 
-      expect(wrapper.text()).not.toContain('Descargar archivo de pago')
+      expect(wrapper.text()).not.toContain('Descargar archivo Beca')
     })
 
     it('renders the summary and download button once the batch is paid and the permission is held', async () => {
@@ -841,7 +849,10 @@ describe('PaymentsView', () => {
 
       expect(wrapper.text()).toContain('Becarios a Dispersar')
       expect(wrapper.text()).toContain('1000.00')
-      expect(wrapper.text()).toContain('Descargar archivo de pago')
+      expect(wrapper.text()).toContain('900.00')
+      expect(wrapper.text()).toContain('100.00')
+      expect(wrapper.text()).toContain('Descargar archivo Beca')
+      expect(wrapper.text()).toContain('Descargar archivo Apoyo')
     })
 
     it('lists each blocked becario by name with its reason when the download is rejected with 422', async () => {
@@ -886,10 +897,21 @@ describe('PaymentsView', () => {
         }
         if (url === 'api/admin/scholarship-payments/batches/42/export/summary') {
           return Promise.resolve({
-            data: { res: true, data: { count: 1, total_amount: '1000.00', filename: 'PAGO_MERIDA_202609_42.TXT' } },
+            data: {
+              res: true,
+              data: {
+                count: 1,
+                total_amount: '1000.00',
+                batch_type: 'NORMAL',
+                files: {
+                  beca: { count: 1, total_amount: '900.00', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+                  apoyo: { count: 1, total_amount: '100.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+                },
+              },
+            },
           })
         }
-        if (url === 'api/admin/scholarship-payments/batches/42/export') {
+        if (url.startsWith('api/admin/scholarship-payments/batches/42/export/') && url !== 'api/admin/scholarship-payments/batches/42/export/summary') {
           return Promise.reject({ response: { status: 422, data: new Blob([errorBody], { type: 'application/json' }) } })
         }
         return Promise.reject(new Error(`unexpected GET ${url}`))
@@ -900,7 +922,7 @@ describe('PaymentsView', () => {
       await setAllFilters(wrapper)
       await flushPromises()
 
-      const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo de pago')
+      const downloadButton = wrapper.findAllComponents(VBtn).find((b) => b.text() === 'Descargar archivo Apoyo')
       await downloadButton?.trigger('click')
       await flushPromises()
 

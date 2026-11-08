@@ -324,8 +324,11 @@ describe('usePaymentsPage', () => {
     const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSummary => ({
       count: 4,
       total_amount: '2600.02',
-      filename: 'PAGO_1_MERIDA_202609_42.TXT',
       batch_type: 'NORMAL',
+      files: {
+        beca: { count: 4, total_amount: '2400.02', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+        apoyo: { count: 3, total_amount: '200.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+      },
       ...overrides,
     })
 
@@ -335,7 +338,7 @@ describe('usePaymentsPage', () => {
     // spying after the composable already exists would silently target the
     // pre-spy reference and never be observed.
     const loadPaidBatch = async (
-      downloadResult: DownloadExportResult = { status: 'success' },
+      downloadResult: DownloadExportResult | Promise<DownloadExportResult> = { status: 'success' },
     ) => {
       const paymentsStore = usePaymentsStore()
       vi.spyOn(paymentsStore, 'fetchBatch').mockImplementation(async () => {
@@ -346,7 +349,7 @@ describe('usePaymentsPage', () => {
         return true
       })
       vi.spyOn(paymentsStore, 'fetchExportSummary').mockResolvedValue(buildExportSummary())
-      const downloadSpy = vi.spyOn(paymentsStore, 'downloadExportFile').mockResolvedValue(downloadResult)
+      const downloadSpy = vi.spyOn(paymentsStore, 'downloadExportFile').mockResolvedValue(downloadResult as DownloadExportResult)
 
       const result = withSetup(() => usePaymentsPage())
       result.campus.value = 'MERIDA'
@@ -392,15 +395,32 @@ describe('usePaymentsPage', () => {
       expect(result.exportSummary.value).toBeNull()
     })
 
-    it('confirmExport downloads the file for the current batchId and clears prior error state', async () => {
+    it('confirmExport downloads the requested concept file for the current batchId and clears prior error state', async () => {
       const { result, downloadSpy } = await loadPaidBatch({ status: 'success' })
 
-      await result.confirmExport()
+      await result.confirmExport('beca')
+      await result.confirmExport('apoyo')
 
-      expect(downloadSpy).toHaveBeenCalledWith(42)
+      expect(downloadSpy).toHaveBeenNthCalledWith(1, 42, 'beca')
+      expect(downloadSpy).toHaveBeenNthCalledWith(2, 42, 'apoyo')
       expect(result.exportError.value).toBeNull()
       expect(result.invalidBankRows.value).toEqual([])
-      expect(result.loadingExport.value).toBe(false)
+      expect(result.loadingExport.value).toEqual({ beca: false, apoyo: false })
+    })
+
+    it('flags loading only for the concept being downloaded', async () => {
+      let release: (value: DownloadExportResult) => void = () => {}
+      const deferred = new Promise<DownloadExportResult>((resolve) => {
+        release = resolve
+      })
+      const { result } = await loadPaidBatch(deferred)
+
+      const pending = result.confirmExport('apoyo')
+      expect(result.loadingExport.value).toEqual({ beca: false, apoyo: true })
+      release({ status: 'success' })
+      await pending
+
+      expect(result.loadingExport.value).toEqual({ beca: false, apoyo: false })
     })
 
     it('confirmExport surfaces a "blocked" result distinctly, with the offending rows', async () => {
@@ -415,7 +435,7 @@ describe('usePaymentsPage', () => {
       ]
       const { result } = await loadPaidBatch({ status: 'blocked', invalidRows })
 
-      await result.confirmExport()
+      await result.confirmExport('beca')
 
       expect(result.exportError.value).toBe('blocked')
       expect(result.invalidBankRows.value).toEqual(invalidRows)
@@ -424,7 +444,7 @@ describe('usePaymentsPage', () => {
     it('confirmExport surfaces a generic "error" result distinctly from "blocked"', async () => {
       const { result } = await loadPaidBatch({ status: 'error' })
 
-      await result.confirmExport()
+      await result.confirmExport('beca')
 
       expect(result.exportError.value).toBe('error')
       expect(result.invalidBankRows.value).toEqual([])

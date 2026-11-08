@@ -377,15 +377,26 @@ export interface PaymentBatchBlock {
 // (design D4) — count/total are sourced from the SAME
 // PaymentBatchService::paidRows() + BankDataValidator gate export() uses, so
 // this can never promise a total the file endpoint fails to deliver.
-// `filename` is server-owned (BankPaymentFileName::forBatch(), design D5) —
-// the SPA never composes it. `batch_type` (sdd/pagos-lote-pago-adelantado)
+// Since sdd/archivo-pago-beca-apoyo the batch is exported as TWO files, one
+// per concept; each `files.<concept>.filename` is server-owned
+// (BankPaymentFileName::forBatch(), design D5) — the SPA never composes it.
+// `total_amount` stays the COMBINED total (beca + apoyo) for reconciliation;
+// a concept with nothing to disperse comes back as count 0 / "0.00" (200). `batch_type` (sdd/pagos-lote-pago-adelantado)
 // echoes the already-persisted batch's type — always present since a batch
 // row always has one, never derived/guessed client-side.
-export interface ExportSummary {
+export type BankFileConcept = 'beca' | 'apoyo'
+
+export interface ExportFileSummary {
   count: number
   total_amount: string
   filename: string
+}
+
+export interface ExportSummary {
+  count: number
+  total_amount: string
   batch_type: PaymentBatchType
+  files: Record<BankFileConcept, ExportFileSummary>
 }
 
 // Matches BankDataValidator::validate()'s per-row rejection shape.

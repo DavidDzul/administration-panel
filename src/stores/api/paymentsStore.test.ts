@@ -712,8 +712,11 @@ describe('paymentsStore', () => {
     const buildExportSummary = (overrides: Partial<ExportSummary> = {}): ExportSummary => ({
       count: 4,
       total_amount: '2600.02',
-      filename: 'PAGO_1_MERIDA_202609_42.TXT',
       batch_type: 'NORMAL',
+      files: {
+        beca: { count: 4, total_amount: '2400.02', filename: 'PAGO_MERIDA_202609_42_BECA.TXT' },
+        apoyo: { count: 3, total_amount: '200.00', filename: 'PAGO_MERIDA_202609_42_APOYO.TXT' },
+      },
       ...overrides,
     })
 
@@ -754,21 +757,52 @@ describe('paymentsStore', () => {
       const blob = new Blob(['fake bank file content'], { type: 'text/plain' })
       mockAxiosGet.mockResolvedValueOnce({
         data: blob,
-        headers: { 'content-disposition': 'attachment; filename=PAGO_1_MERIDA_202609_42.TXT' },
-      })
+        headers: { 'content-disposition': 'attachment; filename=PAGO_MERIDA_202609_42_APOYO.TXT' },})
       const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
 
       const store = usePaymentsStore()
-      const result = await store.downloadExportFile(42)
+      const result = await store.downloadExportFile(42, 'apoyo')
 
       expect(mockAxiosGet).toHaveBeenCalledWith(
-        'api/admin/scholarship-payments/batches/42/export',
+        'api/admin/scholarship-payments/batches/42/export/apoyo',
         expect.objectContaining({ responseType: 'blob' }),
       )
       expect(result).toEqual({ status: 'success' })
       expect(createObjectURL).toHaveBeenCalledWith(blob)
       expect(clickSpy).toHaveBeenCalledTimes(1)
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+      expect(clickSpy.mock.contexts[0]).toHaveProperty('download', 'PAGO_MERIDA_202609_42_APOYO.TXT')
+
+      clickSpy.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
+    it('requests the beca file from its own concept route', async () => {
+      stubUrlApi()
+      mockAxiosGet.mockResolvedValueOnce({ data: new Blob(['x']), headers: {} })
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      const store = usePaymentsStore()
+      await store.downloadExportFile(42, 'beca')
+
+      expect(mockAxiosGet).toHaveBeenCalledWith(
+        'api/admin/scholarship-payments/batches/42/export/beca',
+        expect.objectContaining({ responseType: 'blob' }),
+      )
+
+      clickSpy.mockRestore()
+      vi.unstubAllGlobals()
+    })
+
+    it('falls back to a concept-suffixed filename when Content-Disposition is missing', async () => {
+      stubUrlApi()
+      mockAxiosGet.mockResolvedValueOnce({ data: new Blob(['x']), headers: {} })
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+      const store = usePaymentsStore()
+      await store.downloadExportFile(42, 'apoyo')
+
+      expect(clickSpy.mock.contexts[0]).toHaveProperty('download', 'PAGO_42_APOYO.TXT')
 
       clickSpy.mockRestore()
       vi.unstubAllGlobals()
@@ -796,7 +830,7 @@ describe('paymentsStore', () => {
       mockAxiosGet.mockRejectedValueOnce({ response: { status: 422, data: errorBlob } })
 
       const store = usePaymentsStore()
-      const result = await store.downloadExportFile(42)
+      const result = await store.downloadExportFile(42, 'beca')
 
       expect(result).toEqual({ status: 'blocked', invalidRows })
     })
@@ -805,7 +839,7 @@ describe('paymentsStore', () => {
       mockAxiosGet.mockRejectedValueOnce(new Error('network error'))
 
       const store = usePaymentsStore()
-      const result = await store.downloadExportFile(42)
+      const result = await store.downloadExportFile(42, 'apoyo')
 
       expect(result).toEqual({ status: 'error' })
     })
