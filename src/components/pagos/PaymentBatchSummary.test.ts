@@ -29,6 +29,15 @@ const mountSummary = (summary: PaymentBatchSummaryModel) =>
   })
 
 describe('PaymentBatchSummary', () => {
+  it('shows the paid-amounts caption only when basis is paid', () => {
+    const paid = mountSummary(buildSummary({ basis: 'paid', paid: 10 }))
+    expect(paid.find('[data-testid="summary-basis-caption"]').text()).toBe('Montos pagados en este lote')
+
+    const ready = mountSummary(buildSummary({ basis: 'ready' }))
+    expect(ready.find('[data-testid="summary-basis-caption"]').exists()).toBe(false)
+    expect(mountSummary(buildSummary()).find('[data-testid="summary-basis-caption"]').exists()).toBe(false)
+  })
+
   it('renders 8 cards across 3 rows at the sm breakpoint: 3 counts, 3 nominal components, 2 aggregates', () => {
     const wrapper = mountSummary(buildSummary())
 

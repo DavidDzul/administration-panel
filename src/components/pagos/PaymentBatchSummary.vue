@@ -1,4 +1,11 @@
 <template>
+  <div
+    v-if="summary?.basis === 'paid'"
+    data-testid="summary-basis-caption"
+    class="text-caption text-medium-emphasis mb-2"
+  >
+    Montos pagados en este lote
+  </div>
   <template v-for="(group, i) in cardGroups" :key="i">
     <v-row class="mb-2">
       <v-col v-for="card in group.cards" :key="card.label" :cols="group.cols" :sm="group.sm">

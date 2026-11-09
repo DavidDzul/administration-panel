@@ -39,118 +39,121 @@
       </v-col>
     </v-row>
 
-    <v-row v-if="hasNoBatchRows">
-      <v-col cols="12">
-        <v-alert type="info" variant="tonal" density="compact" data-testid="only-cheques-alert">
-          {{ noBatchRowsText }}
-        </v-alert>
-      </v-col>
-    </v-row>
+    <v-tabs v-model="activeTab" class="mb-4">
+      <v-tab value="bbva" data-testid="tab-bbva" :disabled="bbvaTabDisabled">
+        Transferencia BBVA ({{ rows.length }})
+      </v-tab>
+      <v-tab value="manual-transfer" data-testid="tab-manual-transfer" :disabled="manualTransferRows.length === 0">
+        Transferencias a otros bancos ({{ manualTransferRows.length }})
+      </v-tab>
+      <v-tab value="cheques" data-testid="tab-cheques" :disabled="chequeRows.length === 0">
+        Cheques ({{ chequeRows.length }})
+      </v-tab>
+    </v-tabs>
 
-    <h2 v-if="!hasNoBatchRows" data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
-      <v-icon icon="mdi-bank-transfer" />
-      Transferencias
-    </h2>
+    <!-- eager: every pane stays mounted so switching tabs never loses a section's local state. -->
+    <v-window v-model="activeTab" :touch="false">
+      <v-window-item value="bbva" eager data-testid="tab-pane-bbva">
+        <template v-if="!hasNoBatchRows">
+          <h2 data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
+            <v-icon icon="mdi-bank-transfer" />
+            Transferencias
+          </h2>
 
-    <!-- Transfers only: payable cheques must stay visible to be marked as paid. -->
-    <v-row v-if="!hasNoBatchRows && rows.length > 0">
-      <v-col cols="12" sm="6" md="4">
-        <v-switch
-          v-model="showOnlyPending"
-          label="Solo pendientes de revisar"
-          color="primary"
-          density="compact"
-          hide-details
-        />
-      </v-col>
-    </v-row>
+          <!-- Transfers only: payable cheques must stay visible to be marked as paid. -->
+          <v-row v-if="rows.length > 0">
+            <v-col cols="12" sm="6" md="4">
+              <v-switch
+                v-model="showOnlyPending"
+                label="Solo pendientes de revisar"
+                color="primary"
+                density="compact"
+                hide-details
+              />
+            </v-col>
+          </v-row>
 
-    <PaymentBatchSummary v-if="!isPaid && !hasNoBatchRows" :summary="summary" />
+          <PaymentBatchSummary :summary="summary" />
 
-    <v-row v-if="hasProcessPermission && !hasNoBatchRows" justify="end">
-      <v-col cols="auto">
-        <v-btn color="primary" :disabled="!canProcess" @click="dialogOpen = true">Pagar todos</v-btn>
-      </v-col>
-    </v-row>
+          <v-row v-if="hasProcessPermission" justify="end">
+            <v-col cols="auto">
+              <v-btn color="primary" :disabled="!canProcess" @click="dialogOpen = true">Pagar todos</v-btn>
+            </v-col>
+          </v-row>
 
-    <v-row v-if="processResult?.status === 'already_processed'">
-      <v-col cols="12">
-        <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
-          Este lote ya fue procesado anteriormente.
-        </v-alert>
-      </v-col>
-    </v-row>
+          <v-row v-if="processResult?.status === 'already_processed'">
+            <v-col cols="12">
+              <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
+                Este lote ya fue procesado anteriormente.
+              </v-alert>
+            </v-col>
+          </v-row>
 
-    <v-row v-else-if="processResult?.status === 'stale'">
-      <v-col cols="12">
-        <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
-          El lote cambió desde que se cargó la pantalla. Vuelve a cargarla.
-        </v-alert>
-      </v-col>
-    </v-row>
+          <v-row v-else-if="processResult?.status === 'stale'">
+            <v-col cols="12">
+              <v-alert type="error" variant="tonal" density="compact" title="No se pudo procesar el pago">
+                El lote cambió desde que se cargó la pantalla. Vuelve a cargarla.
+              </v-alert>
+            </v-col>
+          </v-row>
 
-    <v-row v-else-if="processResult?.status === 'error'">
-      <v-col cols="12">
-        <v-alert
-          type="error"
-          variant="tonal"
-          density="compact"
-          title="Error al procesar el pago"
-          text="No se pudo procesar el lote de pagos. Intenta de nuevo más tarde."
-        ></v-alert>
-      </v-col>
-    </v-row>
+          <v-row v-else-if="processResult?.status === 'error'">
+            <v-col cols="12">
+              <v-alert
+                type="error"
+                variant="tonal"
+                density="compact"
+                title="Error al procesar el pago"
+                text="No se pudo procesar el lote de pagos. Intenta de nuevo más tarde."
+              ></v-alert>
+            </v-col>
+          </v-row>
 
-    <BankFileExportCard
-      v-if="isPaid && hasExportPermission"
-      :export-summary="exportSummary"
-      :loading-export="loadingExport"
-      :export-error="exportError"
-      :invalid-rows="invalidBankRows"
-      @download="confirmExport"
-    />
+          <BankFileExportCard
+            v-if="isPaid && hasExportPermission"
+            :export-summary="exportSummary"
+            :loading-export="loadingExport"
+            :export-error="exportError"
+            :invalid-rows="invalidBankRows"
+            @download="confirmExport"
+          />
 
-    <v-row v-if="!hasNoBatchRows">
-      <v-col cols="12">
-        <PaymentBatchTable
-          :rows="visibleRows"
-          :group-source-rows="rows"
-          :is-paid="isPaid"
-          :empty-text="emptyTextFor(rows.length)"
+          <v-row>
+            <v-col cols="12">
+              <PaymentBatchTable
+                :rows="visibleRows"
+                :group-source-rows="rows"
+                :is-paid="isPaid"
+                :empty-text="emptyTextFor(rows.length)"
+                @view="onViewDocument"
+              />
+            </v-col>
+          </v-row>
+        </template>
+      </v-window-item>
+
+      <v-window-item value="manual-transfer" eager data-testid="tab-pane-manual-transfer">
+        <ManualTransferPaymentSection
+          :rows="manualTransferRows"
+          :summary="manualTransferSummary"
+          :can-manage="hasProcessPermission"
           @view="onViewDocument"
+          @mark="onMarkManualTransfer"
+          @revert="onRevertManualTransfer"
         />
-      </v-col>
-    </v-row>
+      </v-window-item>
 
-    <v-divider
-      v-if="!hasNoBatchRows && manualTransferRows.length > 0"
-      data-testid="manual-transfer-divider"
-      class="mt-10 mb-8"
-    />
-
-    <ManualTransferPaymentSection
-      :rows="manualTransferRows"
-      :summary="manualTransferSummary"
-      :can-manage="hasProcessPermission"
-      @view="onViewDocument"
-      @mark="onMarkManualTransfer"
-      @revert="onRevertManualTransfer"
-    />
-
-    <v-divider
-      v-if="(!hasNoBatchRows || manualTransferRows.length > 0) && chequeRows.length > 0"
-      data-testid="section-divider"
-      class="mt-10 mb-8"
-    />
-
-    <ChequePaymentSection
-      :rows="chequeRows"
-      :summary="chequeSummary"
-      :can-manage="hasProcessPermission"
-      @view="onViewDocument"
-      @mark="onMarkCheque"
-      @revert="onRevertCheque"
-    />
+      <v-window-item value="cheques" eager data-testid="tab-pane-cheques">
+        <ChequePaymentSection
+          :rows="chequeRows"
+          :summary="chequeSummary"
+          :can-manage="hasProcessPermission"
+          @view="onViewDocument"
+          @mark="onMarkCheque"
+          @revert="onRevertCheque"
+        />
+      </v-window-item>
+    </v-window>
   </template>
 
   <ProcessPaymentDialog
@@ -200,7 +203,7 @@
 // filters + summary + table + confirm dialog via usePaymentsPage (D7 — this
 // view/composable owns filter state; PaymentBatchTable itself is purely
 // presentational).
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import PaymentBatchFilters from '@/components/pagos/PaymentBatchFilters.vue'
@@ -297,10 +300,29 @@ const onViewDocument = (refrendId: number): void => {
 const hasNoBatchRows = computed<boolean>(
   () => (summary.value?.total ?? 0) === 0 && (chequeRows.value.length > 0 || manualTransferRows.value.length > 0),
 )
-const noBatchRowsText = computed<string>(() =>
-  manualTransferRows.value.length > 0
-    ? 'No hay becarios con pago por transferencia BBVA en este lote.'
-    : 'No hay becarios con pago por transferencia en este lote.',
+// The explanatory note is gone: the BBVA tab is simply disabled in that case.
+// When the whole batch is empty it stays enabled so the (empty) table shows.
+const bbvaTabDisabled = computed<boolean>(() => hasNoBatchRows.value)
+
+type PaymentTab = 'bbva' | 'manual-transfer' | 'cheques'
+const activeTab = ref<PaymentTab>('bbva')
+
+// Default tab = first tab with rows. Re-evaluated whenever the per-tab counts
+// change (filters / batch reload), but a tab the user chose is kept as long as
+// it still has rows.
+const TAB_ORDER: PaymentTab[] = ['bbva', 'manual-transfer', 'cheques']
+const tabHasRows = (tab: PaymentTab): boolean => {
+  if (tab === 'bbva') return rows.value.length > 0
+  if (tab === 'manual-transfer') return manualTransferRows.value.length > 0
+  return chequeRows.value.length > 0
+}
+watch(
+  () => [rows.value.length, manualTransferRows.value.length, chequeRows.value.length],
+  () => {
+    if (tabHasRows(activeTab.value)) return
+    activeTab.value = TAB_ORDER.find(tabHasRows) ?? 'bbva'
+  },
+  { immediate: true },
 )
 
 // The transfer table emptied by the "Solo pendientes de revisar" filter says
@@ -412,8 +434,6 @@ const onSubmitManualRevert = async (reason: string): Promise<void> => {
 // the FULL `rows`, never `visibleRows`, so toggling this filter can never
 // change a group header's count/sum — only which rows render under it.
 
-// Once the batch is paid, the ready/blocking/total-amount cards no longer
-// mean anything actionable — user-requested cleanup. The table, "Pagar
-// todos" (now disabled), and the export card stay, since those still
-// matter after payment.
+// The summary cards stay visible after payment; PaymentBatchSummary shows a
+// caption when the API reports the money keys are PAID amounts.
 </script>

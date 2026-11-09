@@ -225,6 +225,11 @@ export interface PaymentBatchSummary {
   net_temporary_increase_amount?: string
   net_telmex_coverage_amount?: string
   pending_and_advance_amount?: string
+  // Basis of the money keys: 'ready' (default, amounts still to pay) or
+  // 'paid' (amounts actually paid, once the batch is paid). OPTIONAL so the
+  // panel works against APIs that predate it; `paid` is the paid-row count.
+  basis?: 'ready' | 'paid'
+  paid?: number
 }
 
 // Matches PaymentBatchService::generationSummary()'s real keys
