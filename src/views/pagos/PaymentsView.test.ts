@@ -523,7 +523,7 @@ describe('PaymentsView', () => {
     expect(wrapper.find('[data-testid="payment-group-header"]').text()).toBe(headerTextBefore)
   })
 
-  it('hides the summary cards once the batch is already paid, but keeps the table and "Pagar todos"', async () => {
+  it('keeps the summary cards once the batch is already paid, along with the table and "Pagar todos"', async () => {
     mockBatch(
       [buildRow()],
       {
@@ -542,8 +542,8 @@ describe('PaymentsView', () => {
     await flushPromises()
     await setAllFilters(wrapper)
 
-    expect(wrapper.text()).not.toContain('Total becarios')
-    expect(wrapper.text()).not.toContain('Bloqueados')
+    expect(wrapper.text()).toContain('Total becarios')
+    expect(wrapper.text()).toContain('Bloqueados')
     expect(wrapper.text()).toContain('Ada Lovelace')
     expect(wrapper.text()).toContain('Pagar todos')
   })
@@ -1069,29 +1069,21 @@ describe('PaymentsView', () => {
       expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
     })
 
-    it('shows a transfer-less message and hides "Pagar todos" when the batch only has cheques', async () => {
+    it('hides "Pagar todos" and disables the BBVA tab when the batch only has cheques', async () => {
       mockWithCheques([chequeRow()], { rows: [], summary: emptySummary })
       const wrapper = await mounted()
-      expect(wrapper.text()).toContain('No hay becarios con pago por transferencia en este lote.')
       expect(buttonByText(wrapper, 'Pagar todos')).toBeUndefined()
       expect(wrapper.text()).not.toContain('No hay becarios en este lote')
+      expect(wrapper.find('[data-testid="tab-bbva"]').attributes('disabled')).toBeDefined()
       expect(wrapper.find('[data-testid="cheque-section"]').exists()).toBe(true)
     })
 
-    it('does not show the transfer-less message when there are transfer rows', async () => {
-      mockWithCheques([chequeRow()])
-      const wrapper = await mounted()
-      expect(wrapper.text()).not.toContain('No hay becarios con pago por transferencia en este lote.')
-    })
-
-    it('shows the "Transferencias" and "Cheques" headings and a divider between the two areas', async () => {
+    it('shows the "Transferencias" and "Cheques" headings, each in its own tab', async () => {
       mockWithCheques([chequeRow()])
       const wrapper = await mounted()
       expect(wrapper.find('[data-testid="transfers-heading"]').text()).toBe('Transferencias')
       expect(wrapper.find('[data-testid="cheque-heading"]').text()).toContain('Cheques')
-      const divider = wrapper.find('[data-testid="section-divider"]')
-      expect(divider.exists()).toBe(true)
-      expect(divider.classes()).toContain('mt-10')
+      expect(wrapper.find('[data-testid="section-divider"]').exists()).toBe(false)
     })
 
     it('renders summary cards and the full batch table (A nombre de, no Cuenta) inside the cheque section', async () => {
@@ -1117,7 +1109,7 @@ describe('PaymentsView', () => {
       expect(dialog.props('refrendId')).toBe(10)
     })
 
-    it('shows the cheque heading without the transfer heading or divider when the batch only has cheques', async () => {
+    it('shows the cheque heading without the transfer heading when the batch only has cheques', async () => {
       mockWithCheques([chequeRow()], { rows: [], summary: emptySummary })
       const wrapper = await mounted()
       expect(wrapper.find('[data-testid="cheque-heading"]').exists()).toBe(true)
@@ -1377,7 +1369,7 @@ describe('PaymentsView', () => {
       expect(section.text()).toContain('Monto por pagar')
     })
 
-    it('orders batch table, then other-bank transfers, then cheques with a divider before each section', async () => {
+    it('orders the tabs: BBVA batch table, then other-bank transfers, then cheques (no dividers)', async () => {
       mockWithManual([manualRow()], {
         chequeRows: [
           buildRow({
@@ -1396,16 +1388,14 @@ describe('PaymentsView', () => {
       expect(table).toBeGreaterThan(-1)
       expect(manual).toBeGreaterThan(table)
       expect(cheque).toBeGreaterThan(manual)
-      expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="section-divider"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="section-divider"]').exists()).toBe(false)
     })
 
-    it('shows a transfer-less message and no BBVA widgets when the batch only has other-bank rows', async () => {
+    it('shows no BBVA widgets and disables the BBVA tab when the batch only has other-bank rows', async () => {
       mockWithManual([manualRow()], { rows: [], summary: emptySummary })
       const wrapper = await mounted()
-      expect(wrapper.find('[data-testid="only-cheques-alert"]').text()).toContain(
-        'No hay becarios con pago por transferencia BBVA en este lote.',
-      )
+      expect(wrapper.find('[data-testid="tab-bbva"]').attributes('disabled')).toBeDefined()
       expect(buttonByText(wrapper, 'Pagar todos')).toBeUndefined()
       expect(wrapper.find('[data-testid="transfers-heading"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="manual-transfer-divider"]').exists()).toBe(false)
@@ -1522,6 +1512,203 @@ describe('PaymentsView', () => {
       const wrapper = await mounted()
       await submitRevert(wrapper)
       expect(revertDialog(wrapper)?.props('modelValue')).toBe(true)
+    })
+  })
+
+  describe('payment method tabs', () => {
+    const summaryOf = (total: number) => ({
+      total,
+      ready: total,
+      blocking: 0,
+      beca_amount: '1000.00',
+      apoyo_amount: '0.00',
+      pago_iu_amount: '0.00',
+      total_amount: '1000.00',
+      difference_amount: '0.00',
+    })
+    const methodSummary = { total: 1, ready: 1, paid: 0, blocking: 0, ready_amount: '1500.00', paid_amount: '0.00' }
+    const methodRow = (id: number, name: string, method: string) =>
+      buildRow({
+        refrend_id: id,
+        snapshot_name: name,
+        bank_name: 'Banorte',
+        payment_method: method,
+        paid_payment_method: null,
+      } as Partial<PaymentBatchRow>)
+
+    const mockTabs = (
+      counts: { bbva?: number; manual?: number; cheque?: number },
+      batch: Record<string, unknown> = { batch_id: null, is_paid: false },
+      summaryExtra: Record<string, unknown> = {},
+    ): void => {
+      const bbva = Array.from({ length: counts.bbva ?? 0 }, (_, i) =>
+        buildRow({ refrend_id: 100 + i, snapshot_name: `Bbva ${i}` }),
+      )
+      const manual = Array.from({ length: counts.manual ?? 0 }, (_, i) =>
+        methodRow(200 + i, `Manual ${i}`, 'MANUAL_TRANSFER'),
+      )
+      const cheque = Array.from({ length: counts.cheque ?? 0 }, (_, i) =>
+        methodRow(300 + i, `Cheque ${i}`, 'CHEQUE'),
+      )
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: {
+                rows: bbva,
+                summary: { ...summaryOf(bbva.length), ...summaryExtra },
+                batch,
+                cheque_rows: cheque,
+                cheque_summary: methodSummary,
+                manual_transfer_rows: manual,
+                manual_transfer_summary: methodSummary,
+              },
+            },
+          })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+    }
+
+    const mounted = async () => {
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+      return wrapper
+    }
+    const tab = (wrapper: ReturnType<typeof mountView>, id: string) => wrapper.find(`[data-testid="${id}"]`)
+    const isActive = (wrapper: ReturnType<typeof mountView>, id: string) =>
+      tab(wrapper, id).classes().includes('v-tab--selected')
+    const isDisabled = (wrapper: ReturnType<typeof mountView>, id: string) =>
+      tab(wrapper, id).attributes('disabled') !== undefined
+    const isVisible = (wrapper: ReturnType<typeof mountView>, id: string) =>
+      wrapper.find(`[data-testid="${id}"]`).element.closest('.v-window-item--active') !== null
+
+    it('renders the three tabs with the becario count of each section', async () => {
+      mockTabs({ bbva: 2, manual: 3, cheque: 1 })
+      const wrapper = await mounted()
+      expect(tab(wrapper, 'tab-bbva').text()).toBe('Transferencia BBVA (2)')
+      expect(tab(wrapper, 'tab-manual-transfer').text()).toBe('Transferencias a otros bancos (3)')
+      expect(tab(wrapper, 'tab-cheques').text()).toBe('Cheques (1)')
+    })
+
+    it('selects the BBVA tab by default when it has rows', async () => {
+      mockTabs({ bbva: 1, manual: 1, cheque: 1 })
+      const wrapper = await mounted()
+      expect(isActive(wrapper, 'tab-bbva')).toBe(true)
+    })
+
+    it('selects the other-banks tab when BBVA is empty', async () => {
+      mockTabs({ manual: 1, cheque: 1 })
+      const wrapper = await mounted()
+      expect(isActive(wrapper, 'tab-manual-transfer')).toBe(true)
+    })
+
+    it('selects the cheques tab on a cheques-only batch', async () => {
+      mockTabs({ cheque: 2 })
+      const wrapper = await mounted()
+      expect(isActive(wrapper, 'tab-cheques')).toBe(true)
+    })
+
+    it('shows empty tabs disabled and the others enabled', async () => {
+      mockTabs({ bbva: 1 })
+      const wrapper = await mounted()
+      expect(isDisabled(wrapper, 'tab-manual-transfer')).toBe(true)
+      expect(isDisabled(wrapper, 'tab-cheques')).toBe(true)
+      expect(isDisabled(wrapper, 'tab-bbva')).toBe(false)
+      expect(tab(wrapper, 'tab-cheques').text()).toBe('Cheques (0)')
+    })
+
+    it('disables the BBVA tab (no info alert) when only other methods have rows', async () => {
+      mockTabs({ cheque: 1 })
+      const wrapper = await mounted()
+      expect(isDisabled(wrapper, 'tab-bbva')).toBe(true)
+      expect(wrapper.find('[data-testid="only-cheques-alert"]').exists()).toBe(false)
+    })
+
+    it('keeps the BBVA tab enabled and active when the batch is entirely empty', async () => {
+      mockTabs({})
+      const wrapper = await mounted()
+      expect(isDisabled(wrapper, 'tab-bbva')).toBe(false)
+      expect(isActive(wrapper, 'tab-bbva')).toBe(true)
+    })
+
+    it('switches the visible content when another tab is clicked', async () => {
+      mockTabs({ bbva: 1, manual: 1, cheque: 1 })
+      const wrapper = await mounted()
+      expect(isVisible(wrapper, 'transfers-heading')).toBe(true)
+      expect(isVisible(wrapper, 'cheque-section')).toBe(false)
+
+      await tab(wrapper, 'tab-cheques').trigger('click')
+      await flushPromises()
+      expect(isActive(wrapper, 'tab-cheques')).toBe(true)
+      expect(isVisible(wrapper, 'cheque-section')).toBe(true)
+      expect(isVisible(wrapper, 'transfers-heading')).toBe(false)
+
+      await tab(wrapper, 'tab-manual-transfer').trigger('click')
+      await flushPromises()
+      expect(isVisible(wrapper, 'manual-transfer-section')).toBe(true)
+    })
+
+    it('keeps the BBVA widgets (summary, Pagar todos) inside the BBVA tab only', async () => {
+      mockTabs({ bbva: 1, cheque: 1 })
+      const wrapper = await mounted()
+      const bbvaPane = wrapper.find('[data-testid="tab-pane-bbva"]')
+      expect(bbvaPane.text()).toContain('Total becarios')
+      expect(bbvaPane.text()).toContain('Pagar todos')
+      expect(wrapper.find('[data-testid="tab-pane-cheques"]').text()).not.toContain('Pagar todos')
+    })
+
+    it('does not clip pane content at the edges (icons, switches, card shadows)', async () => {
+      mockTabs({ bbva: 1, cheque: 1 })
+      const wrapper = await mounted()
+      const window = wrapper.find('[data-testid="tab-panes"]')
+      expect(window.exists()).toBe(true)
+      expect(window.classes()).toContain('overflow-visible')
+    })
+
+    it('does not yank the user off the chosen tab when the data reloads and it still has rows', async () => {
+      mockTabs({ bbva: 1, cheque: 1 })
+      const wrapper = await mounted()
+      await tab(wrapper, 'tab-cheques').trigger('click')
+      await flushPromises()
+      await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 8)
+      await flushPromises()
+      expect(isActive(wrapper, 'tab-cheques')).toBe(true)
+    })
+
+    it('moves to the first tab with rows when the chosen tab becomes empty after a reload', async () => {
+      mockTabs({ bbva: 1, cheque: 1 })
+      const wrapper = await mounted()
+      await tab(wrapper, 'tab-cheques').trigger('click')
+      await flushPromises()
+      mockTabs({ bbva: 1 })
+      await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 8)
+      await flushPromises()
+      expect(isActive(wrapper, 'tab-bbva')).toBe(true)
+    })
+
+    it('re-evaluates the default tab when a reload changes which tabs have rows', async () => {
+      mockTabs({ bbva: 1 })
+      const wrapper = await mounted()
+      mockTabs({ cheque: 1 })
+      await selectByLabel(wrapper, 'Mes')?.vm.$emit('update:modelValue', 8)
+      await flushPromises()
+      expect(isActive(wrapper, 'tab-cheques')).toBe(true)
+    })
+
+    it('keeps the summary cards visible once the batch is paid, without a caption when basis is absent', async () => {
+      mockTabs({ bbva: 1 }, { batch_id: 42, is_paid: true })
+      const wrapper = await mounted()
+      expect(wrapper.text()).toContain('Total becarios')
+      expect(wrapper.text()).not.toContain('Montos pagados en este lote')
+    })
+
+    it('shows the paid-amounts caption when the summary basis is paid', async () => {
+      mockTabs({ bbva: 1 }, { batch_id: 42, is_paid: true }, { basis: 'paid', paid: 1 })
+      const wrapper = await mounted()
+      expect(wrapper.text()).toContain('Montos pagados en este lote')
     })
   })
 })

@@ -1,4 +1,11 @@
 <template>
+  <div
+    v-if="summary?.basis === 'paid'"
+    data-testid="summary-basis-caption"
+    class="text-caption text-medium-emphasis mb-2"
+  >
+    Montos pagados en este lote
+  </div>
   <template v-for="(group, i) in cardGroups" :key="i">
     <v-row class="mb-2">
       <v-col v-for="card in group.cards" :key="card.label" :cols="group.cols" :sm="group.sm">
@@ -82,15 +89,32 @@ const cardGroups = computed<CardGroup[]>(() => {
     netComponents.push(netCard('Aumento neto', s.net_temporary_increase_amount, nominalIncrease, 'mdi-trending-up'))
   }
 
-  const groups: CardGroup[] = [
-    {
-      cols: 6,
-      sm: 4,
-      cards: [
+  // Once the batch is paid the API counts every paid row as not payable
+  // (ready=0, blocking includes them), so the counts switch to Pagados and the
+  // paid rows are taken out of Bloqueados. Rows that became ready after the
+  // batch was processed cannot join it and show as "Listos sin pagar".
+  const isPaidBasis = s.basis === 'paid'
+  const paidCount = s.paid ?? 0
+  const countCards: SummaryCard[] = isPaidBasis
+    ? [
+        { label: 'Total becarios', value: s.total, icon: 'mdi-account-group-outline', color: undefined },
+        { label: 'Pagados', value: paidCount, icon: 'mdi-check-decagram-outline', color: 'success' },
+        ...(s.ready > 0
+          ? [{ label: 'Listos sin pagar', value: s.ready, icon: 'mdi-clock-alert-outline', color: 'warning' }]
+          : []),
+        { label: 'Bloqueados', value: Math.max(0, s.blocking - paidCount), icon: 'mdi-alert-circle-outline', color: 'error' },
+      ]
+    : [
         { label: 'Total becarios', value: s.total, icon: 'mdi-account-group-outline', color: undefined },
         { label: 'Listos', value: s.ready, icon: 'mdi-check-circle-outline', color: 'success' },
         { label: 'Bloqueados', value: s.blocking, icon: 'mdi-alert-circle-outline', color: 'error' },
-      ],
+      ]
+
+  const groups: CardGroup[] = [
+    {
+      cols: 6,
+      sm: countCards.length === 4 ? 3 : 4,
+      cards: countCards,
     },
     {
       cols: 6,
@@ -101,7 +125,12 @@ const cardGroups = computed<CardGroup[]>(() => {
       cols: 12,
       sm: hasRetentionAdvance ? 4 : 6,
       cards: [
-        { label: 'Monto total a pagar', value: formatAmount(s.total_amount), icon: 'mdi-cash-multiple', color: 'primary' },
+        {
+          label: isPaidBasis ? 'Monto total pagado' : 'Monto total a pagar',
+          value: formatAmount(s.total_amount),
+          icon: 'mdi-cash-multiple',
+          color: 'primary',
+        },
         { label: 'Diferencia por descuentos y retenciones', value: formatAmount(s.difference_amount), icon: 'mdi-cash-minus', color: 'warning' },
       ],
     },
