@@ -1660,6 +1660,14 @@ describe('PaymentsView', () => {
       expect(wrapper.find('[data-testid="tab-pane-cheques"]').text()).not.toContain('Pagar todos')
     })
 
+    it('does not clip pane content at the edges (icons, switches, card shadows)', async () => {
+      mockTabs({ bbva: 1, cheque: 1 })
+      const wrapper = await mounted()
+      const window = wrapper.find('[data-testid="tab-panes"]')
+      expect(window.exists()).toBe(true)
+      expect(window.classes()).toContain('overflow-visible')
+    })
+
     it('does not yank the user off the chosen tab when the data reloads and it still has rows', async () => {
       mockTabs({ bbva: 1, cheque: 1 })
       const wrapper = await mounted()

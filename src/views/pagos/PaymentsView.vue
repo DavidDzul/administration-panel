@@ -51,9 +51,11 @@
       </v-tab>
     </v-tabs>
 
-    <!-- eager: every pane stays mounted so switching tabs never loses a section's local state. -->
-    <v-window v-model="activeTab" :touch="false">
-      <v-window-item value="bbva" eager data-testid="tab-pane-bbva">
+    <!-- eager: every pane stays mounted so switching tabs never loses a section's local state.
+         overflow-visible: v-window clips by default (for its slide transition), which cut off
+         icons, switches and card shadows at the left edge; panes switch without a transition. -->
+    <v-window v-model="activeTab" :touch="false" class="overflow-visible" data-testid="tab-panes">
+      <v-window-item value="bbva" eager :transition="false" :reverse-transition="false" data-testid="tab-pane-bbva">
         <template v-if="!hasNoBatchRows">
           <h2 data-testid="transfers-heading" class="text-h6 d-flex align-center ga-2 mb-4">
             <v-icon icon="mdi-bank-transfer" />
@@ -132,7 +134,7 @@
         </template>
       </v-window-item>
 
-      <v-window-item value="manual-transfer" eager data-testid="tab-pane-manual-transfer">
+      <v-window-item value="manual-transfer" eager :transition="false" :reverse-transition="false" data-testid="tab-pane-manual-transfer">
         <ManualTransferPaymentSection
           :rows="manualTransferRows"
           :summary="manualTransferSummary"
@@ -143,7 +145,7 @@
         />
       </v-window-item>
 
-      <v-window-item value="cheques" eager data-testid="tab-pane-cheques">
+      <v-window-item value="cheques" eager :transition="false" :reverse-transition="false" data-testid="tab-pane-cheques">
         <ChequePaymentSection
           :rows="chequeRows"
           :summary="chequeSummary"
