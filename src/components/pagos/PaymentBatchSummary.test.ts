@@ -38,6 +38,47 @@ describe('PaymentBatchSummary', () => {
     expect(mountSummary(buildSummary()).find('[data-testid="summary-basis-caption"]').exists()).toBe(false)
   })
 
+  describe('paid basis', () => {
+    // After payment the API reports every transfer row as not payable
+    // (ALREADY_PAID): ready=0 and blocking counts the paid rows too.
+    const paidSummary = (overrides: Partial<PaymentBatchSummaryModel> = {}) =>
+      buildSummary({ basis: 'paid', total: 10, paid: 7, ready: 0, blocking: 10, ...overrides })
+
+    const cardValue = (wrapper: ReturnType<typeof mountSummary>, label: string) =>
+      wrapper
+        .findAll('.payment-summary-card')
+        .find((c) => c.find('.text-caption').text() === label)
+        ?.find('.text-h5')
+        .text()
+
+    it('shows Pagados instead of Listos and excludes paid rows from Bloqueados', () => {
+      const wrapper = mountSummary(paidSummary())
+      expect(cardValue(wrapper, 'Pagados')).toBe('7')
+      expect(cardValue(wrapper, 'Bloqueados')).toBe('3')
+      expect(cardValue(wrapper, 'Listos')).toBeUndefined()
+    })
+
+    it('labels the total as paid', () => {
+      const wrapper = mountSummary(paidSummary())
+      expect(cardValue(wrapper, 'Monto total pagado')).toBe('$7,000.00')
+      expect(cardValue(wrapper, 'Monto total a pagar')).toBeUndefined()
+    })
+
+    it('shows rows that became ready after the batch was processed as "Listos sin pagar"', () => {
+      const wrapper = mountSummary(paidSummary({ ready: 1, blocking: 9 }))
+      expect(cardValue(wrapper, 'Listos sin pagar')).toBe('1')
+      expect(cardValue(wrapper, 'Bloqueados')).toBe('2')
+    })
+
+    it('keeps Listos and Monto total a pagar before payment', () => {
+      const wrapper = mountSummary(buildSummary({ basis: 'ready' }))
+      expect(cardValue(wrapper, 'Listos')).toBe('8')
+      expect(cardValue(wrapper, 'Bloqueados')).toBe('2')
+      expect(cardValue(wrapper, 'Monto total a pagar')).toBe('$7,000.00')
+      expect(cardValue(wrapper, 'Pagados')).toBeUndefined()
+    })
+  })
+
   it('renders 8 cards across 3 rows at the sm breakpoint: 3 counts, 3 nominal components, 2 aggregates', () => {
     const wrapper = mountSummary(buildSummary())
 
