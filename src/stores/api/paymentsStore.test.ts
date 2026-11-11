@@ -393,6 +393,43 @@ describe('paymentsStore', () => {
     })
   })
 
+  describe('fetchBatch concept totals', () => {
+    const zero = { beca: '0.00', apoyo: '0.00', total: '0.00' }
+    const conceptTotals = {
+      channels: {
+        bbva: { ready: { beca: '1000.00', apoyo: '0.00', total: '1000.00' }, paid: zero },
+        manual_transfer: { ready: zero, paid: zero },
+        cheque: { ready: zero, paid: zero },
+      },
+      overall: { ready: { beca: '1000.00', apoyo: '0.00', total: '1000.00' }, paid: zero },
+    }
+
+    it('stores concept_totals from the index response', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: {
+          res: true,
+          data: { rows: [], summary: buildSummary(), concept_totals: conceptTotals, batch: { batch_id: null, is_paid: false } },
+        },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.conceptTotals).toEqual(conceptTotals)
+    })
+
+    it('defaults conceptTotals to null when the response omits it', async () => {
+      mockAxiosGet.mockResolvedValueOnce({
+        data: { res: true, data: { rows: [], summary: buildSummary(), batch: { batch_id: null, is_paid: false } } },
+      })
+
+      const store = usePaymentsStore()
+      await store.fetchBatch(buildKey())
+
+      expect(store.conceptTotals).toBeNull()
+    })
+  })
+
   describe('fetchBatch cheque state', () => {
     it('stores cheque_rows and cheque_summary from the index response', async () => {
       const chequeRow = { ...buildRow({ refrend_id: 7 }), ...buildChequeFields() }

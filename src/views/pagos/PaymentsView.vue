@@ -39,6 +39,8 @@
       </v-col>
     </v-row>
 
+    <ConceptTotalsCard :totals="conceptTotals" />
+
     <v-tabs v-model="activeTab" class="mb-4">
       <v-tab value="bbva" data-testid="tab-bbva" :disabled="bbvaTabDisabled">
         Transferencia BBVA ({{ rows.length }})
@@ -209,6 +211,7 @@ import { computed, ref, watch } from 'vue'
 import { usePaymentsPage } from '@/composables/usePaymentsPage'
 import BreadCrumbs from '@/components/shared/BreadCrumbs.vue'
 import PaymentBatchFilters from '@/components/pagos/PaymentBatchFilters.vue'
+import ConceptTotalsCard from '@/components/pagos/ConceptTotalsCard.vue'
 import PaymentBatchSummary from '@/components/pagos/PaymentBatchSummary.vue'
 import PaymentBatchTable from '@/components/pagos/PaymentBatchTable.vue'
 import ProcessPaymentDialog from '@/components/pagos/ProcessPaymentDialog.vue'
@@ -247,6 +250,7 @@ const {
   revertCheque,
   manualTransferRows,
   manualTransferSummary,
+  conceptTotals,
   savingManualTransfer,
   markManualTransfer,
   revertManualTransfer,

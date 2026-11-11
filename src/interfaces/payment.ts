@@ -383,6 +383,27 @@ export type ManualTransferSummary = ChequeSummary
 
 export type MarkManualTransferPayload = MarkManualPaymentPayload
 
+// sdd/bank-file-split-other-banks-cheques PR6: index() `concept_totals`.
+// Combined Beca/Apoyo money across the three channels. Ready and paid are
+// separate bases and are never added together. All amounts are 2dp strings.
+export interface ConceptAmounts {
+  beca: string
+  apoyo: string
+  total: string
+}
+
+export interface ConceptBasisTotals {
+  ready: ConceptAmounts
+  paid: ConceptAmounts
+}
+
+export type ConceptTotalsChannel = 'bbva' | 'manual_transfer' | 'cheque'
+
+export interface ConceptTotals {
+  channels: Record<ConceptTotalsChannel, ConceptBasisTotals>
+  overall: ConceptBasisTotals
+}
+
 // 200 body of manual-transfer-payment and manual-transfer-payment/revert.
 export interface ManualTransferPaymentData {
   refrend_id: number

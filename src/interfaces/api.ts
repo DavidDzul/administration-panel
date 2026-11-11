@@ -20,6 +20,7 @@ import type {
   PaymentBatchBlock,
   ChequeRow,
   ChequeSummary,
+  ConceptTotals,
   ManualTransferRow,
   ManualTransferSummary,
   PaymentBatchRow,
@@ -153,6 +154,8 @@ export interface PaymentBatchIndexResponse {
     // sdd/catalogo-bancos: TRANSFER becarios of non-BBVA banks.
     manual_transfer_rows?: ManualTransferRow[]
     manual_transfer_summary?: ManualTransferSummary
+    // sdd/bank-file-split-other-banks-cheques PR6: combined Beca/Apoyo totals.
+    concept_totals?: ConceptTotals
     batch: PaymentBatchBlock
     // Echoes the resolved batch_type (sdd/pagos-lote-pago-adelantado,
     // amendment #1942) — always present since index() now requires

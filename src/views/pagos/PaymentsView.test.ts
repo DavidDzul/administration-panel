@@ -1570,6 +1570,64 @@ describe('PaymentsView', () => {
     })
   })
 
+  describe('combined Beca/Apoyo totals', () => {
+    const zero = { beca: '0.00', apoyo: '0.00', total: '0.00' }
+    const conceptTotals = {
+      channels: {
+        bbva: { ready: { beca: '1000.00', apoyo: '0.00', total: '1000.00' }, paid: zero },
+        manual_transfer: { ready: zero, paid: zero },
+        cheque: { ready: zero, paid: zero },
+      },
+      overall: { ready: { beca: '1000.00', apoyo: '0.00', total: '1000.00' }, paid: zero },
+    }
+    const summary = {
+      total: 1, ready: 1, blocking: 0, beca_amount: '1000.00', apoyo_amount: '0.00',
+      pago_iu_amount: '0.00', total_amount: '1000.00', difference_amount: '0.00',
+    }
+
+    const mockWithTotals = (withTotals: boolean): void => {
+      mockAxiosGet.mockImplementation((url: string) => {
+        if (url === 'api/admin/scholarship-payments') {
+          return Promise.resolve({
+            data: {
+              res: true,
+              data: {
+                rows: [buildRow()],
+                summary,
+                batch: { batch_id: null, is_paid: false },
+                ...(withTotals ? { concept_totals: conceptTotals } : {}),
+              },
+            },
+          })
+        }
+        return Promise.reject(new Error(`unexpected GET ${url}`))
+      })
+    }
+
+    it('renders the totals card above the tabs when the server sends concept_totals', async () => {
+      mockWithTotals(true)
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+
+      const card = wrapper.find('[data-testid="concept-totals"]')
+      expect(card.exists()).toBe(true)
+      expect(card.text()).toContain('$1,000.00')
+
+      const html = wrapper.html()
+      expect(html.indexOf('data-testid="concept-totals"')).toBeLessThan(html.indexOf('data-testid="tab-bbva"'))
+    })
+
+    it('does not render the totals card when concept_totals is absent', async () => {
+      mockWithTotals(false)
+      const wrapper = mountView()
+      await flushPromises()
+      await setAllFilters(wrapper)
+
+      expect(wrapper.find('[data-testid="concept-totals"]').exists()).toBe(false)
+    })
+  })
+
   describe('payment method tabs', () => {
     const summaryOf = (total: number) => ({
       total,

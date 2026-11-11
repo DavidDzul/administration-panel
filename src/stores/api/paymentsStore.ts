@@ -7,6 +7,7 @@ import type {
   ChequePaymentData,
   ChequeRow,
   ChequeSummary,
+  ConceptTotals,
   BankFileConcept,
   ExportSummary,
   ManualTransferPaymentData,
@@ -228,6 +229,7 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
   const chequeSummary = ref<ChequeSummary | null>(null)
   const manualTransferRows = ref<ManualTransferRow[]>([])
   const manualTransferSummary = ref<ManualTransferSummary | null>(null)
+  const conceptTotals = ref<ConceptTotals | null>(null)
   const batchId = ref<number | null>(null)
   const isPaid = ref<boolean>(false)
   const document = ref<PaymentDocument | null>(null)
@@ -247,6 +249,7 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
       chequeSummary.value = res.data.data.cheque_summary ?? null
       manualTransferRows.value = res.data.data.manual_transfer_rows ?? []
       manualTransferSummary.value = res.data.data.manual_transfer_summary ?? null
+      conceptTotals.value = res.data.data.concept_totals ?? null
       // D3 — this is what lets the SPA reach the export action after a page
       // reload; `batchId` is no longer only set transiently by processBatch.
       batchId.value = res.data.data.batch?.batch_id ?? null
@@ -429,6 +432,7 @@ export const usePaymentsStore = defineStore('paymentsStore', () => {
     chequeSummary,
     manualTransferRows,
     manualTransferSummary,
+    conceptTotals,
     batchId,
     isPaid,
     document,

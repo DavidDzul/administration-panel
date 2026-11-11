@@ -37,7 +37,7 @@ export type ExportErrorState = 'blocked' | 'error' | null
 // purely presentational (rows as props, no internal fetching).
 export function usePaymentsPage() {
   const paymentsStore = usePaymentsStore()
-  const { rows, summary, chequeRows, chequeSummary, manualTransferRows, manualTransferSummary, batchId, isPaid } =
+  const { rows, summary, chequeRows, chequeSummary, manualTransferRows, manualTransferSummary, conceptTotals, batchId, isPaid } =
     storeToRefs(paymentsStore)
   const {
     fetchBatch,
@@ -312,6 +312,7 @@ export function usePaymentsPage() {
     revertCheque,
     manualTransferRows,
     manualTransferSummary,
+    conceptTotals,
     savingManualTransfer,
     markManualTransfer,
     revertManualTransfer,
