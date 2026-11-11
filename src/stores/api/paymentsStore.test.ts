@@ -11,6 +11,8 @@ import type {
   ManualTransferPaymentData,
   ManualTransferRowFields,
   ManualTransferSummary,
+  MarkChequePayload,
+  MarkManualTransferPayload,
   PaymentBatchRow,
   PaymentBatchSummary,
   PaymentDocument,
@@ -94,9 +96,7 @@ const buildSummary = (overrides: Partial<PaymentBatchSummary> = {}): PaymentBatc
 const buildChequeFields = (overrides: Partial<ChequeRowFields> = {}): ChequeRowFields => ({
   payment_method: 'CHEQUE',
   paid_payment_method: null,
-  cheque_number: null,
-  cheque_delivered_at: null,
-  cheque_notes: null,
+  manual_payments: [],
   cheque_beneficiary: null,
   ...overrides,
 })
@@ -120,11 +120,19 @@ const buildChequePaymentData = (overrides: Partial<ChequePaymentData> = {}): Che
   status: 'PAID',
   workflow_status: 'CLOSED',
   paid_payment_method: 'CHEQUE',
-  cheque_number: '000123',
-  cheque_delivered_at: '2026-10-20',
-  cheque_notes: null,
+  manual_payments: [
+    { concept: 'beca', method: 'CHEQUE', reference: '000123', amount: '800.00', paid_at: '2026-10-20', notes: null },
+    { concept: 'apoyo', method: 'CHEQUE', reference: '000124', amount: '200.00', paid_at: '2026-10-20', notes: null },
+  ],
   locked_at: '2026-10-20T10:00:00Z',
   ...overrides,
+})
+
+const buildMarkPayload = (): MarkChequePayload => ({
+  references: { beca: '000123', apoyo: '000124' },
+  expected_amounts: { beca: '800.00', apoyo: '200.00' },
+  paid_at: '2026-10-20',
+  notes: 'Entregado en sede',
 })
 
 const buildDocument = (overrides: Partial<PaymentDocument> = {}): PaymentDocument => ({
@@ -423,7 +431,7 @@ describe('paymentsStore', () => {
   })
 
   describe('markChequePaid', () => {
-    const payload = { cheque_number: '000123', cheque_delivered_at: '2026-10-20', cheque_notes: 'Entregado en sede' }
+    const payload = buildMarkPayload()
     const reject = (status: number, data: Record<string, unknown>): void => {
       mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
     }
@@ -442,7 +450,7 @@ describe('paymentsStore', () => {
     it.each([
       [409, 'ALREADY_PAID', 'already_paid'],
       [422, 'NOT_CHEQUE_METHOD', 'not_cheque'],
-      [422, 'CHEQUE_NUMBER_TAKEN', 'cheque_number_taken'],
+      [409, 'CONCEPT_SPLIT_CHANGED', 'concept_split_changed'],
     ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
       reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
 
@@ -450,6 +458,24 @@ describe('paymentsStore', () => {
       const result = await store.markChequePaid(7, payload)
 
       expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it.each(['beca', 'apoyo'])('maps CHEQUE_REFERENCE_TAKEN for %s carrying the concept', async (concept) => {
+      reject(422, { res: false, msg: 'Referencia repetida', code: 'CHEQUE_REFERENCE_TAKEN', data: { concept } })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'cheque_reference_taken', msg: 'Referencia repetida', concept })
+    })
+
+    it('maps CHEQUE_REFERENCE_TAKEN without a concept to a null concept', async () => {
+      reject(422, { res: false, msg: 'Referencia repetida', code: 'CHEQUE_REFERENCE_TAKEN', data: {} })
+
+      const store = usePaymentsStore()
+      const result = await store.markChequePaid(7, payload)
+
+      expect(result).toEqual({ status: 'cheque_reference_taken', msg: 'Referencia repetida', concept: null })
     })
 
     it('maps 422 NOT_PAYABLE to not_payable with the reasons', async () => {
@@ -463,7 +489,7 @@ describe('paymentsStore', () => {
     })
 
     it('maps a Laravel 422 validation body to validation with field errors', async () => {
-      const errors = { cheque_number: ['El número de cheque es obligatorio.'] }
+      const errors = { 'references.beca': ['La referencia de Beca es obligatoria.'] }
       reject(422, { message: 'The given data was invalid.', errors })
 
       const store = usePaymentsStore()
@@ -497,7 +523,7 @@ describe('paymentsStore', () => {
     }
 
     it('POSTs the reason to cheque-payment/revert and returns success on 200', async () => {
-      const data = buildChequePaymentData({ status: 'DRAFT', cheque_number: null })
+      const data = buildChequePaymentData({ status: 'DRAFT', manual_payments: [] })
       mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })
 
       const store = usePaymentsStore()
@@ -549,9 +575,7 @@ describe('paymentsStore', () => {
         payment_method: 'MANUAL_TRANSFER',
         paid_payment_method: null,
         bank_code: '072',
-        transfer_reference: null,
-        transfer_paid_at: null,
-        transfer_notes: null,
+        manual_payments: [],
       }
       const manualSummary: ManualTransferSummary = buildChequeSummary()
       mockAxiosGet.mockResolvedValueOnce({
@@ -588,7 +612,12 @@ describe('paymentsStore', () => {
   })
 
   describe('markManualTransferPaid', () => {
-    const payload = { transfer_reference: 'SPEI-0001', transfer_paid_at: '2026-10-20', transfer_notes: 'Banorte' }
+    const payload: MarkManualTransferPayload = {
+      references: { beca: 'SPEI-0001', apoyo: 'SPEI-0002' },
+      expected_amounts: { beca: '800.00', apoyo: '200.00' },
+      paid_at: '2026-10-20',
+      notes: 'Banorte',
+    }
     const reject = (status: number, data: Record<string, unknown>): void => {
       mockAxiosPost.mockRejectedValueOnce({ response: { status, data } })
     }
@@ -597,9 +626,10 @@ describe('paymentsStore', () => {
       status: 'PAID',
       workflow_status: 'CLOSED',
       paid_payment_method: 'MANUAL_TRANSFER',
-      transfer_reference: 'SPEI-0001',
-      transfer_paid_at: '2026-10-20',
-      transfer_notes: 'Banorte',
+      manual_payments: [
+        { concept: 'beca', method: 'MANUAL_TRANSFER', reference: 'SPEI-0001', amount: '800.00', paid_at: '2026-10-20', notes: 'Banorte' },
+        { concept: 'apoyo', method: 'MANUAL_TRANSFER', reference: 'SPEI-0002', amount: '200.00', paid_at: '2026-10-20', notes: 'Banorte' },
+      ],
       locked_at: '2026-10-20T10:00:00Z',
       ...overrides,
     })
@@ -621,9 +651,9 @@ describe('paymentsStore', () => {
     it.each([
       [409, 'ALREADY_PAID', 'already_paid'],
       [422, 'NOT_MANUAL_TRANSFER_METHOD', 'not_manual_transfer'],
-      [422, 'TRANSFER_REFERENCE_TAKEN', 'transfer_reference_taken'],
       [409, 'CYCLE_CLOSED', 'cycle_closed'],
       [409, 'TELMEX_REPAYMENT_EXISTS', 'telmex_repayment_exists'],
+      [409, 'CONCEPT_SPLIT_CHANGED', 'concept_split_changed'],
     ])('maps %i %s to %s carrying the server msg', async (httpStatus, code, expected) => {
       reject(httpStatus, { res: false, msg: `msg ${code}`, code, data: {} })
 
@@ -631,6 +661,15 @@ describe('paymentsStore', () => {
       const result = await store.markManualTransferPaid(7, payload)
 
       expect(result).toEqual({ status: expected, msg: `msg ${code}` })
+    })
+
+    it('maps TRANSFER_REFERENCE_TAKEN carrying the concept', async () => {
+      reject(422, { res: false, msg: 'Folio repetido', code: 'TRANSFER_REFERENCE_TAKEN', data: { concept: 'apoyo' } })
+
+      const store = usePaymentsStore()
+      const result = await store.markManualTransferPaid(7, payload)
+
+      expect(result).toEqual({ status: 'transfer_reference_taken', msg: 'Folio repetido', concept: 'apoyo' })
     })
 
     it('maps 422 NOT_PAYABLE to not_payable with the reasons', async () => {
@@ -644,7 +683,7 @@ describe('paymentsStore', () => {
     })
 
     it('maps a Laravel 422 validation body to validation with field errors', async () => {
-      const errors = { transfer_reference: ['La referencia de la transferencia es obligatoria.'] }
+      const errors = { 'references.apoyo': ['La referencia de Apoyo es obligatoria.'] }
       reject(422, { message: 'The given data was invalid.', errors })
 
       const store = usePaymentsStore()
@@ -674,9 +713,7 @@ describe('paymentsStore', () => {
         status: 'DRAFT',
         workflow_status: 'OPEN',
         paid_payment_method: null,
-        transfer_reference: null,
-        transfer_paid_at: null,
-        transfer_notes: null,
+        manual_payments: [],
         locked_at: null,
       }
       mockAxiosPost.mockResolvedValueOnce({ data: { res: true, data } })

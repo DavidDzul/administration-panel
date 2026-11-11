@@ -14,6 +14,7 @@ import type {
   ManualTransferSummary,
   MarkChequePayload,
   MarkManualTransferPayload,
+  ManualPaymentConcept,
   InvalidBankRow,
   PaymentBatchRow,
   PaymentBatchSummary,
@@ -69,7 +70,8 @@ export type ChequeActionResult =
   | { status: 'already_paid'; msg: string | null }
   | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
   | { status: 'not_cheque'; msg: string | null }
-  | { status: 'cheque_number_taken'; msg: string | null }
+  | { status: 'cheque_reference_taken'; msg: string | null; concept: ManualPaymentConcept | null }
+  | { status: 'concept_split_changed'; msg: string | null }
   | { status: 'cycle_closed'; msg: string | null }
   | { status: 'telmex_repayment_exists'; msg: string | null }
   | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
@@ -83,7 +85,8 @@ export type ManualTransferActionResult =
   | { status: 'already_paid'; msg: string | null }
   | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
   | { status: 'not_manual_transfer'; msg: string | null }
-  | { status: 'transfer_reference_taken'; msg: string | null }
+  | { status: 'transfer_reference_taken'; msg: string | null; concept: ManualPaymentConcept | null }
+  | { status: 'concept_split_changed'; msg: string | null }
   | { status: 'cycle_closed'; msg: string | null }
   | { status: 'telmex_repayment_exists'; msg: string | null }
   | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
@@ -92,11 +95,11 @@ export type ManualTransferActionResult =
 // Maps the envelope `code` of a failed cheque action to its result status.
 // Unknown/absent codes (404 NOT_FOUND, 403, CHEQUE_LOG_MISSING, 500) fall
 // through to 'error' with the server msg.
-const CHEQUE_CODE_STATUS: Record<string, 'already_paid' | 'not_cheque' | 'cheque_number_taken' | 'cycle_closed' | 'telmex_repayment_exists'> = {
+const CHEQUE_CODE_STATUS: Record<string, 'already_paid' | 'not_cheque' | 'concept_split_changed' | 'cycle_closed' | 'telmex_repayment_exists'> = {
   ALREADY_PAID: 'already_paid',
   NOT_CHEQUE_METHOD: 'not_cheque',
   NOT_CHEQUE_PAID: 'not_cheque',
-  CHEQUE_NUMBER_TAKEN: 'cheque_number_taken',
+  CONCEPT_SPLIT_CHANGED: 'concept_split_changed',
   CYCLE_CLOSED: 'cycle_closed',
   TELMEX_REPAYMENT_EXISTS: 'telmex_repayment_exists',
 }
@@ -106,7 +109,7 @@ interface ErrorBody {
   message?: string
   code?: string
   errors?: Record<string, string[]>
-  data?: { reasons?: BlockingReason[] } | null
+  data?: { reasons?: BlockingReason[]; concept?: string } | null
 }
 
 function getErrorBody(error: unknown): ErrorBody | undefined {
@@ -120,31 +123,44 @@ function getErrorBody(error: unknown): ErrorBody | undefined {
 // any unknown code fall through to 'error' with the server msg.
 const MANUAL_TRANSFER_CODE_STATUS: Record<
   string,
-  'already_paid' | 'not_manual_transfer' | 'transfer_reference_taken' | 'cycle_closed' | 'telmex_repayment_exists'
+  'already_paid' | 'not_manual_transfer' | 'concept_split_changed' | 'cycle_closed' | 'telmex_repayment_exists'
 > = {
   ALREADY_PAID: 'already_paid',
   NOT_MANUAL_TRANSFER_METHOD: 'not_manual_transfer',
   NOT_MANUAL_TRANSFER_PAID: 'not_manual_transfer',
-  TRANSFER_REFERENCE_TAKEN: 'transfer_reference_taken',
+  CONCEPT_SPLIT_CHANGED: 'concept_split_changed',
   CYCLE_CLOSED: 'cycle_closed',
   TELMEX_REPAYMENT_EXISTS: 'telmex_repayment_exists',
 }
 
-type ManualActionError<S extends string> =
+type ManualActionError<S extends string, T extends string> =
   | { status: S; msg: string | null }
+  | { status: T; msg: string | null; concept: ManualPaymentConcept | null }
   | { status: 'not_payable'; msg: string | null; reasons: BlockingReason[] }
   | { status: 'validation'; msg: string | null; errors: Record<string, string[]> }
   | { status: 'error'; msg: string | null }
 
-function mapManualActionError<S extends string>(
+// The `{concept}` of a *_REFERENCE_TAKEN error tells which of the two
+// references collided; anything else maps to null (error shown on the form).
+function toConcept(value: unknown): ManualPaymentConcept | null {
+  return value === 'beca' || value === 'apoyo' ? value : null
+}
+
+function mapManualActionError<S extends string, T extends string>(
   error: unknown,
   codeStatus: Record<string, S>,
-): ManualActionError<S> {
+  takenCode: string,
+  takenStatus: T,
+): ManualActionError<S, T> {
   const body = getErrorBody(error)
   const msg = body?.msg ?? body?.message ?? null
 
   if (body?.code === 'NOT_PAYABLE') {
     return { status: 'not_payable', msg, reasons: body.data?.reasons ?? [] }
+  }
+
+  if (body?.code === takenCode) {
+    return { status: takenStatus, msg, concept: toConcept(body.data?.concept) }
   }
 
   const mapped = body?.code ? codeStatus[body.code] : undefined
@@ -159,11 +175,16 @@ function mapManualActionError<S extends string>(
 }
 
 function mapChequeError(error: unknown): ChequeActionResult {
-  return mapManualActionError(error, CHEQUE_CODE_STATUS)
+  return mapManualActionError(error, CHEQUE_CODE_STATUS, 'CHEQUE_REFERENCE_TAKEN', 'cheque_reference_taken')
 }
 
 function mapManualTransferError(error: unknown): ManualTransferActionResult {
-  return mapManualActionError(error, MANUAL_TRANSFER_CODE_STATUS)
+  return mapManualActionError(
+    error,
+    MANUAL_TRANSFER_CODE_STATUS,
+    'TRANSFER_REFERENCE_TAKEN',
+    'transfer_reference_taken',
+  )
 }
 
 // Discriminated result for downloadExportFile — same "never collapse into

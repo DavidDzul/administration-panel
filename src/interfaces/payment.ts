@@ -307,10 +307,34 @@ export interface BatchKey {
 export interface ChequeRowFields {
   payment_method: PaymentMethod
   paid_payment_method: PaymentMethod | null
-  cheque_number: string | null
-  cheque_delivered_at: string | null
-  cheque_notes: string | null
+  manual_payments: ManualPayment[]
   cheque_beneficiary: string | null
+}
+
+// sdd/bank-file-split-other-banks-cheques: a manual (cheque / other-bank
+// transfer) payment is recorded PER CONCEPT (Beca / Apoyo), one reference each.
+// `amount` is frozen at mark time (2dp string). The list is ordered Beca then
+// Apoyo and is [] while unpaid; a zero concept has no item.
+export type ManualPaymentConcept = 'beca' | 'apoyo'
+
+export interface ManualPayment {
+  concept: ManualPaymentConcept
+  method: 'CHEQUE' | 'MANUAL_TRANSFER'
+  reference: string
+  amount: string
+  paid_at: string | null
+  notes: string | null
+}
+
+// Request shared by cheque-payment and manual-transfer-payment. `references`
+// only carries concepts with amount > 0; `expected_amounts` are the row's
+// concept_split at open time (the API answers 409 CONCEPT_SPLIT_CHANGED when
+// it drifted).
+export interface MarkManualPaymentPayload {
+  references: Partial<Record<ManualPaymentConcept, string>>
+  expected_amounts: ConceptSplit
+  paid_at?: string
+  notes?: string
 }
 
 export type ChequeRow = PaymentBatchRow & ChequeRowFields
@@ -329,22 +353,16 @@ export interface ChequeSummary {
   paid_apoyo_amount: string
 }
 
-export interface MarkChequePayload {
-  cheque_number: string
-  cheque_delivered_at?: string
-  cheque_notes?: string
-}
+export type MarkChequePayload = MarkManualPaymentPayload
 
 // 200 body of both cheque-payment and cheque-payment/revert (after revert the
-// status is DRAFT|WITHHELD and every cheque field/locked_at is null).
+// status is DRAFT|WITHHELD, manual_payments is [] and locked_at is null).
 export interface ChequePaymentData {
   refrend_id: number
   status: string
   workflow_status: string
   paid_payment_method: PaymentMethod | null
-  cheque_number: string | null
-  cheque_delivered_at: string | null
-  cheque_notes: string | null
+  manual_payments: ManualPayment[]
   locked_at: string | null
 }
 
@@ -355,9 +373,7 @@ export interface ManualTransferRowFields {
   payment_method: PaymentMethod
   paid_payment_method: PaymentMethod | null
   bank_code: string | null
-  transfer_reference: string | null
-  transfer_paid_at: string | null
-  transfer_notes: string | null
+  manual_payments: ManualPayment[]
 }
 
 export type ManualTransferRow = PaymentBatchRow & ManualTransferRowFields
@@ -365,11 +381,7 @@ export type ManualTransferRow = PaymentBatchRow & ManualTransferRowFields
 // Same counts/amounts as the cheque section.
 export type ManualTransferSummary = ChequeSummary
 
-export interface MarkManualTransferPayload {
-  transfer_reference: string
-  transfer_paid_at?: string
-  transfer_notes?: string
-}
+export type MarkManualTransferPayload = MarkManualPaymentPayload
 
 // 200 body of manual-transfer-payment and manual-transfer-payment/revert.
 export interface ManualTransferPaymentData {
@@ -377,9 +389,7 @@ export interface ManualTransferPaymentData {
   status: string
   workflow_status: string
   paid_payment_method: PaymentMethod | null
-  transfer_reference: string | null
-  transfer_paid_at: string | null
-  transfer_notes: string | null
+  manual_payments: ManualPayment[]
   locked_at: string | null
 }
 
