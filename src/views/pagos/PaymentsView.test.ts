@@ -605,9 +605,7 @@ describe('PaymentsView', () => {
     const chequeFields = {
       payment_method: 'CHEQUE',
       paid_payment_method: null,
-      cheque_number: null,
-      cheque_delivered_at: null,
-      cheque_notes: null,
+      manual_payments: [],
       cheque_beneficiary: null,
     }
     const cheque = (overrides: Partial<PaymentBatchRow> = {}): PaymentBatchRow =>
@@ -953,9 +951,8 @@ describe('PaymentsView', () => {
         total_to_pay: '1500.00',
         payment_method: 'CHEQUE',
         paid_payment_method: null,
-        cheque_number: null,
-        cheque_delivered_at: null,
-        cheque_notes: null,
+        concept_split: { beca: '1000.00', apoyo: '500.00' },
+        manual_payments: [],
         cheque_beneficiary: null,
         ...overrides,
       } as Partial<PaymentBatchRow>)
@@ -967,8 +964,10 @@ describe('PaymentsView', () => {
         status: 'PAID',
         is_payable: false,
         paid_payment_method: 'CHEQUE',
-        cheque_number: 'CH-77',
-        cheque_delivered_at: '2026-10-05',
+        manual_payments: [
+          { concept: 'beca', method: 'CHEQUE', reference: 'CH-77', amount: '1000.00', paid_at: '2026-10-05', notes: null },
+          { concept: 'apoyo', method: 'CHEQUE', reference: 'CH-78', amount: '500.00', paid_at: '2026-10-05', notes: null },
+        ],
       })
 
     const mockWithCheques = (
@@ -1014,10 +1013,10 @@ describe('PaymentsView', () => {
       await flushPromises()
     }
 
-    const fillChequeNumber = async (wrapper: ReturnType<typeof mountView>, value: string): Promise<void> => {
+    const fillChequeNumber = async (wrapper: ReturnType<typeof mountView>, concept: string, value: string): Promise<void> => {
       const input = wrapper
         .findAllComponents({ name: 'VTextField' })
-        .find((f) => String(f.props('label')).startsWith('Número de cheque'))
+        .find((f) => String(f.props('label')).startsWith(`Número de cheque · ${concept}`))
       await input?.setValue(value)
     }
 
@@ -1029,7 +1028,8 @@ describe('PaymentsView', () => {
 
     const submitMark = async (wrapper: ReturnType<typeof mountView>): Promise<void> => {
       await openMarkDialog(wrapper)
-      await fillChequeNumber(wrapper, 'CH-100')
+      await fillChequeNumber(wrapper, 'Beca', 'CH-100')
+      await fillChequeNumber(wrapper, 'Apoyo', 'CH-101')
       await dialogButton('Registrar pago')?.trigger('click')
       await flushPromises()
     }
@@ -1142,7 +1142,10 @@ describe('PaymentsView', () => {
 
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'api/admin/scholarship-payments/10/cheque-payment',
-        expect.objectContaining({ cheque_number: 'CH-100' }),
+        expect.objectContaining({
+          references: { beca: 'CH-100', apoyo: 'CH-101' },
+          expected_amounts: { beca: '1000.00', apoyo: '500.00' },
+        }),
       )
       expect(markDialogOpen(wrapper)).toBe(false)
       expect(mockAxiosGet.mock.calls.length).toBeGreaterThan(getsBefore)
@@ -1161,21 +1164,40 @@ describe('PaymentsView', () => {
       expect(markDialogOpen(wrapper)).toBe(false)
     })
 
-    it('keeps the register dialog open and shows the taken-number error inline', async () => {
+    it('keeps the register dialog open and shows the taken-number error under the colliding concept', async () => {
       mockWithCheques([chequeRow()])
       mockAxiosPost.mockRejectedValue(
-        apiError(422, { res: false, msg: 'Ese número de cheque ya fue registrado.', code: 'CHEQUE_NUMBER_TAKEN' }),
+        apiError(422, {
+          res: false,
+          msg: 'Ese número de cheque ya fue registrado.',
+          code: 'CHEQUE_REFERENCE_TAKEN',
+          data: { concept: 'apoyo' },
+        }),
       )
       const wrapper = await mounted()
       await submitMark(wrapper)
       expect(markDialogOpen(wrapper)).toBe(true)
-      expect(body().text()).toContain('Ese número de cheque ya fue registrado.')
+      const apoyo = wrapper
+        .findAllComponents({ name: 'VTextField' })
+        .find((f) => String(f.props('label')).startsWith('Número de cheque · Apoyo'))
+      expect(apoyo?.props('errorMessages')).toEqual(['Ese número de cheque ya fue registrado.'])
+    })
+
+    it('keeps the register dialog open and asks to reload when the concept split changed', async () => {
+      mockWithCheques([chequeRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(409, { res: false, msg: 'El desglose cambió', code: 'CONCEPT_SPLIT_CHANGED' }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialogOpen(wrapper)).toBe(true)
+      expect(body().text()).toContain('Los montos cambiaron. Recarga el lote e inténtalo de nuevo.')
     })
 
     it('keeps the register dialog open and shows validation errors inline', async () => {
       mockWithCheques([chequeRow()])
       mockAxiosPost.mockRejectedValue(
-        apiError(422, { message: 'invalid', errors: { cheque_notes: ['Las notas son demasiado largas'] } }),
+        apiError(422, { message: 'invalid', errors: { notes: ['Las notas son demasiado largas'] } }),
       )
       const wrapper = await mounted()
       await submitMark(wrapper)
@@ -1254,9 +1276,8 @@ describe('PaymentsView', () => {
         account_number: '072180001234567895',
         payment_method: 'MANUAL_TRANSFER',
         paid_payment_method: null,
-        transfer_reference: null,
-        transfer_paid_at: null,
-        transfer_notes: null,
+        concept_split: { beca: '1000.00', apoyo: '500.00' },
+        manual_payments: [],
         ...overrides,
       } as Partial<PaymentBatchRow>)
 
@@ -1267,8 +1288,10 @@ describe('PaymentsView', () => {
         status: 'PAID',
         is_payable: false,
         paid_payment_method: 'MANUAL_TRANSFER',
-        transfer_reference: 'SPEI-77',
-        transfer_paid_at: '2026-10-05',
+        manual_payments: [
+          { concept: 'beca', method: 'MANUAL_TRANSFER', reference: 'SPEI-77', amount: '1000.00', paid_at: '2026-10-05', notes: null },
+          { concept: 'apoyo', method: 'MANUAL_TRANSFER', reference: 'SPEI-78', amount: '500.00', paid_at: '2026-10-05', notes: null },
+        ],
       })
 
     const mockWithManual = (
@@ -1317,17 +1340,18 @@ describe('PaymentsView', () => {
         .findAllComponents({ name: 'RevertChequePaymentDialog' })
         .find((d) => d.props('kind') === 'manual_transfer')
 
-    const fillReference = async (wrapper: ReturnType<typeof mountView>, value: string): Promise<void> => {
+    const fillReference = async (wrapper: ReturnType<typeof mountView>, concept: string, value: string): Promise<void> => {
       const input = wrapper
         .findAllComponents({ name: 'VTextField' })
-        .find((f) => String(f.props('label')).startsWith('Folio / referencia'))
+        .find((f) => String(f.props('label')).startsWith(`Folio / referencia · ${concept}`))
       await input?.setValue(value)
     }
 
-    const submitMark = async (wrapper: ReturnType<typeof mountView>, reference = 'SPEI-100'): Promise<void> => {
+    const submitMark = async (wrapper: ReturnType<typeof mountView>, beca = 'SPEI-100'): Promise<void> => {
       await buttonByText(wrapper, 'Marcar como pagado')?.trigger('click')
       await flushPromises()
-      await fillReference(wrapper, reference)
+      await fillReference(wrapper, 'Beca', beca)
+      await fillReference(wrapper, 'Apoyo', 'SPEI-101')
       await dialogButton('Registrar pago')?.trigger('click')
       await flushPromises()
     }
@@ -1365,7 +1389,7 @@ describe('PaymentsView', () => {
       expect(section.text()).toContain('Banorte')
       expect(section.text()).toContain('072180001234567895')
       expect(section.text()).toContain('Pagado (transferencia)')
-      expect(section.text()).toContain('SPEI-77')
+      expect(section.text()).toContain('Beca: SPEI-77 · Apoyo: SPEI-78')
       expect(section.text()).toContain('Monto por pagar')
     })
 
@@ -1376,7 +1400,7 @@ describe('PaymentsView', () => {
             refrend_id: 30,
             snapshot_name: 'Cheque Persona',
             payment_method: 'CHEQUE',
-            cheque_number: null,
+            manual_payments: [],
           } as Partial<PaymentBatchRow>),
         ],
       })
@@ -1430,12 +1454,12 @@ describe('PaymentsView', () => {
       expect(body().text()).toContain('Katherine Johnson')
     })
 
-    it('requires the reference: an empty folio is not posted and shows the Spanish message', async () => {
+    it('requires each reference: an empty folio is not posted and shows the Spanish message', async () => {
       mockWithManual([manualRow()])
       const wrapper = await mounted()
       await submitMark(wrapper, '   ')
       expect(mockAxiosPost).not.toHaveBeenCalled()
-      expect(body().text()).toContain('Captura el folio o la referencia de la transferencia.')
+      expect(body().text()).toContain('Captura la referencia de este concepto.')
       expect(markDialog(wrapper).props('modelValue')).toBe(true)
     })
 
@@ -1448,7 +1472,10 @@ describe('PaymentsView', () => {
 
       expect(mockAxiosPost).toHaveBeenCalledWith(
         'api/admin/scholarship-payments/20/manual-transfer-payment',
-        expect.objectContaining({ transfer_reference: 'SPEI-100' }),
+        expect.objectContaining({
+          references: { beca: 'SPEI-100', apoyo: 'SPEI-101' },
+          expected_amounts: { beca: '1000.00', apoyo: '500.00' },
+        }),
       )
       expect(markDialog(wrapper).props('modelValue')).toBe(false)
       expect(mockAxiosGet.mock.calls.length).toBeGreaterThan(getsBefore)
@@ -1466,25 +1493,53 @@ describe('PaymentsView', () => {
       expect(markDialog(wrapper).props('modelValue')).toBe(false)
     })
 
-    it('keeps the register dialog open and shows the taken-reference error inline', async () => {
+    it('keeps the register dialog open and shows the taken-reference error under the colliding concept', async () => {
       mockWithManual([manualRow()])
       mockAxiosPost.mockRejectedValue(
         apiError(422, {
           res: false,
           msg: 'Esa referencia de transferencia ya fue registrada.',
           code: 'TRANSFER_REFERENCE_TAKEN',
+          data: { concept: 'beca' },
         }),
       )
       const wrapper = await mounted()
       await submitMark(wrapper)
       expect(markDialog(wrapper).props('modelValue')).toBe(true)
-      expect(body().text()).toContain('Esa referencia de transferencia ya fue registrada.')
+      const beca = wrapper
+        .findAllComponents({ name: 'VTextField' })
+        .find((f) => String(f.props('label')).startsWith('Folio / referencia · Beca'))
+      expect(beca?.props('errorMessages')).toEqual(['Esa referencia de transferencia ya fue registrada.'])
+    })
+
+    it('keeps the register dialog open and asks to reload when the concept split changed', async () => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(409, { res: false, msg: 'El desglose cambió', code: 'CONCEPT_SPLIT_CHANGED' }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      expect(markDialog(wrapper).props('modelValue')).toBe(true)
+      expect(body().text()).toContain('Los montos cambiaron. Recarga el lote e inténtalo de nuevo.')
+    })
+
+    it('maps a 422 references.{concept} field error to the right field', async () => {
+      mockWithManual([manualRow()])
+      mockAxiosPost.mockRejectedValue(
+        apiError(422, { message: 'invalid', errors: { 'references.apoyo': ['Referencia inválida'] } }),
+      )
+      const wrapper = await mounted()
+      await submitMark(wrapper)
+      const apoyo = wrapper
+        .findAllComponents({ name: 'VTextField' })
+        .find((f) => String(f.props('label')).startsWith('Folio / referencia · Apoyo'))
+      expect(apoyo?.props('errorMessages')).toEqual(['Referencia inválida'])
     })
 
     it('keeps the register dialog open and shows validation errors inline', async () => {
       mockWithManual([manualRow()])
       mockAxiosPost.mockRejectedValue(
-        apiError(422, { message: 'invalid', errors: { transfer_notes: ['Las notas son demasiado largas'] } }),
+        apiError(422, { message: 'invalid', errors: { notes: ['Las notas son demasiado largas'] } }),
       )
       const wrapper = await mounted()
       await submitMark(wrapper)

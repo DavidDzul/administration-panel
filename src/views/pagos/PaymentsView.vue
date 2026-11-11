@@ -226,6 +226,7 @@ import type {
   MarkChequePayload,
   MarkManualTransferPayload,
 } from '@/interfaces/payment'
+import { referenceErrorKey } from '@/utils/manualPayment'
 import type { LinkInterface } from '@/interfaces/link'
 import { batchTypeMap } from '@/constants'
 
@@ -346,6 +347,30 @@ const CLOSING_STATUSES: ReadonlySet<ChequeActionResult['status']> = new Set([
   'telmex_repayment_exists',
 ])
 
+// Maps a failed mark result to the dialog's inline errors: 422 field errors
+// pass through (`references.{concept}`, `paid_at`, `notes`), a taken reference
+// lands under the colliding concept (or the form when the API did not say
+// which), and a drifted concept split asks the user to reload the batch.
+const SPLIT_CHANGED_MESSAGE = 'Los montos cambiaron. Recarga el lote e inténtalo de nuevo.'
+
+const toServerErrors = (
+  result: ChequeActionResult | ManualTransferActionResult,
+): Record<string, string[]> => {
+  switch (result.status) {
+    case 'validation':
+      return result.errors
+    case 'cheque_reference_taken':
+    case 'transfer_reference_taken': {
+      const message = result.msg ?? 'Esa referencia ya fue registrada.'
+      return result.concept ? { [referenceErrorKey(result.concept)]: [message] } : { form: [message] }
+    }
+    case 'concept_split_changed':
+      return { form: [SPLIT_CHANGED_MESSAGE] }
+    default:
+      return {}
+  }
+}
+
 const chequeTarget = ref<ChequeRow | null>(null)
 const markDialogOpen = ref(false)
 const revertDialogOpen = ref(false)
@@ -370,8 +395,8 @@ const onSubmitMark = async (payload: MarkChequePayload): Promise<void> => {
     markDialogOpen.value = false
   } else if (result.status === 'validation') {
     markServerErrors.value = result.errors
-  } else if (result.status === 'cheque_number_taken' && result.msg) {
-    markServerErrors.value = { cheque_number: [result.msg] }
+  } else {
+    markServerErrors.value = toServerErrors(result)
   }
 }
 
@@ -415,8 +440,8 @@ const onSubmitManualMark = async (payload: MarkManualTransferPayload): Promise<v
     manualMarkDialogOpen.value = false
   } else if (result.status === 'validation') {
     manualMarkServerErrors.value = result.errors
-  } else if (result.status === 'transfer_reference_taken' && result.msg) {
-    manualMarkServerErrors.value = { transfer_reference: [result.msg] }
+  } else {
+    manualMarkServerErrors.value = toServerErrors(result)
   }
 }
 

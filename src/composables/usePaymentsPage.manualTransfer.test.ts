@@ -10,6 +10,7 @@ import { useAlertStore } from '@/stores/alert'
 import type {
   ManualTransferPaymentData,
   ManualTransferRow,
+  MarkManualTransferPayload,
   PaymentBatchRow,
   PaymentBatchSummary,
 } from '@/interfaces/payment'
@@ -49,10 +50,15 @@ const paymentData: ManualTransferPaymentData = {
   status: 'PAID',
   workflow_status: 'CLOSED',
   paid_payment_method: 'MANUAL_TRANSFER',
-  transfer_reference: 'SPEI-1',
-  transfer_paid_at: '2026-10-20',
-  transfer_notes: null,
+  manual_payments: [
+    { concept: 'beca', method: 'MANUAL_TRANSFER', reference: 'SPEI-1', amount: '500.00', paid_at: '2026-10-20', notes: null },
+  ],
   locked_at: '2026-10-20T10:00:00Z',
+}
+
+const markPayload: MarkManualTransferPayload = {
+  references: { beca: 'SPEI-1' },
+  expected_amounts: { beca: '500.00', apoyo: '0.00' },
 }
 
 const manualSummary = { total: 1, ready: 1, paid: 0, blocking: 0, ready_amount: '500.00', paid_amount: '0.00', ready_beca_amount: '500.00', ready_apoyo_amount: '0.00', paid_beca_amount: '0.00', paid_apoyo_amount: '0.00' }
@@ -100,10 +106,10 @@ describe('usePaymentsPage manual transfers', () => {
     })
     const calls = fetchBatchSpy.mock.calls.length
 
-    const outcome = await result.markManualTransfer(7, { transfer_reference: 'SPEI-1' })
+    const outcome = await result.markManualTransfer(7, markPayload)
     await flushPromises()
 
-    expect(markSpy).toHaveBeenCalledWith(7, { transfer_reference: 'SPEI-1' })
+    expect(markSpy).toHaveBeenCalledWith(7, markPayload)
     expect(outcome.status).toBe('success')
     expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
     expect(useAlertStore().config.status).toBe('success')
@@ -119,7 +125,7 @@ describe('usePaymentsPage manual transfers', () => {
       })
       const calls = fetchBatchSpy.mock.calls.length
 
-      await result.markManualTransfer(7, { transfer_reference: 'X' })
+      await result.markManualTransfer(7, markPayload)
       await flushPromises()
 
       expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
@@ -132,11 +138,12 @@ describe('usePaymentsPage manual transfers', () => {
       vi.spyOn(store, 'markManualTransferPaid').mockResolvedValue({
         status: 'transfer_reference_taken',
         msg: 'Esa referencia de transferencia ya fue registrada.',
+        concept: 'apoyo',
       })
     })
     const calls = fetchBatchSpy.mock.calls.length
 
-    const outcome = await result.markManualTransfer(7, { transfer_reference: 'X' })
+    const outcome = await result.markManualTransfer(7, markPayload)
     await flushPromises()
 
     expect(outcome.status).toBe('transfer_reference_taken')
@@ -149,7 +156,7 @@ describe('usePaymentsPage manual transfers', () => {
       vi.spyOn(store, 'markManualTransferPaid').mockResolvedValue({ status: 'error', msg: null })
     })
 
-    await result.markManualTransfer(7, { transfer_reference: 'X' })
+    await result.markManualTransfer(7, markPayload)
     await flushPromises()
 
     expect(useAlertStore().config.status).toBe('error')

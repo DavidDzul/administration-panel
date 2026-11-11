@@ -566,10 +566,12 @@ describe('usePaymentsPage', () => {
     const chequeFields = {
       payment_method: 'CHEQUE' as const,
       paid_payment_method: null,
-      cheque_number: null,
-      cheque_delivered_at: null,
-      cheque_notes: null,
+      manual_payments: [],
       cheque_beneficiary: null,
+    }
+    const markPayload = {
+      references: { beca: '000123' },
+      expected_amounts: { beca: '500.00', apoyo: '0.00' },
     }
     const chequeSummary = { total: 1, ready: 1, paid: 0, blocking: 1, ready_amount: '500.00', paid_amount: '0.00', ready_beca_amount: '500.00', ready_apoyo_amount: '0.00', paid_beca_amount: '0.00', paid_apoyo_amount: '0.00' }
     const paymentData = {
@@ -577,9 +579,9 @@ describe('usePaymentsPage', () => {
       status: 'PAID',
       workflow_status: 'CLOSED',
       paid_payment_method: 'CHEQUE' as const,
-      cheque_number: '000123',
-      cheque_delivered_at: '2026-10-20',
-      cheque_notes: null,
+      manual_payments: [
+        { concept: 'beca' as const, method: 'CHEQUE' as const, reference: '000123', amount: '500.00', paid_at: '2026-10-20', notes: null },
+      ],
       locked_at: '2026-10-20T10:00:00Z',
     }
 
@@ -626,10 +628,10 @@ describe('usePaymentsPage', () => {
       })
       const calls = fetchBatchSpy.mock.calls.length
 
-      const outcome = await result.markCheque(7, { cheque_number: '000123' })
+      const outcome = await result.markCheque(7, markPayload)
       await flushPromises()
 
-      expect(markSpy).toHaveBeenCalledWith(7, { cheque_number: '000123' })
+      expect(markSpy).toHaveBeenCalledWith(7, markPayload)
       expect(outcome.status).toBe('success')
       expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
       expect(useAlertStore().config.status).toBe('success')
@@ -643,7 +645,7 @@ describe('usePaymentsPage', () => {
         })
         const calls = fetchBatchSpy.mock.calls.length
 
-        await result.markCheque(7, { cheque_number: '1' })
+        await result.markCheque(7, markPayload)
         await flushPromises()
 
         expect(fetchBatchSpy.mock.calls.length).toBe(calls + 1)
@@ -651,19 +653,33 @@ describe('usePaymentsPage', () => {
       },
     )
 
-    it('markCheque alerts but does not reload on cheque_number_taken', async () => {
+    it('markCheque alerts but does not reload on concept_split_changed', async () => {
+      const { fetchBatchSpy, result } = await setupLoaded((store) => {
+        vi.spyOn(store, 'markChequePaid').mockResolvedValue({ status: 'concept_split_changed', msg: 'Cambió el desglose' })
+      })
+      const calls = fetchBatchSpy.mock.calls.length
+
+      const outcome = await result.markCheque(7, markPayload)
+      await flushPromises()
+
+      expect(outcome.status).toBe('concept_split_changed')
+      expect(fetchBatchSpy.mock.calls.length).toBe(calls)
+    })
+
+    it('markCheque alerts but does not reload on cheque_reference_taken', async () => {
       const { fetchBatchSpy, result } = await setupLoaded((store) => {
         vi.spyOn(store, 'markChequePaid').mockResolvedValue({
-          status: 'cheque_number_taken',
+          status: 'cheque_reference_taken',
           msg: 'Ese número de cheque ya fue registrado.',
+          concept: 'beca',
         })
       })
       const calls = fetchBatchSpy.mock.calls.length
 
-      const outcome = await result.markCheque(7, { cheque_number: '1' })
+      const outcome = await result.markCheque(7, markPayload)
       await flushPromises()
 
-      expect(outcome.status).toBe('cheque_number_taken')
+      expect(outcome.status).toBe('cheque_reference_taken')
       expect(fetchBatchSpy.mock.calls.length).toBe(calls)
       expect(useAlertStore().config.title).toBe('Ese número de cheque ya fue registrado.')
     })
@@ -673,7 +689,7 @@ describe('usePaymentsPage', () => {
         vi.spyOn(store, 'markChequePaid').mockResolvedValue({ status: 'error', msg: null })
       })
 
-      await result.markCheque(7, { cheque_number: '1' })
+      await result.markCheque(7, markPayload)
       await flushPromises()
 
       expect(useAlertStore().config.status).toBe('error')
