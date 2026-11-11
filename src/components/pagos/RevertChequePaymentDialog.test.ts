@@ -24,8 +24,10 @@ const body = () => new DOMWrapper(document.body)
 const row = {
   refrend_id: 9,
   snapshot_name: 'Ada Lovelace',
-  cheque_number: 'CH-77',
-  cheque_delivered_at: '2026-10-05',
+  manual_payments: [
+    { concept: 'beca', method: 'CHEQUE', reference: 'CH-77', amount: '800.00', paid_at: '2026-10-05', notes: null },
+    { concept: 'apoyo', method: 'CHEQUE', reference: 'CH-78', amount: '200.00', paid_at: '2026-10-05', notes: null },
+  ],
 } as ChequeRow
 
 const mountDialog = (props: Record<string, unknown> = {}) =>
@@ -52,9 +54,13 @@ describe('RevertChequePaymentDialog', () => {
     const text = body().text()
     expect(text).toContain('Revertir pago con cheque')
     expect(text).toContain('Ada Lovelace')
-    expect(text).toContain('CH-77')
-    expect(text).toContain('05/10/2026')
+    expect(text).toContain('Cheque Beca: CH-77 · Apoyo: CH-78 · 05/10/2026')
     expect(text).toContain('El refrendo volverá a quedar pendiente de pago.')
+  })
+
+  it('explains that both concepts are reverted together', () => {
+    mountDialog()
+    expect(body().text()).toContain('Se revertirán juntos los pagos de Beca y Apoyo.')
   })
 
   it('does not submit with an empty reason', async () => {
@@ -105,14 +111,16 @@ describe('RevertChequePaymentDialog', () => {
       row: {
         refrend_id: 9,
         snapshot_name: 'Ada Lovelace',
-        transfer_reference: 'SPEI-77',
-        transfer_paid_at: '2026-10-05',
+        manual_payments: [
+          { concept: 'beca', method: 'MANUAL_TRANSFER', reference: 'SPEI-77', amount: '800.00', paid_at: '2026-10-05', notes: null },
+          { concept: 'apoyo', method: 'MANUAL_TRANSFER', reference: 'SPEI-78', amount: '200.00', paid_at: '2026-10-05', notes: null },
+        ],
       } as ManualTransferRow,
     })
     const text = body().text()
     expect(text).toContain('Revertir pago por transferencia')
-    expect(text).toContain('Folio SPEI-77')
-    expect(text).toContain('05/10/2026')
+    expect(text).toContain('Folio Beca: SPEI-77 · Apoyo: SPEI-78 · 05/10/2026')
+    expect(text).toContain('Se revertirán juntos los pagos de Beca y Apoyo.')
     expect(text).not.toContain('Cheque CH-77')
   })
 

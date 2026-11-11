@@ -34,9 +34,7 @@ const buildRow = (overrides: Partial<ManualTransferRow> = {}): ManualTransferRow
     status: 'DRAFT',
     payment_method: 'MANUAL_TRANSFER',
     paid_payment_method: null,
-    transfer_reference: null,
-    transfer_paid_at: null,
-    transfer_notes: null,
+    manual_payments: [],
     ...overrides,
   }) as ManualTransferRow
 
@@ -66,9 +64,10 @@ const paidRow = buildRow({
   status: 'PAID',
   is_payable: false,
   paid_payment_method: 'MANUAL_TRANSFER',
-  transfer_reference: 'SPEI-77',
-  transfer_paid_at: '2026-10-05',
-  transfer_notes: 'Confirmado',
+  manual_payments: [
+    { concept: 'beca', method: 'MANUAL_TRANSFER', reference: 'SPEI-77', amount: '700.00', paid_at: '2026-10-05', notes: 'Confirmado' },
+    { concept: 'apoyo', method: 'MANUAL_TRANSFER', reference: 'SPEI-78', amount: '300.00', paid_at: '2026-10-05', notes: null },
+  ],
 })
 const blockedRow = buildRow({
   refrend_id: 3,
@@ -114,8 +113,7 @@ describe('ManualTransferPaymentSection', () => {
     expect(text).toContain('Banorte')
     expect(text).toContain('072180001234567895')
     expect(text).toContain('Pagado (transferencia)')
-    expect(wrapper.find('[data-testid="transfer-info"]').text()).toContain('SPEI-77')
-    expect(wrapper.find('[data-testid="transfer-info"]').text()).toContain('05/10/2026')
+    expect(wrapper.find('[data-testid="transfer-info"]').text()).toBe('Beca: SPEI-77 · Apoyo: SPEI-78 · 05/10/2026')
   })
 
   it('shows the blocking reason of a blocked row', () => {

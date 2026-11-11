@@ -1191,9 +1191,7 @@ describe('PaymentBatchTable cheque mode', () => {
     buildRow({
       payment_method: 'CHEQUE',
       paid_payment_method: null,
-      cheque_number: null,
-      cheque_delivered_at: null,
-      cheque_notes: null,
+      manual_payments: [],
       cheque_beneficiary: null,
       ...overrides,
     } as Partial<PaymentBatchRow>)
@@ -1204,9 +1202,10 @@ describe('PaymentBatchTable cheque mode', () => {
     status: 'PAID',
     is_payable: false,
     paid_payment_method: 'CHEQUE',
-    cheque_number: 'CH-77',
-    cheque_delivered_at: '2026-10-05',
-    cheque_notes: 'Entregado a la madre',
+    manual_payments: [
+      { concept: 'beca', method: 'CHEQUE', reference: 'CH-77', amount: '800.00', paid_at: '2026-10-05', notes: 'Entregado a la madre' },
+      { concept: 'apoyo', method: 'CHEQUE', reference: 'CH-78', amount: '200.00', paid_at: '2026-10-05', notes: 'Entregado a la madre' },
+    ],
     cheque_beneficiary: 'María Hopper',
   })
   const blocked = chequeRow({
@@ -1269,10 +1268,22 @@ describe('PaymentBatchTable cheque mode', () => {
     expect(text).toContain('Faltan datos de pago')
   })
 
-  it('shows cheque number and DD/MM/YYYY date for paid rows', () => {
-    const text = mountCheque([paid]).text()
-    expect(text).toContain('CH-77')
-    expect(text).toContain('05/10/2026')
+  it('shows the Beca then Apoyo cheque numbers and DD/MM/YYYY date for paid rows', () => {
+    const info = mountCheque([paid]).find('[data-testid="cheque-info"]').text()
+    expect(info).toBe('Beca: CH-77 · Apoyo: CH-78 · 05/10/2026')
+  })
+
+  it('shows only the Beca reference when the Apoyo concept had no amount', () => {
+    const single = chequeRow({
+      refrend_id: 4,
+      status: 'PAID',
+      is_payable: false,
+      manual_payments: [
+        { concept: 'beca', method: 'CHEQUE', reference: 'CH-90', amount: '1000.00', paid_at: '2026-10-05', notes: null },
+      ],
+    })
+    const info = mountCheque([single]).find('[data-testid="cheque-info"]').text()
+    expect(info).toBe('Beca: CH-90 · 05/10/2026')
   })
 
   it('shows Marcar como pagado only for payable unpaid rows and emits mark(row)', async () => {

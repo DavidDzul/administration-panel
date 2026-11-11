@@ -33,9 +33,7 @@ const buildRow = (overrides: Partial<ChequeRow> = {}): ChequeRow =>
     status: 'DRAFT',
     payment_method: 'CHEQUE',
     paid_payment_method: null,
-    cheque_number: null,
-    cheque_delivered_at: null,
-    cheque_notes: null,
+    manual_payments: [],
     cheque_beneficiary: null,
     ...overrides,
   }) as ChequeRow
@@ -65,9 +63,10 @@ const paidRow = buildRow({
   status: 'PAID',
   is_payable: false,
   paid_payment_method: 'CHEQUE',
-  cheque_number: 'CH-77',
-  cheque_delivered_at: '2026-10-05',
-  cheque_notes: 'Entregado a la madre',
+  manual_payments: [
+    { concept: 'beca', method: 'CHEQUE', reference: 'CH-77', amount: '700.00', paid_at: '2026-10-05', notes: 'Entregado a la madre' },
+    { concept: 'apoyo', method: 'CHEQUE', reference: 'CH-78', amount: '300.00', paid_at: '2026-10-05', notes: null },
+  ],
   cheque_beneficiary: 'María Hopper',
 })
 const blockedRow = buildRow({

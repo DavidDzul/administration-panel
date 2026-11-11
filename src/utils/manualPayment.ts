@@ -1,3 +1,4 @@
+import { formatChequeDate } from '@/utils/chequeFormat'
 import type { ConceptSplit, ManualPayment, ManualPaymentConcept } from '@/interfaces/payment'
 
 // Fixed display order of the two payment accounts (Beca first, then Apoyo).
@@ -15,6 +16,13 @@ export const activeConcepts = (split: ConceptSplit | undefined): ManualPaymentCo
 // Server field-error key for one concept's reference (Laravel dotted path).
 export const referenceErrorKey = (concept: ManualPaymentConcept): string => `references.${concept}`
 
-// "REF-1 / REF-2" (Beca then Apoyo) for table cells and dialogs.
-export const joinReferences = (payments: ManualPayment[] | undefined): string =>
-  (payments ?? []).map((payment) => payment.reference).join(' / ')
+// "Beca: REF-1 · Apoyo: REF-2 · DD/MM/YYYY" for table cells and dialogs. The
+// API orders manual_payments Beca then Apoyo; both share one paid_at.
+export const manualPaymentInfo = (payments: ManualPayment[] | undefined): string => {
+  if (!payments || payments.length === 0) return ''
+  const references = payments.map((payment) => `${CONCEPT_LABEL[payment.concept]}: ${payment.reference}`)
+  return [...references, formatChequeDate(payments[0].paid_at)].join(' · ')
+}
+
+export const manualPaymentNotes = (payments: ManualPayment[] | undefined): string | null =>
+  (payments ?? []).find((payment) => payment.notes)?.notes ?? null

@@ -305,7 +305,7 @@
 
     <template #[`item.cheque`]="{ item }">
       <template v-if="isChequePaid(item)">
-        <v-tooltip v-if="asCheque(item).cheque_notes" :text="asCheque(item).cheque_notes ?? ''">
+        <v-tooltip v-if="manualPaymentNotes(asCheque(item).manual_payments)" :text="manualPaymentNotes(asCheque(item).manual_payments) ?? ''">
           <template #activator="{ props: tooltipProps }">
             <span v-bind="tooltipProps" data-testid="cheque-info">{{ chequeInfo(item) }}</span>
           </template>
@@ -317,7 +317,7 @@
 
     <template #[`item.transfer`]="{ item }">
       <template v-if="isManualTransferPaid(item)">
-        <v-tooltip v-if="asManual(item).transfer_notes" :text="asManual(item).transfer_notes ?? ''">
+        <v-tooltip v-if="manualPaymentNotes(asManual(item).manual_payments)" :text="manualPaymentNotes(asManual(item).manual_payments) ?? ''">
           <template #activator="{ props: tooltipProps }">
             <span v-bind="tooltipProps" data-testid="transfer-info">{{ transferInfo(item) }}</span>
           </template>
@@ -400,7 +400,7 @@
 // Estado/Motivo end-of-row indexing used throughout this file's tests
 // stays unaffected.
 import { computed } from 'vue'
-import { formatChequeDate } from '@/utils/chequeFormat'
+import { manualPaymentInfo, manualPaymentNotes } from '@/utils/manualPayment'
 import { maskAccountNumber } from '@/utils/maskAccountNumber'
 import { resolutionMeta } from '@/utils/resolutionMeta'
 import {
@@ -538,15 +538,9 @@ const isManualTransferPaid = (row: PaymentBatchRow): boolean =>
 // the "Motivo" column free of the (irrelevant) ALREADY_PAID reason.
 const isManualPaid = (row: PaymentBatchRow): boolean => isChequePaid(row) || isManualTransferPaid(row)
 const asManual = (row: PaymentBatchRow): ManualTransferRow => row as ManualTransferRow
-const transferInfo = (row: PaymentBatchRow): string => {
-  const transfer = asManual(row)
-  return `${transfer.transfer_reference} · ${formatChequeDate(transfer.transfer_paid_at)}`
-}
+const transferInfo = (row: PaymentBatchRow): string => manualPaymentInfo(asManual(row).manual_payments)
 const manualNoun = computed<string>(() => (props.mode === 'manual_transfer' ? 'por transferencia' : 'con cheque'))
-const chequeInfo = (row: PaymentBatchRow): string => {
-  const cheque = asCheque(row)
-  return `${cheque.cheque_number} · ${formatChequeDate(cheque.cheque_delivered_at)}`
-}
+const chequeInfo = (row: PaymentBatchRow): string => manualPaymentInfo(asCheque(row).manual_payments)
 
 // Rows grouped by generación (spec "Rows grouped by generación with paid/
 // unpaid header", design D1/D3) — `toGroupedItems` maps each row to a

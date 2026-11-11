@@ -9,7 +9,7 @@
             <div class="text-body-2">{{ detailsLine }}</div>
           </div>
           <v-alert type="warning" variant="tonal" density="compact" class="mb-4">
-            El refrendo volverá a quedar pendiente de pago.
+            El refrendo volverá a quedar pendiente de pago. Se revertirán juntos los pagos de Beca y Apoyo.
           </v-alert>
           <v-textarea v-model="reason" label="Motivo *" rows="3" counter="500" :rules="[reasonRule]"></v-textarea>
         </v-card-text>
@@ -28,8 +28,9 @@
 // emits it; PaymentsView calls revertCheque and decides when to close.
 // `kind` (sdd/catalogo-bancos) switches the wording for other-bank transfers.
 import { computed, ref, watch } from 'vue'
-import { formatChequeDate } from '@/utils/chequeFormat'
+import { manualPaymentInfo } from '@/utils/manualPayment'
 import type { ChequeRow, ManualTransferRow } from '@/interfaces/payment'
+
 
 const REASON_MIN = 10
 const REASON_MAX = 500
@@ -50,12 +51,8 @@ const title = computed<string>(() =>
 const detailsLine = computed<string>(() => {
   const row = props.row
   if (!row) return ''
-  if (props.kind === 'manual_transfer') {
-    const transfer = row as ManualTransferRow
-    return `Folio ${transfer.transfer_reference} · ${formatChequeDate(transfer.transfer_paid_at)}`
-  }
-  const cheque = row as ChequeRow
-  return `Cheque ${cheque.cheque_number} · ${formatChequeDate(cheque.cheque_delivered_at)}`
+  const info = manualPaymentInfo(row.manual_payments)
+  return props.kind === 'manual_transfer' ? `Folio ${info}` : `Cheque ${info}`
 })
 
 interface Emits {
