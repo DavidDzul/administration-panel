@@ -9,28 +9,37 @@
           <div>Monto: {{ formatAmount(row.total_to_pay) }}</div>
         </v-card-subtitle>
         <v-card-text class="pt-4">
+          <v-alert
+            v-if="formErrors.length > 0"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+            data-testid="cheque-dialog-form-error"
+          >
+            {{ formErrors.join(' ') }}
+          </v-alert>
+          <ConceptReferenceFields
+            v-model="form.references"
+            :split="row?.concept_split"
+            reference-label="Número de cheque"
+            :server-errors="serverErrors"
+          />
           <v-text-field
-            v-model="form.cheque_number"
-            label="Número de cheque *"
-            :rules="[requiredRule, numberMaxRule]"
-            :error-messages="fieldErrors('cheque_number')"
-            @update:model-value="clearServerError('cheque_number')"
-          ></v-text-field>
-          <v-text-field
-            v-model="form.cheque_delivered_at"
+            v-model="form.paid_at"
             label="Fecha de entrega"
             type="date"
             :max="today"
             :rules="[notFutureRule]"
-            :error-messages="fieldErrors('cheque_delivered_at')"
+            :error-messages="fieldErrors('paid_at')"
           ></v-text-field>
           <v-textarea
-            v-model="form.cheque_notes"
+            v-model="form.notes"
             label="Notas"
             rows="2"
             counter="500"
             :rules="[notesMaxRule]"
-            :error-messages="fieldErrors('cheque_notes')"
+            :error-messages="fieldErrors('notes')"
           ></v-textarea>
         </v-card-text>
         <v-card-actions>
@@ -45,14 +54,18 @@
 
 <script setup lang="ts">
 // Presentational (pago-cheque PR7): validates input and emits the payload.
+// One modal captures BOTH references (Beca / Apoyo) at once; the amounts sent
+// as `expected_amounts` are the row's concept_split at open time.
 // PaymentsView calls the composable and feeds `serverErrors` back so the
-// dialog stays open with inline errors (validation / cheque_number_taken).
-import { reactive, ref, watch } from 'vue'
+// dialog stays open with inline errors (`references.{concept}` / validation /
+// reference taken / split changed under `form`).
+import { computed, reactive, ref, watch } from 'vue'
+import ConceptReferenceFields from '@/components/pagos/ConceptReferenceFields.vue'
 import { formatAmount } from '@/utils/paymentBreakdownMeta'
 import { todayYmd } from '@/utils/chequeFormat'
-import type { ChequeRow, MarkChequePayload } from '@/interfaces/payment'
+import { activeConcepts } from '@/utils/manualPayment'
+import type { ChequeRow, ManualPaymentConcept, MarkChequePayload } from '@/interfaces/payment'
 
-const CHEQUE_NUMBER_MAX = 50
 const NOTES_MAX = 500
 
 interface Props {
@@ -76,13 +89,17 @@ const emit = defineEmits<Emits>()
 
 const today = todayYmd()
 const formRef = ref<{ validate: () => Promise<{ valid: boolean }> } | null>(null)
-const form = reactive({ cheque_number: '', cheque_delivered_at: today, cheque_notes: '' })
+const form = reactive<{ references: Partial<Record<ManualPaymentConcept, string>>; paid_at: string; notes: string }>({
+  references: {},
+  paid_at: today,
+  notes: '',
+})
 const dismissedErrors = ref<Set<string>>(new Set())
 
 const resetForm = (): void => {
-  form.cheque_number = ''
-  form.cheque_delivered_at = todayYmd()
-  form.cheque_notes = ''
+  form.references = {}
+  form.paid_at = todayYmd()
+  form.notes = ''
   dismissedErrors.value = new Set()
 }
 
@@ -104,13 +121,8 @@ watch(
 const fieldErrors = (field: string): string[] =>
   dismissedErrors.value.has(field) ? [] : (props.serverErrors[field] ?? [])
 
-const clearServerError = (field: string): void => {
-  dismissedErrors.value = new Set(dismissedErrors.value).add(field)
-}
+const formErrors = computed<string[]>(() => props.serverErrors.form ?? [])
 
-const requiredRule = (value: string): boolean | string => (value ?? '').trim().length > 0 || 'Campo requerido'
-const numberMaxRule = (value: string): boolean | string =>
-  (value ?? '').trim().length <= CHEQUE_NUMBER_MAX || `Máximo ${CHEQUE_NUMBER_MAX} caracteres`
 const notesMaxRule = (value: string): boolean | string =>
   (value ?? '').length <= NOTES_MAX || `Máximo ${NOTES_MAX} caracteres`
 const notFutureRule = (value: string): boolean | string =>
@@ -118,12 +130,17 @@ const notFutureRule = (value: string): boolean | string =>
 
 const onSubmit = async (): Promise<void> => {
   const result = await formRef.value?.validate()
-  if (!result?.valid) return
-  const notes = form.cheque_notes.trim()
+  if (!result?.valid || !props.row?.concept_split) return
+  const references: Partial<Record<ManualPaymentConcept, string>> = {}
+  for (const concept of activeConcepts(props.row.concept_split)) {
+    references[concept] = (form.references[concept] ?? '').trim()
+  }
+  const notes = form.notes.trim()
   emit('submit', {
-    cheque_number: form.cheque_number.trim(),
-    cheque_delivered_at: form.cheque_delivered_at || undefined,
-    cheque_notes: notes.length > 0 ? notes : undefined,
+    references,
+    expected_amounts: { ...props.row.concept_split },
+    paid_at: form.paid_at || undefined,
+    notes: notes.length > 0 ? notes : undefined,
   })
 }
 </script>

@@ -10,28 +10,37 @@
           <div>Monto: {{ formatAmount(row.total_to_pay) }}</div>
         </v-card-subtitle>
         <v-card-text class="pt-4">
+          <v-alert
+            v-if="formErrors.length > 0"
+            type="error"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+            data-testid="manual-transfer-dialog-form-error"
+          >
+            {{ formErrors.join(' ') }}
+          </v-alert>
+          <ConceptReferenceFields
+            v-model="form.references"
+            :split="row?.concept_split"
+            reference-label="Folio / referencia"
+            :server-errors="serverErrors"
+          />
           <v-text-field
-            v-model="form.transfer_reference"
-            label="Folio / referencia *"
-            :rules="[requiredRule, referenceMaxRule]"
-            :error-messages="fieldErrors('transfer_reference')"
-            @update:model-value="clearServerError('transfer_reference')"
-          ></v-text-field>
-          <v-text-field
-            v-model="form.transfer_paid_at"
+            v-model="form.paid_at"
             label="Fecha de pago"
             type="date"
             :max="today"
             :rules="[notFutureRule]"
-            :error-messages="fieldErrors('transfer_paid_at')"
+            :error-messages="fieldErrors('paid_at')"
           ></v-text-field>
           <v-textarea
-            v-model="form.transfer_notes"
+            v-model="form.notes"
             label="Notas"
             rows="2"
             counter="500"
             :rules="[notesMaxRule]"
-            :error-messages="fieldErrors('transfer_notes')"
+            :error-messages="fieldErrors('notes')"
           ></v-textarea>
         </v-card-text>
         <v-card-actions>
@@ -46,15 +55,17 @@
 
 <script setup lang="ts">
 // Presentational (sdd/catalogo-bancos R7), mirror of ChequePaymentDialog:
-// validates input and emits the payload. PaymentsView calls the composable
-// and feeds `serverErrors` back so the dialog stays open with inline errors
-// (validation / transfer_reference_taken). The reference is REQUIRED.
-import { reactive, ref, watch } from 'vue'
+// one modal captures BOTH references (Beca / Apoyo) — each REQUIRED for a
+// concept with amount > 0 — and emits the payload with the row's frozen
+// `expected_amounts`. PaymentsView calls the composable and feeds
+// `serverErrors` back (`references.{concept}` / validation / `form`).
+import { computed, reactive, ref, watch } from 'vue'
+import ConceptReferenceFields from '@/components/pagos/ConceptReferenceFields.vue'
 import { formatAmount } from '@/utils/paymentBreakdownMeta'
 import { todayYmd } from '@/utils/chequeFormat'
-import type { ManualTransferRow, MarkManualTransferPayload } from '@/interfaces/payment'
+import { activeConcepts } from '@/utils/manualPayment'
+import type { ManualPaymentConcept, ManualTransferRow, MarkManualTransferPayload } from '@/interfaces/payment'
 
-const REFERENCE_MAX = 50
 const NOTES_MAX = 500
 
 interface Props {
@@ -78,13 +89,17 @@ const emit = defineEmits<Emits>()
 
 const today = todayYmd()
 const formRef = ref<{ validate: () => Promise<{ valid: boolean }> } | null>(null)
-const form = reactive({ transfer_reference: '', transfer_paid_at: today, transfer_notes: '' })
+const form = reactive<{ references: Partial<Record<ManualPaymentConcept, string>>; paid_at: string; notes: string }>({
+  references: {},
+  paid_at: today,
+  notes: '',
+})
 const dismissedErrors = ref<Set<string>>(new Set())
 
 const resetForm = (): void => {
-  form.transfer_reference = ''
-  form.transfer_paid_at = todayYmd()
-  form.transfer_notes = ''
+  form.references = {}
+  form.paid_at = todayYmd()
+  form.notes = ''
   dismissedErrors.value = new Set()
 }
 
@@ -106,14 +121,8 @@ watch(
 const fieldErrors = (field: string): string[] =>
   dismissedErrors.value.has(field) ? [] : (props.serverErrors[field] ?? [])
 
-const clearServerError = (field: string): void => {
-  dismissedErrors.value = new Set(dismissedErrors.value).add(field)
-}
+const formErrors = computed<string[]>(() => props.serverErrors.form ?? [])
 
-const requiredRule = (value: string): boolean | string =>
-  (value ?? '').trim().length > 0 || 'Captura el folio o la referencia de la transferencia.'
-const referenceMaxRule = (value: string): boolean | string =>
-  (value ?? '').trim().length <= REFERENCE_MAX || `Máximo ${REFERENCE_MAX} caracteres`
 const notesMaxRule = (value: string): boolean | string =>
   (value ?? '').length <= NOTES_MAX || `Máximo ${NOTES_MAX} caracteres`
 const notFutureRule = (value: string): boolean | string =>
@@ -121,12 +130,17 @@ const notFutureRule = (value: string): boolean | string =>
 
 const onSubmit = async (): Promise<void> => {
   const result = await formRef.value?.validate()
-  if (!result?.valid) return
-  const notes = form.transfer_notes.trim()
+  if (!result?.valid || !props.row?.concept_split) return
+  const references: Partial<Record<ManualPaymentConcept, string>> = {}
+  for (const concept of activeConcepts(props.row.concept_split)) {
+    references[concept] = (form.references[concept] ?? '').trim()
+  }
+  const notes = form.notes.trim()
   emit('submit', {
-    transfer_reference: form.transfer_reference.trim(),
-    transfer_paid_at: form.transfer_paid_at || undefined,
-    transfer_notes: notes.length > 0 ? notes : undefined,
+    references,
+    expected_amounts: { ...props.row.concept_split },
+    paid_at: form.paid_at || undefined,
+    notes: notes.length > 0 ? notes : undefined,
   })
 }
 </script>

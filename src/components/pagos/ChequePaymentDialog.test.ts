@@ -24,7 +24,8 @@ const body = () => new DOMWrapper(document.body)
 const row = {
   refrend_id: 9,
   snapshot_name: 'Ada Lovelace',
-  total_to_pay: '1500.00',
+  total_to_pay: '1000.00',
+  concept_split: { beca: '800.00', apoyo: '200.00' },
   cheque_beneficiary: null,
 } as ChequeRow
 
@@ -42,6 +43,8 @@ const mountDialog = (props: Record<string, unknown> = {}) =>
 
 const field = (wrapper: ReturnType<typeof mountDialog>, label: string) =>
   wrapper.findAllComponents(VTextField).find((f) => (f.props('label') as string).startsWith(label))
+const concept = (wrapper: ReturnType<typeof mountDialog>, name: 'Beca' | 'Apoyo') =>
+  wrapper.findAllComponents(VTextField).find((f) => (f.props('label') as string).includes(`· ${name} (`))
 const notes = (wrapper: ReturnType<typeof mountDialog>) => wrapper.findComponent(VTextarea)
 
 const clickButton = async (text: string) => {
@@ -63,12 +66,24 @@ describe('ChequePaymentDialog', () => {
     expect(text).toContain('Registrar pago con cheque')
     expect(text).toContain('Ada Lovelace')
     expect(text).toContain('A nombre de: Ada Lovelace')
-    expect(text).toContain('$1,500.00')
+    expect(text).toContain('$1,000.00')
   })
 
   it('shows the beneficiary when present', () => {
     mountDialog({ row: { ...row, cheque_beneficiary: 'María Lovelace' } })
     expect(body().text()).toContain('A nombre de: María Lovelace')
+  })
+
+  it('shows one cheque number field per concept with amount', () => {
+    const wrapper = mountDialog()
+    expect(concept(wrapper, 'Beca')?.props('label')).toContain('$800.00')
+    expect(concept(wrapper, 'Apoyo')?.props('label')).toContain('$200.00')
+  })
+
+  it('shows no field for a zero concept', () => {
+    const wrapper = mountDialog({ row: { ...row, concept_split: { beca: '1000.00', apoyo: '0.00' } } })
+    expect(concept(wrapper, 'Beca')).toBeDefined()
+    expect(concept(wrapper, 'Apoyo')).toBeUndefined()
   })
 
   it('defaults the delivery date to today with max today', () => {
@@ -78,54 +93,71 @@ describe('ChequePaymentDialog', () => {
     expect(body().find('input[type="date"]').attributes('max')).toBe(todayYmd())
   })
 
-  it('does not submit when the cheque number is empty', async () => {
+  it('does not submit when a cheque number is empty', async () => {
     const wrapper = mountDialog()
-    await flushPromises()
+    await concept(wrapper, 'Beca')?.setValue('CH-1')
     await clickButton('Registrar pago')
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
-  it('rejects a cheque number longer than 50 chars', async () => {
+  it('does not submit when beca and apoyo numbers are equal', async () => {
     const wrapper = mountDialog()
-    await field(wrapper, 'Número de cheque')?.setValue('x'.repeat(51))
+    await concept(wrapper, 'Beca')?.setValue('CH-1')
+    await concept(wrapper, 'Apoyo')?.setValue(' ch-1 ')
     await clickButton('Registrar pago')
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
   it('rejects a future delivery date', async () => {
     const wrapper = mountDialog()
-    await field(wrapper, 'Número de cheque')?.setValue('CH-1')
+    await concept(wrapper, 'Beca')?.setValue('CH-1')
+    await concept(wrapper, 'Apoyo')?.setValue('CH-2')
     await field(wrapper, 'Fecha de entrega')?.setValue('2999-01-01')
     await clickButton('Registrar pago')
     expect(wrapper.emitted('submit')).toBeUndefined()
   })
 
-  it('emits submit with the trimmed payload', async () => {
+  it('emits both references and the frozen expected amounts in one payload', async () => {
     const wrapper = mountDialog()
-    await field(wrapper, 'Número de cheque')?.setValue(' CH-100 ')
+    await concept(wrapper, 'Beca')?.setValue(' CH-100 ')
+    await concept(wrapper, 'Apoyo')?.setValue('CH-101')
     await notes(wrapper)?.setValue('Entregado en ventanilla')
     await clickButton('Registrar pago')
     expect(wrapper.emitted('submit')?.[0]).toEqual([
-      { cheque_number: 'CH-100', cheque_delivered_at: todayYmd(), cheque_notes: 'Entregado en ventanilla' },
+      {
+        references: { beca: 'CH-100', apoyo: 'CH-101' },
+        expected_amounts: { beca: '800.00', apoyo: '200.00' },
+        paid_at: todayYmd(),
+        notes: 'Entregado en ventanilla',
+      },
     ])
   })
 
-  it('omits empty notes from the payload', async () => {
-    const wrapper = mountDialog()
-    await field(wrapper, 'Número de cheque')?.setValue('CH-2')
+  it('sends only the concept with amount and omits empty notes', async () => {
+    const wrapper = mountDialog({ row: { ...row, concept_split: { beca: '1000.00', apoyo: '0.00' } } })
+    await concept(wrapper, 'Beca')?.setValue('CH-2')
     await clickButton('Registrar pago')
     const payload = wrapper.emitted('submit')?.[0]?.[0] as Record<string, unknown>
-    expect(payload.cheque_number).toBe('CH-2')
-    expect(payload.cheque_notes).toBeUndefined()
+    expect(payload.references).toEqual({ beca: 'CH-2' })
+    expect(payload.expected_amounts).toEqual({ beca: '1000.00', apoyo: '0.00' })
+    expect(payload.notes).toBeUndefined()
   })
 
   it('shows server field errors inline under the matching fields', () => {
-    mountDialog({
-      serverErrors: { cheque_number: ['Ese número de cheque ya fue registrado.'], cheque_notes: ['Notas inválidas'] },
+    const wrapper = mountDialog({
+      serverErrors: {
+        'references.beca': ['Ese número de cheque ya fue registrado.'],
+        notes: ['Notas inválidas'],
+      },
     })
     const text = body().text()
-    expect(text).toContain('Ese número de cheque ya fue registrado.')
+    expect(concept(wrapper, 'Beca')?.props('errorMessages')).toEqual(['Ese número de cheque ya fue registrado.'])
     expect(text).toContain('Notas inválidas')
+  })
+
+  it('shows a form-level server error (e.g. split changed) in an alert', () => {
+    mountDialog({ serverErrors: { form: ['Los montos cambiaron. Recarga el lote e inténtalo de nuevo.'] } })
+    expect(body().find('[data-testid="cheque-dialog-form-error"]').text()).toContain('Recarga el lote')
   })
 
   it('emits update:modelValue false on Cancelar', async () => {
@@ -136,11 +168,11 @@ describe('ChequePaymentDialog', () => {
 
   it('resets the form when reopened', async () => {
     const wrapper = mountDialog()
-    await field(wrapper, 'Número de cheque')?.setValue('CH-5')
+    await concept(wrapper, 'Beca')?.setValue('CH-5')
     await wrapper.setProps({ modelValue: false })
     await wrapper.setProps({ modelValue: true })
     await flushPromises()
-    expect(field(wrapper, 'Número de cheque')?.props('modelValue')).toBe('')
+    expect(concept(wrapper, 'Beca')?.props('modelValue')).toBe('')
   })
 
   it('shows the loading state on the submit button while saving', () => {
