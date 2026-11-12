@@ -32,14 +32,30 @@ const totals: ConceptTotals = {
 const mountCard = (props: { totals?: ConceptTotals | null }) =>
   mount(ConceptTotalsCard, { props, global: { plugins: [vuetify] } })
 
+const mountExpanded = async (props: { totals?: ConceptTotals | null }) => {
+  const wrapper = mountCard(props)
+  await wrapper.find('[data-testid="concept-totals"] .v-expansion-panel-title').trigger('click')
+  return wrapper
+}
+
 describe('ConceptTotalsCard', () => {
   it('renders nothing without totals', () => {
     const wrapper = mountCard({ totals: null })
     expect(wrapper.find('[data-testid="concept-totals"]').exists()).toBe(false)
   })
 
-  it('shows overall Beca and Apoyo for ready and paid, kept apart', () => {
+  it('is a borderless expansion panel collapsed by default', () => {
     const wrapper = mountCard({ totals })
+    const root = wrapper.find('[data-testid="concept-totals"]')
+
+    expect(root.classes()).toContain('v-expansion-panels')
+    expect(root.find('.v-card--variant-outlined').exists()).toBe(false)
+    expect(root.text()).toContain('Totales combinados Beca / Apoyo')
+    expect(wrapper.find('[data-testid="concept-totals-overall"]').exists()).toBe(false)
+  })
+
+  it('shows overall Beca and Apoyo for ready and paid, kept apart', async () => {
+    const wrapper = await mountExpanded({ totals })
     const overall = wrapper.find('[data-testid="concept-totals-overall"]').text()
 
     expect(overall).toContain('Por pagar')
@@ -51,8 +67,8 @@ describe('ConceptTotalsCard', () => {
     expect(overall).toContain('$1,000.00')
   })
 
-  it('lists one breakdown row per channel with Beca, Apoyo and total', () => {
-    const wrapper = mountCard({ totals })
+  it('lists one breakdown row per channel with Beca, Apoyo and total', async () => {
+    const wrapper = await mountExpanded({ totals })
 
     const bbva = wrapper.find('[data-testid="concept-totals-channel-bbva"]').text()
     expect(bbva).toContain('Transferencia BBVA')

@@ -39,7 +39,7 @@
       </v-col>
     </v-row>
 
-    <ConceptTotalsCard :totals="conceptTotals" />
+    <ConceptTotalsCard :totals="conceptTotals" class="mt-4" />
 
     <v-tabs v-model="activeTab" class="mb-4">
       <v-tab value="bbva" data-testid="tab-bbva" :disabled="bbvaTabDisabled">
@@ -63,19 +63,6 @@
             <v-icon icon="mdi-bank-transfer" />
             Transferencias
           </h2>
-
-          <!-- Transfers only: payable cheques must stay visible to be marked as paid. -->
-          <v-row v-if="rows.length > 0">
-            <v-col cols="12" sm="6" md="4">
-              <v-switch
-                v-model="showOnlyPending"
-                label="Solo pendientes de revisar"
-                color="primary"
-                density="compact"
-                hide-details
-              />
-            </v-col>
-          </v-row>
 
           <PaymentBatchSummary :summary="summary" />
 
@@ -121,6 +108,19 @@
             :invalid-rows="invalidBankRows"
             @download="confirmExport"
           />
+
+          <!-- Transfers only: payable cheques must stay visible to be marked as paid. -->
+          <v-row v-if="rows.length > 0">
+            <v-col cols="12" sm="6" md="4">
+              <v-switch
+                v-model="showOnlyPending"
+                label="Solo pendientes de revisar"
+                color="primary"
+                density="compact"
+                hide-details
+              />
+            </v-col>
+          </v-row>
 
           <v-row>
             <v-col cols="12">

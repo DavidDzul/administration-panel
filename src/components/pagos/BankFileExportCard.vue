@@ -1,19 +1,8 @@
 <template>
   <template v-if="exportSummary">
     <v-row class="mb-2">
-      <v-col cols="12">
-        <v-card variant="tonal" color="primary">
-          <v-card-text class="text-body-1">
-            <strong>{{ exportSummary.count }}</strong> Becarios a Dispersar
-            &middot; <strong>${{ exportSummary.total_amount }}</strong> Cantidad Total a Dispersar
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-
-    <v-row class="mb-2">
       <v-col v-for="file in files" :key="file.concept" cols="12" md="6">
-        <v-card variant="outlined" :data-testid="`export-file-${file.concept}`">
+        <v-card variant="flat" :data-testid="`export-file-${file.concept}`">
           <v-card-title class="text-subtitle-1">{{ file.title }}</v-card-title>
           <v-card-text class="d-flex flex-column ga-2">
             <div class="text-body-1">
@@ -73,12 +62,9 @@
 // `isPaid && hasExportPermission`. Purely presentational, same convention
 // as PaymentBatchSummary/PaymentBatchTable: state and the actual download
 // call live in usePaymentsPage, this component only renders + emits intent.
-// "Becarios a Dispersar" / "Cantidad Total a Dispersar" mirrors the bank's
-// own xls convention (explicit business request), not this app's existing
-// "Total becarios" / "Monto total" copy in PaymentBatchSummary — "Empleados"
-// was the bank template's own generic payroll wording, corrected here since
-// these are becarios, not employees. The combined total is kept on top so
-// the admin can reconcile it against the sum of the two files.
+// The combined "Becarios a Dispersar" / "Cantidad Total a Dispersar" card was
+// removed: on the paid basis it repeated PaymentBatchSummary's "Pagados" and
+// "Monto total pagado" (same rows, same totalToPay formula).
 import { computed } from 'vue'
 import type { BankFileConcept, ExportFileSummary, ExportSummary, InvalidBankRow } from '@/interfaces/payment'
 

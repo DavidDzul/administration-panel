@@ -758,13 +758,19 @@ describe('PaymentsView', () => {
       expect(wrapper.text()).not.toContain('Solo pendientes de revisar')
     })
 
-    it('places the switch inside the transfer section, below the Transferencias heading', async () => {
+    it('places the switch inside the transfer section, right above the table', async () => {
       mockMixed([buildRow({ refrend_id: 1, is_payable: false })], [cheque({ refrend_id: 10 })])
       const wrapper = await mountedDefault()
       const html = wrapper.html()
       const switchAt = html.indexOf('Solo pendientes de revisar')
 
       expect(switchAt).toBeGreaterThan(html.indexOf('data-testid="transfers-heading"'))
+      const summaryAt = html.indexOf('payment-summary-card')
+      const tableAt = html.indexOf('data-testid="payment-group-header"')
+      expect(summaryAt).toBeGreaterThan(-1)
+      expect(tableAt).toBeGreaterThan(-1)
+      expect(switchAt).toBeGreaterThan(summaryAt)
+      expect(switchAt).toBeLessThan(tableAt)
       expect(switchAt).toBeLessThan(html.indexOf('data-testid="cheque-section"'))
     })
 
@@ -845,8 +851,8 @@ describe('PaymentsView', () => {
       await setAllFilters(wrapper)
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Becarios a Dispersar')
-      expect(wrapper.text()).toContain('1000.00')
+      expect(wrapper.text()).not.toContain('Becarios a Dispersar')
+      expect(wrapper.find('[data-testid="export-file-beca"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('900.00')
       expect(wrapper.text()).toContain('100.00')
       expect(wrapper.text()).toContain('Descargar archivo Beca')
@@ -1612,6 +1618,8 @@ describe('PaymentsView', () => {
 
       const card = wrapper.find('[data-testid="concept-totals"]')
       expect(card.exists()).toBe(true)
+      expect(card.classes()).toContain('mt-4')
+      await card.find('.v-expansion-panel-title').trigger('click')
       expect(card.text()).toContain('$1,000.00')
 
       const html = wrapper.html()

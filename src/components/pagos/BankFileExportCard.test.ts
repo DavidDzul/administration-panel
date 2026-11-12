@@ -42,12 +42,14 @@ const findButton = (wrapper: ReturnType<typeof mountCard>, label: string) =>
   wrapper.findAllComponents(VBtn).find((b) => b.text() === label)
 
 describe('BankFileExportCard', () => {
-  it('renders the combined count and total amount from exportSummary', () => {
+  // The combined count/total duplicated the paid-basis "Pagados" and
+  // "Monto total pagado" summary cards (same rows, same totalToPay formula).
+  it('does not render the combined count and total card', () => {
     const wrapper = mountCard()
 
-    expect(wrapper.text()).toContain('Becarios a Dispersar')
-    expect(wrapper.text()).toContain('Cantidad Total a Dispersar')
-    expect(wrapper.text()).toContain('2600.02')
+    expect(wrapper.text()).not.toContain('Becarios a Dispersar')
+    expect(wrapper.text()).not.toContain('Cantidad Total a Dispersar')
+    expect(wrapper.text()).not.toContain('2600.02')
   })
 
   it('renders one sub-card per concept with its own count, total and filename', () => {
@@ -63,6 +65,16 @@ describe('BankFileExportCard', () => {
     expect(apoyo.text()).toContain('PAGO_MERIDA_202609_42_APOYO.TXT')
   })
 
+  it('renders the per-concept sub-cards flat (white surface, no border)', () => {
+    const wrapper = mountCard()
+
+    for (const concept of ['beca', 'apoyo']) {
+      const card = wrapper.find(`[data-testid="export-file-${concept}"]`)
+      expect(card.classes()).toContain('v-card--variant-flat')
+      expect(card.classes()).not.toContain('v-card--variant-outlined')
+    }
+  })
+
   it('shows per-concept totals that add up to the combined total', () => {
     const summary = buildExportSummary()
     const wrapper = mountCard({ exportSummary: summary })
@@ -73,7 +85,6 @@ describe('BankFileExportCard', () => {
     )
     expect(wrapper.get('[data-testid="export-file-beca"]').text()).toContain(summary.files.beca.total_amount)
     expect(wrapper.get('[data-testid="export-file-apoyo"]').text()).toContain(summary.files.apoyo.total_amount)
-    expect(wrapper.text()).toContain(summary.total_amount)
   })
 
   it('renders nothing when exportSummary is null', () => {

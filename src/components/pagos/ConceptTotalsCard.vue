@@ -1,46 +1,50 @@
 <template>
-  <v-card v-if="totals" variant="outlined" class="mb-4" data-testid="concept-totals">
-    <v-card-title class="text-subtitle-1 font-weight-medium">Totales combinados Beca / Apoyo</v-card-title>
-    <v-card-text>
-      <v-row data-testid="concept-totals-overall">
-        <v-col v-for="basis in BASES" :key="basis.key" cols="12" sm="6">
-          <v-card variant="tonal" :color="basis.color" class="concept-totals-basis">
-            <v-card-text>
-              <div class="text-caption text-medium-emphasis">{{ basis.label }}</div>
-              <div class="text-h5 font-weight-medium">{{ money(totals.overall[basis.key].total) }}</div>
-              <div class="text-body-2">
-                Cuenta Beca {{ money(totals.overall[basis.key].beca) }} · Cuenta Apoyo
-                {{ money(totals.overall[basis.key].apoyo) }}
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
+  <v-expansion-panels v-if="totals" flat class="mb-4" data-testid="concept-totals">
+    <v-expansion-panel>
+      <v-expansion-panel-title class="concept-totals-title text-subtitle-1 font-weight-medium">
+        Totales combinados Beca / Apoyo
+      </v-expansion-panel-title>
+      <v-expansion-panel-text>
+        <v-row data-testid="concept-totals-overall">
+          <v-col v-for="basis in BASES" :key="basis.key" cols="12" sm="6">
+            <v-card variant="tonal" :color="basis.color" class="concept-totals-basis">
+              <v-card-text>
+                <div class="text-caption text-medium-emphasis">{{ basis.label }}</div>
+                <div class="text-h5 font-weight-medium">{{ money(totals.overall[basis.key].total) }}</div>
+                <div class="text-body-2">
+                  Cuenta Beca {{ money(totals.overall[basis.key].beca) }} · Cuenta Apoyo
+                  {{ money(totals.overall[basis.key].apoyo) }}
+                </div>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
 
-      <v-table density="compact" class="mt-2">
-        <thead>
-          <tr>
-            <th>Canal</th>
-            <th v-for="basis in BASES" :key="basis.key" colspan="1">{{ basis.label }} (Beca · Apoyo · Total)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="channel in CHANNELS"
-            :key="channel.key"
-            :data-testid="`concept-totals-channel-${channel.key}`"
-          >
-            <td>{{ channel.label }}</td>
-            <td v-for="basis in BASES" :key="basis.key">
-              {{ money(totals.channels[channel.key][basis.key].beca) }} ·
-              {{ money(totals.channels[channel.key][basis.key].apoyo) }} ·
-              {{ money(totals.channels[channel.key][basis.key].total) }}
-            </td>
-          </tr>
-        </tbody>
-      </v-table>
-    </v-card-text>
-  </v-card>
+        <v-table density="compact" class="mt-2">
+          <thead>
+            <tr>
+              <th>Canal</th>
+              <th v-for="basis in BASES" :key="basis.key" colspan="1">{{ basis.label }} (Beca · Apoyo · Total)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="channel in CHANNELS"
+              :key="channel.key"
+              :data-testid="`concept-totals-channel-${channel.key}`"
+            >
+              <td>{{ channel.label }}</td>
+              <td v-for="basis in BASES" :key="basis.key">
+                {{ money(totals.channels[channel.key][basis.key].beca) }} ·
+                {{ money(totals.channels[channel.key][basis.key].apoyo) }} ·
+                {{ money(totals.channels[channel.key][basis.key].total) }}
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
+      </v-expansion-panel-text>
+    </v-expansion-panel>
+  </v-expansion-panels>
 </template>
 
 <script setup lang="ts">
@@ -74,5 +78,14 @@ const CHANNELS: ReadonlyArray<{ key: ConceptTotalsChannel; label: string }> = [
 <style scoped>
 .concept-totals-basis {
   height: 100%;
+}
+
+/* Keep the header on the panel's surface color on hover/focus. */
+.concept-totals-title {
+  background-color: rgb(var(--v-theme-surface));
+}
+
+.concept-totals-title :deep(.v-expansion-panel-title__overlay) {
+  opacity: 0;
 }
 </style>
