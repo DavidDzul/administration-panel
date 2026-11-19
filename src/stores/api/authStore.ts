@@ -1,4 +1,5 @@
 import axios from '@/axiosConfig'
+import { isAxiosError } from 'axios'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -38,11 +39,32 @@ export const useAuthStore = defineStore('authStore', () => {
       await router.push({ path: '/' })
     } catch (error: unknown) {
       console.error('Error en login:', error)
+      const throttled = isAxiosError(error) && error.response?.status === 429
       showAlert({
-        title: 'Error al iniciar sesión, verifica tu usuario y/o contraseña.',
+        title: throttled
+          ? 'Demasiados intentos. Espera un minuto e intenta de nuevo.'
+          : 'Error al iniciar sesión, verifica tu usuario y/o contraseña.',
         status: 'error',
       })
     }
+  }
+
+  // Called by the axios 401 interceptor (main.ts): the token expired, was
+  // revoked (role change, deactivation) or the account was disabled. Several
+  // requests can fail at once, so only the first one clears and redirects.
+  const handleUnauthorized = (message?: string): void => {
+    if (!token.value && !localStorage.getItem('token')) return
+    loggedUser.value = false
+    userProfile.value = undefined
+    permissions.value = []
+    token.value = ''
+    localStorage.removeItem('token')
+    delete axios.defaults.headers.common['Authorization']
+    showAlert({
+      title: message || 'Tu sesión expiró. Inicia sesión nuevamente.',
+      status: 'error',
+    })
+    void router.push('/auth/login')
   }
 
   const logout = async (): Promise<void> => {
@@ -199,6 +221,7 @@ export const useAuthStore = defineStore('authStore', () => {
   return {
     login,
     logout,
+    handleUnauthorized,
     getProfile,
     getPermissions,
     updateProfile,
