@@ -44,8 +44,6 @@
                 <v-col cols="12">
                   <v-select
                     clearable
-                    multiple
-                    chips
                     :items="userTypeOptions"
                     v-model="userTypeFilter"
                     item-title="text"
@@ -214,9 +212,9 @@ const router = useRouter()
 const search = ref('')
 const generation_id = ref<number | null>(null)
 const campus = ref<string | null>(null)
-// Multi-select, defaults to both types. An EMPTY selection means "no type
-// filter" (everyone is shown) so the table is never emptied by accident.
-const userTypeFilter = ref<PersonType[]>(['BEC_ACTIVE', 'BEC_INACTIVE'])
+// Single select like psicol-panel's /becarios: defaults to becarios, and a
+// cleared selection (null) means "no type filter" (everyone is shown).
+const userTypeFilter = ref<PersonType | null>('BEC_ACTIVE')
 // sdd/egresado-baja-definitiva (PR4, amendment #1991): null = "Todos" (no
 // filter applied) — default view must not hide anyone, same as the other
 // clearable filters above.
@@ -236,19 +234,14 @@ const filterGroupLabel: Record<string, string> = {
 
 const userTypeOptions: SelectOption[] = becTypeArray
 
-// The single selected type, or null when the selection is empty or has both.
-const singleSelectedType = computed<PersonType | null>(() =>
-  userTypeFilter.value.length === 1 ? userTypeFilter.value[0] : null,
-)
-
 const filterLabel = computed<string>(() =>
-  singleSelectedType.value
-    ? (filterGroupLabel[singleSelectedType.value] ?? singleSelectedType.value)
+  userTypeFilter.value
+    ? (filterGroupLabel[userTypeFilter.value] ?? userTypeFilter.value)
     : 'Becarios y egresados',
 )
 
 const filterChipColor = computed<string>(() => {
-  switch (singleSelectedType.value) {
+  switch (userTypeFilter.value) {
     case 'BEC_ACTIVE':
       return 'primary'
     case 'BEC_INACTIVE':
@@ -258,7 +251,7 @@ const filterChipColor = computed<string>(() => {
   }
 })
 
-const showTypeColumn = computed(() => singleSelectedType.value === null)
+const showTypeColumn = computed(() => userTypeFilter.value === null)
 
 const NO_GENERATION_LABEL = 'Sin generación'
 
@@ -329,8 +322,7 @@ const filteredGenerations = computed(() => props.generations.filter((gen) => gen
 
 const filteredPersons = computed(() =>
   props.persons.filter((person) => {
-    const typeMatch =
-      userTypeFilter.value.length === 0 ? true : userTypeFilter.value.includes(person.user_type)
+    const typeMatch = userTypeFilter.value ? person.user_type === userTypeFilter.value : true
     const campusMatch = campus.value ? person.campus === campus.value : true
     const generationMatch = generation_id.value ? Number(person.generation_id) === generation_id.value : true
     const statusMatch =
