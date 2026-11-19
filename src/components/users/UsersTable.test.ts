@@ -69,22 +69,22 @@ const openFilterMenu = async (wrapper: ReturnType<typeof mountTable>) => {
 }
 
 describe('UsersTable — Tipo column visibility', () => {
-  it('shows the Tipo column when no tipo filter is applied', () => {
+  it('hides the Tipo column by default (Becarios is preselected)', () => {
     const wrapper = mountTable()
     const headers = wrapper.findAll('th').map((th) => th.text())
-    expect(headers.some((h) => h.includes('Tipo'))).toBe(true)
+    expect(headers.some((h) => h.includes('Tipo'))).toBe(false)
   })
 
-  it('hides the Tipo column once a single tipo is selected', async () => {
+  it('shows the Tipo column once the tipo filter is cleared', async () => {
     const wrapper = mountTable()
     await openFilterMenu(wrapper)
 
     const selects = wrapper.findAllComponents(VSelect)
-    await selects[0].vm.$emit('update:modelValue', ['BEC_ACTIVE'])
+    await selects[0].vm.$emit('update:modelValue', null)
     await wrapper.vm.$nextTick()
 
     const headers = wrapper.findAll('th').map((th) => th.text())
-    expect(headers.some((h) => h.includes('Tipo'))).toBe(false)
+    expect(headers.some((h) => h.includes('Tipo'))).toBe(true)
   })
 })
 
@@ -270,46 +270,46 @@ const hasTipoHeader = (wrapper: ReturnType<typeof mountTable>) =>
 const headerText = (wrapper: ReturnType<typeof mountTable>) =>
   wrapper.find('.bg-grey-lighten-5').text()
 
-const setTipo = async (wrapper: ReturnType<typeof mountTable>, value: string[]) => {
+const setTipo = async (wrapper: ReturnType<typeof mountTable>, value: string | null) => {
   await openFilterMenu(wrapper)
   await wrapper.findAllComponents(VSelect)[0].vm.$emit('update:modelValue', value)
   await wrapper.vm.$nextTick()
 }
 
-describe('UsersTable — Tipo multi-select (default: becarios + egresados)', () => {
-  it('defaults the Tipo selection to both types and shows every becario and egresado', async () => {
+describe('UsersTable — Tipo single select (default: becarios, same as psicol-panel)', () => {
+  it('defaults the Tipo selection to becarios and hides egresados', async () => {
     const wrapper = mountTable(mixedPersons())
     await openFilterMenu(wrapper)
 
     const tipo = wrapper.findAllComponents(VSelect)[0]
-    expect(tipo.props('multiple')).toBe(true)
-    expect(tipo.props('modelValue')).toEqual(['BEC_ACTIVE', 'BEC_INACTIVE'])
+    expect(tipo.props('multiple')).toBe(false)
+    expect(tipo.props('modelValue')).toBe('BEC_ACTIVE')
     expect(wrapper.text()).toContain('Becaria Uno')
-    expect(wrapper.text()).toContain('Egresado Dos')
-    expect(hasTipoHeader(wrapper)).toBe(true)
+    expect(wrapper.text()).not.toContain('Egresado Dos')
+    expect(hasTipoHeader(wrapper)).toBe(false)
   })
 
-  it('shows only egresados and hides the Tipo column when BEC_ACTIVE is deselected', async () => {
+  it('shows only egresados and hides the Tipo column when egresados is selected', async () => {
     const wrapper = mountTable(mixedPersons())
-    await setTipo(wrapper, ['BEC_INACTIVE'])
+    await setTipo(wrapper, 'BEC_INACTIVE')
 
     expect(wrapper.text()).toContain('Egresado Dos')
     expect(wrapper.text()).not.toContain('Becaria Uno')
     expect(hasTipoHeader(wrapper)).toBe(false)
   })
 
-  it('shows only becarios and hides the Tipo column when BEC_INACTIVE is deselected', async () => {
+  it('shows only becarios and hides the Tipo column when becarios is selected', async () => {
     const wrapper = mountTable(mixedPersons())
-    await setTipo(wrapper, ['BEC_ACTIVE'])
+    await setTipo(wrapper, 'BEC_ACTIVE')
 
     expect(wrapper.text()).toContain('Becaria Uno')
     expect(wrapper.text()).not.toContain('Egresado Dos')
     expect(hasTipoHeader(wrapper)).toBe(false)
   })
 
-  it('treats an empty selection as no type filter (shows everyone, Tipo column visible)', async () => {
+  it('treats a cleared selection as no type filter (shows everyone, Tipo column visible)', async () => {
     const wrapper = mountTable(mixedPersons())
-    await setTipo(wrapper, [])
+    await setTipo(wrapper, null)
 
     expect(wrapper.text()).toContain('Becaria Uno')
     expect(wrapper.text()).toContain('Egresado Dos')
@@ -318,26 +318,22 @@ describe('UsersTable — Tipo multi-select (default: becarios + egresados)', () 
 
   it('shows the matching header label for each selection', async () => {
     const wrapper = mountTable(mixedPersons())
-    expect(headerText(wrapper)).toContain('Becarios y egresados')
-    expect(headerText(wrapper)).not.toContain('Todas las personas')
-
-    await setTipo(wrapper, ['BEC_ACTIVE'])
     expect(headerText(wrapper)).toContain('Becarios')
     expect(headerText(wrapper)).not.toContain('y egresados')
 
-    await setTipo(wrapper, ['BEC_INACTIVE'])
+    await setTipo(wrapper, 'BEC_INACTIVE')
     expect(headerText(wrapper)).toContain('Egresados')
 
-    await setTipo(wrapper, [])
+    await setTipo(wrapper, null)
     expect(headerText(wrapper)).toContain('Becarios y egresados')
   })
 
   it('keeps the persona count chip in sync with the selection', async () => {
     const wrapper = mountTable(mixedPersons())
-    expect(headerText(wrapper)).toContain('2 personas')
-
-    await setTipo(wrapper, ['BEC_ACTIVE'])
     expect(headerText(wrapper)).toContain('1 persona')
+
+    await setTipo(wrapper, null)
+    expect(headerText(wrapper)).toContain('2 personas')
   })
 })
 
@@ -441,7 +437,7 @@ describe('UsersTable — default sort by last name then first name', () => {
       buildPerson({ id: 2, last_name: 'Beta', first_name: 'B', user_type: 'BEC_ACTIVE' }),
       buildPerson({ id: 3, last_name: 'Alfa', first_name: 'C', user_type: 'BEC_INACTIVE' }),
     ])
-    await setTipo(wrapper, ['BEC_INACTIVE'])
+    await setTipo(wrapper, 'BEC_INACTIVE')
     expect(columnValues(wrapper, 'Apellido(s)')).toEqual(['Alfa', 'Zeta'])
   })
 
@@ -475,8 +471,10 @@ describe('UsersTable — default sort by last name then first name', () => {
 })
 
 describe('UsersTable — Generación column', () => {
-  it('sits right after Apellido(s) and before Tipo when Tipo is shown', () => {
-    expect(headerTexts(mountTable())).toEqual([
+  it('sits right after Apellido(s) and before Tipo when Tipo is shown', async () => {
+    const wrapper = mountTable()
+    await setTipo(wrapper, null)
+    expect(headerTexts(wrapper)).toEqual([
       'ID',
       'Matrícula',
       'Nombre(s)',
@@ -490,7 +488,7 @@ describe('UsersTable — Generación column', () => {
 
   it('sits right after Apellido(s) when Tipo is hidden', async () => {
     const wrapper = mountTable()
-    await setTipo(wrapper, ['BEC_ACTIVE'])
+    await setTipo(wrapper, 'BEC_ACTIVE')
     expect(headerTexts(wrapper)).toEqual([
       'ID',
       'Matrícula',
